@@ -113,7 +113,7 @@ async function getBhoomiMitraReply(userText) {
           content: userText
         }
       ],
-      temperature: 0.4
+      
     });
 
     const reply = completion &&
