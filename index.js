@@ -90,26 +90,24 @@ app.post("/webhook", async (req, res) => {
 
    // Send reply through WhatsApp
 
-await axios.post("https://graph.facebook.com/v23.0/" + PHONE_NUMBER_ID + "/messages",
-{
+await axios.post(
+  https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages,
+  {
     messaging_product: "whatsapp",
     to: from,
     text: {
-        body: reply
+      body: reply
     }
-},
-{
+  },
+  {
     headers: {
-        Authorization: "Bearer " + WHATSAPP_TOKEN,
-        "Content-Type": "application/json"
+      Authorization: "Bearer " + WHATSAPP_TOKEN,
+      "Content-Type": "application/json"
     }
-});
-    headers: {
-        Authorization: "Bearer " + WHATSAPP_TOKEN,
-        "Content-Type": "application/json"
-    }
-});
-    console.log("Reply Sent");
+  }
+);
+
+console.log("Reply Sent");
 
   } catch (err) {
 
