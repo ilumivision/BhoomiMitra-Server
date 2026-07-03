@@ -88,9 +88,7 @@ app.post("/webhook", async (req, res) => {
 
     });
 
-    const reply =
-      completion.choices[0].message.content || "Sorry, I couldn't answer.";
-// Send reply through WhatsApp
+   // Send reply through WhatsApp
 
 await axios.post("https://graph.facebook.com/v23.0/" + PHONE_NUMBER_ID + "/messages",
 {
@@ -101,6 +99,11 @@ await axios.post("https://graph.facebook.com/v23.0/" + PHONE_NUMBER_ID + "/messa
     }
 },
 {
+    headers: {
+        Authorization: "Bearer " + WHATSAPP_TOKEN,
+        "Content-Type": "application/json"
+    }
+});
     headers: {
         Authorization: "Bearer " + WHATSAPP_TOKEN,
         "Content-Type": "application/json"
