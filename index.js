@@ -124,6 +124,6 @@ await axios.post("https://graph.facebook.com/v23.0/" + PHONE_NUMBER_ID + "/messa
 // Start Server
 app.listen(PORT, "0.0.0.0", () => {
 
-  console.log(Server running on port ${PORT});
+ console.log("Server running on port " + PORT);
 
 });
