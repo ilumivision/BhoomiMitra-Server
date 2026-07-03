@@ -86,12 +86,12 @@ app.post("/webhook", async (req, res) => {
         }
       ]
 
-    });
+ const reply = completion.choices[0].message.content;
 
-   // Send reply through WhatsApp
+// Send reply through WhatsApp
 
 await axios.post(
-  https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages,
+"https://graph.facebook.com/v25.0/" + PHONE_NUMBER_ID + "/messages",
   {
     messaging_product: "whatsapp",
     to: from,
