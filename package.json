@@ -1,7 +1,7 @@
 {
-  "name": "bhoomimitra-ai",
+  "name": "bhoomimitra-server",
   "version": "1.0.0",
-  "description": "Backend server for BhoomiMitra AI",
+  "description": "Backend server for BhoomiMitra AI WhatsApp assistant",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
@@ -12,4 +12,4 @@
     "express": "^4.18.2",
     "openai": "^5.12.2"
   }
-}
+} 
