@@ -44,11 +44,13 @@ const sheets = google.sheets({
 
 const sessions={};
 
-const SHEETS={
- farmers:"Farmers",
- conversation:"Conversation_History",
- aiLog:"AI_Response_Log",
- farmerQueries:"Farmer_Queries"
+const SHEETS = {
+  farmers: "Farmer_Master",
+  conversation: "AI_Conversation_History",
+  aiLog: "AI_Response_Log",
+  farmerQueries: "Farmer_Queries",
+  weatherApiLog: "Weather_API_Log",
+  aiMemory: "AI_Memory"
 };
 
 const SYSTEM_PROMPT=`
