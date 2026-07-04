@@ -351,7 +351,8 @@ async function handleRegistration(from,text){
 }
 async function saveFarmer(data){
  const bmId="BM-"+Date.now();
-
+console.log("Saving farmer to Google Sheets...");
+console.log(data);
  await appendSafe(SHEETS.farmers,[
   bmId,
   data.name || "",
