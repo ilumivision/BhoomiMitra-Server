@@ -20,7 +20,10 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.5";
 const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL;
 const GOOGLE_PRIVATE_KEY =
-(process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g,"\n");
+  (process.env.GOOGLE_PRIVATE_KEY || "")
+    .replace(/^"|"$/g, "")
+    .replace(/\\n/g, "\n")
+    .trim();
 
 const openai = new OpenAI({
  apiKey: OPENAI_API_KEY
