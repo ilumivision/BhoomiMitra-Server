@@ -23,7 +23,7 @@ const GOOGLE_PRIVATE_KEY =
   (process.env.GOOGLE_PRIVATE_KEY || "")
     .replace(/^"|"$/g, "")
     .replace(/\\n/g, "\n")
-    .trim();
+    .trim(); 
 
 const openai = new OpenAI({
  apiKey: OPENAI_API_KEY
