@@ -35,65 +35,31 @@ const googleAuth = new google.auth.JWT({
 const sheets = google.sheets({ version: "v4", auth: googleAuth });
 
 const sessions = {};
+const processedMessages = new Set();
 
 const SHEETS = {
   farmers: "Farmer_Master",
   expertRegistration: "Expert_Registration",
   skilledWorkerRegistration: "Skilled_Worker_Registration",
   serviceProviderRegistration: "Service_Provider_Registration",
-
   conversation: "AI_Conversation_History",
   aiLog: "AI_Response_Log",
   farmerQueries: "Farmer_Queries",
-  aiMemory: "AI_Memory",
-
   weatherData: "Weather_Data",
   weatherForecast: "Weather_Forecast",
-  weatherStations: "Weather_Stations",
-  weatherSettings: "Weather_Settings",
-  weatherAdvisory: "Weather_Advisory",
-  weatherApiLog: "Weather_API_Log",
-  farmerWeatherSubscription: "Farmer_Weather_Subscription",
-
-  districtMaster: "District_Master",
-  locationMaster: "Location_Master"
+  aiMemory: "AI_Memory"
 };
 
-const SYSTEM_PROMPT = `
-You are BhoomiMitra, Kerala's trusted Agriculture AI Assistant, powered by IlumiVision.
-
-MISSION:
-Improve productivity, profitability, sustainability, climate resilience and quality of life of Kerala farmers.
-
-STRICT SCOPE:
-Operate only for Kerala.
-Answer only agriculture and allied sector questions.
-
-Supported sectors:
-Agriculture, horticulture, plantation crops, coconut, arecanut, rubber, rice, banana, vegetables, fruits, spices, medicinal plants, protected cultivation, organic farming, natural farming, precision farming, livestock, dairy, goat, poultry, piggery, rabbit, fisheries, aquaculture, mushroom, apiculture, farm mechanization, food processing, value addition, agricultural marketing, weather, crop insurance, FPO, rural livelihood, government schemes and KVK services.
-
-Knowledge priority:
-1. BhoomiMitra Google Sheets database
-2. KAU Package of Practices
-3. ICAR institutes
-4. KVK advisories
-5. Kerala Government
-6. Government of India
-7. IMD and weather alerts
-
-Rules:
-Never guess.
-Never fabricate.
-Never invent references.
-If uncertain, say clearly.
-Keep answers short, practical and farmer-friendly.
-Ask only one short clarification question when needed.
-Reply in Malayalam if user writes Malayalam.
-Reply in English if user writes English.
-
-If question is outside agriculture, reply:
-"I am BhoomiMitra, Kerala's Agriculture AI Assistant. Please ask only agriculture or allied sector questions."
-`;
+const SYSTEM_PROMPT = [
+  "You are BhoomiMitra, Kerala's trusted Agriculture AI Assistant powered by IlumiVision.",
+  "Operate only for Kerala.",
+  "Answer only agriculture and allied sector questions.",
+  "Use Kerala context, KAU Package of Practices, ICAR, KVK, Kerala Government and IMD-style safety advice.",
+  "Never guess. Never fabricate. If unsure, say clearly.",
+  "Reply in Malayalam if the user writes Malayalam. Reply in English if the user writes English.",
+  "Keep answers short, practical and farmer-friendly.",
+  "If outside agriculture, reply: I am BhoomiMitra, Kerala's Agriculture AI Assistant. Please ask only agriculture or allied sector questions."
+].join("\n");
 
 app.get("/", function (req, res) {
   res.status(200).send("BhoomiMitra AI Server v2.0 is running.");
@@ -105,7 +71,6 @@ app.get("/webhook", function (req, res) {
   const challenge = req.query["hub.challenge"];
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
-    console.log("Webhook verified successfully.");
     return res.status(200).send(challenge);
   }
 
@@ -117,8 +82,7 @@ app.post("/webhook", async function (req, res) {
 
   try {
     const body = req.body;
-
-    if (body.object !== "whatsapp_business_account") return;
+    if (!body || body.object !== "whatsapp_business_account") return;
 
     const value =
       body.entry &&
@@ -132,17 +96,17 @@ app.post("/webhook", async function (req, res) {
     const message = value.messages && value.messages[0];
     if (!message) return;
 
-    const from = message.from;
+    if (processedMessages.has(message.id)) return;
+    processedMessages.add(message.id);
 
+    const from = message.from;
     let userText = "";
+
     if (message.type === "text") {
       userText = message.text && message.text.body ? message.text.body.trim() : "";
     } else {
       userText = "User sent a non-text message.";
     }
-
-    console.log("Message from:", from);
-    console.log("User text:", userText);
 
     await appendSafe(SHEETS.conversation, [
       new Date().toISOString(),
@@ -151,21 +115,16 @@ app.post("/webhook", async function (req, res) {
       "incoming"
     ]);
 
-    const registrationReply = await handleRegistration(from, userText);
-    if (registrationReply) {
-      await sendWhatsAppMessage(from, registrationReply);
-      await logAI(from, userText, registrationReply, "registration");
+    const regReply = await handleRegistration(from, userText);
+    if (regReply) {
+      await sendWhatsAppMessage(from, regReply);
+      await logAI(from, userText, regReply, "registration");
       return;
     }
 
     const weatherContext = await getLatestWeatherContext(userText);
-    const forecastContext = await getWeatherForecastContext(userText);
-
-    const aiReply = await getBhoomiMitraReply(
-      userText,
-      weatherContext,
-      forecastContext
-    );
+    const forecastContext = await getForecastContext(userText);
+    const aiReply = await getAIReply(userText, weatherContext, forecastContext);
 
     await sendWhatsAppMessage(from, aiReply);
     await logAI(from, userText, aiReply, "ai_reply");
@@ -177,14 +136,14 @@ app.post("/webhook", async function (req, res) {
       aiReply,
       "Open"
     ]);
+
   } catch (error) {
-    console.error("Webhook error:");
-    console.error(error.response && error.response.data ? error.response.data : error.message);
+    console.error("Webhook error:", error.response && error.response.data ? error.response.data : error.message);
   }
 });
 
 async function handleRegistration(from, text) {
-  const lower = text.toLowerCase();
+  const lower = String(text || "").toLowerCase();
 
   if (!sessions[from]) {
     if (
@@ -194,85 +153,80 @@ async function handleRegistration(from, text) {
       lower.includes("രജിസ്ട്രേഷൻ")
     ) {
       sessions[from] = {
-        type: "choose_category",
         step: "category",
         data: { whatsapp: from }
       };
 
-      return "രജിസ്ട്രേഷൻ തുടങ്ങാം. ദയവായി വിഭാഗം മാത്രം അയക്കൂ:\n1 Farmer\n2 Expert\n3 Skilled Worker\n4 Service Provider";
+      return "രജിസ്ട്രേഷൻ തുടങ്ങാം. വിഭാഗം അയക്കൂ:\n1 Farmer\n2 Expert\n3 Skilled Worker\n4 Service Provider";
     }
 
     return null;
   }
 
-  const session = sessions[from];
+  const s = sessions[from];
 
-  if (session.step === "category") {
-    const category = detectCategory(text);
-    session.type = category;
-    session.data.category = category;
-    session.step = "name";
-
+  if (s.step === "category") {
+    s.data.category = detectCategory(text);
+    s.step = "name";
     return "പേര് മാത്രം അയക്കൂ.";
   }
 
-  if (session.step === "name") {
-    session.data.name = text;
-    session.step = "district";
+  if (s.step === "name") {
+    s.data.name = text;
+    s.step = "district";
     return "ജില്ല ഏതാണ്?";
   }
 
-  if (session.step === "district") {
-    session.data.district = text;
-    session.step = "panchayath";
+  if (s.step === "district") {
+    s.data.district = text;
+    s.step = "panchayath";
     return "പഞ്ചായത്ത് ഏതാണ്?";
   }
 
-  if (session.step === "panchayath") {
-    session.data.panchayath = text;
+  if (s.step === "panchayath") {
+    s.data.panchayath = text;
 
-    if (session.type === "farmer") {
-      session.step = "crop";
+    if (s.data.category === "farmer") {
+      s.step = "crop";
       return "പ്രധാന കൃഷി / വിള ഏതാണ്?";
     }
 
-    session.step = "service";
-    return "നിങ്ങളുടെ expertise / service / skill എന്താണ്?";
+    s.step = "service";
+    return "നിങ്ങളുടെ expertise / skill / service എന്താണ്?";
   }
 
-  if (session.step === "crop") {
-    session.data.mainCrop = text;
-    await saveRegistration(session.type, session.data);
+  if (s.step === "crop") {
+    s.data.crop = text;
+    await saveRegistration(s.data);
     delete sessions[from];
-
-    return "നന്ദി. നിങ്ങളുടെ കർഷക രജിസ്ട്രേഷൻ BhoomiMitra ഡാറ്റാബേസിൽ സേവ് ചെയ്തു. ഇനി കൃഷിയുമായി ബന്ധപ്പെട്ട സംശയം ചോദിക്കാം.";
+    return "നന്ദി. കർഷക രജിസ്ട്രേഷൻ BhoomiMitra ഡാറ്റാബേസിൽ സേവ് ചെയ്തു.";
   }
 
-  if (session.step === "service") {
-    session.data.service = text;
-    await saveRegistration(session.type, session.data);
+  if (s.step === "service") {
+    s.data.service = text;
+    await saveRegistration(s.data);
     delete sessions[from];
-
-    return "നന്ദി. നിങ്ങളുടെ രജിസ്ട്രേഷൻ സേവ് ചെയ്തു. പരിശോധനയ്ക്ക് ശേഷം approval നൽകും.";
+    return "നന്ദി. രജിസ്ട്രേഷൻ സേവ് ചെയ്തു. പരിശോധനയ്ക്ക് ശേഷം approval നൽകും.";
   }
 
   return null;
 }
 
 function detectCategory(text) {
-  const lower = text.toLowerCase();
+  const t = String(text || "").toLowerCase();
 
-  if (lower.includes("expert") || lower.includes("വിദഗ്ധ")) return "expert";
-  if (lower.includes("worker") || lower.includes("skilled") || lower.includes("തൊഴിലാളി")) return "skilled_worker";
-  if (lower.includes("service") || lower.includes("provider") || lower.includes("സേവനം")) return "service_provider";
+  if (t.includes("2") || t.includes("expert")) return "expert";
+  if (t.includes("3") || t.includes("worker") || t.includes("skilled")) return "skilled_worker";
+  if (t.includes("4") || t.includes("service")) return "service_provider";
 
   return "farmer";
 }
 
-async function saveRegistration(type, data) {
+async function saveRegistration(data) {
   const id = "BM-" + Date.now();
+  const category = data.category || "farmer";
 
-  if (type === "farmer") {
+  if (category === "farmer") {
     await appendSafe(SHEETS.farmers, [
       id,
       data.name || "",
@@ -286,7 +240,7 @@ async function saveRegistration(type, data) {
       "",
       "",
       "",
-      data.mainCrop || "",
+      data.crop || "",
       "WhatsApp Registration",
       "Approved",
       new Date().toISOString()
@@ -295,9 +249,8 @@ async function saveRegistration(type, data) {
   }
 
   let sheetName = SHEETS.expertRegistration;
-
-  if (type === "skilled_worker") sheetName = SHEETS.skilledWorkerRegistration;
-  if (type === "service_provider") sheetName = SHEETS.serviceProviderRegistration;
+  if (category === "skilled_worker") sheetName = SHEETS.skilledWorkerRegistration;
+  if (category === "service_provider") sheetName = SHEETS.serviceProviderRegistration;
 
   await appendSafe(sheetName, [
     id,
@@ -306,7 +259,7 @@ async function saveRegistration(type, data) {
     data.district || "",
     data.panchayath || "",
     data.service || "",
-    type,
+    category,
     "Pending",
     "WhatsApp Registration",
     new Date().toISOString()
@@ -324,36 +277,38 @@ async function getLatestWeatherContext(userText) {
     if (rows.length === 0) return "No live weather data available.";
 
     const district = detectKeralaDistrict(userText);
-    let selected = rows[0];
+    let row = rows[0];
 
     if (district) {
-      const found = rows.find(r => String(r[2] || "").toLowerCase() === district.toLowerCase());
-      if (found) selected = found;
+      const found = rows.find(function (r) {
+        return String(r[2] || "").toLowerCase() === district.toLowerCase();
+      });
+      if (found) row = found;
     }
 
-    return `
-Latest Weather from BhoomiMitra Database:
-District: ${selected[2] || ""}
-Date: ${selected[3] || ""}
-Time: ${selected[4] || ""}
-Temperature: ${selected[5] || ""} °C
-Humidity: ${selected[6] || ""} %
-Rainfall: ${selected[7] || ""} mm
-Wind Speed: ${selected[8] || ""} km/h
-Wind Direction: ${selected[9] || ""}
-Pressure: ${selected[10] || ""} hPa
-Weather Event: ${selected[13] || ""}
-Source: ${selected[14] || ""}
-Last Updated: ${selected[15] || ""}
-`;
+    return [
+      "Latest BhoomiMitra Weather:",
+      "District: " + (row[2] || ""),
+      "Date: " + (row[3] || ""),
+      "Time: " + (row[4] || ""),
+      "Temperature: " + (row[5] || "") + " C",
+      "Humidity: " + (row[6] || "") + " %",
+      "Rainfall: " + (row[7] || "") + " mm",
+      "Wind Speed: " + (row[8] || "") + " km/h",
+      "Wind Direction: " + (row[9] || ""),
+      "Pressure: " + (row[10] || "") + " hPa",
+      "Weather Event: " + (row[13] || ""),
+      "Source: " + (row[14] || ""),
+      "Last Updated: " + (row[15] || "")
+    ].join("\n");
+
   } catch (error) {
-    console.error("Weather read error:");
-    console.error(error.response && error.response.data ? error.response.data : error.message);
+    console.error("Weather read error:", error.response && error.response.data ? error.response.data : error.message);
     return "Weather data could not be read from BhoomiMitra database.";
   }
 }
 
-async function getWeatherForecastContext(userText) {
+async function getForecastContext(userText) {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: GOOGLE_SHEET_ID,
@@ -367,26 +322,45 @@ async function getWeatherForecastContext(userText) {
     let filtered = rows;
 
     if (district) {
-      filtered = rows.filter(r => String(r[2] || "").toLowerCase() === district.toLowerCase());
+      filtered = rows.filter(function (r) {
+        return String(r[2] || "").toLowerCase() === district.toLowerCase();
+      });
     }
 
     filtered = filtered.slice(0, 7);
 
-    return filtered.map(r => {
-      return ${r[3] || ""}: Max ${r[4] || ""}°C, Min ${r[5] || ""}°C, Rain ${r[6] || ""} mm, Rain Chance ${r[7] || ""}%, Wind ${r[8] || ""} km/h, Event ${r[9] || ""}, Advisory: ${r[10] || ""};
+    return filtered.map(function (r) {
+      return (
+        (r[3] || "") +
+        ": Max " + (r[4] || "") + " C, Min " + (r[5] || "") +
+        " C, Rain " + (r[6] || "") + " mm, Rain Chance " + (r[7] || "") +
+        "%, Wind " + (r[8] || "") + " km/h, Event " + (r[9] || "") +
+        ", Advisory: " + (r[10] || "")
+      );
     }).join("\n");
+
   } catch (error) {
-    console.error("Forecast read error:");
-    console.error(error.response && error.response.data ? error.response.data : error.message);
+    console.error("Forecast read error:", error.response && error.response.data ? error.response.data : error.message);
     return "Forecast data could not be read from BhoomiMitra database.";
   }
 }
 
 function detectKeralaDistrict(text) {
   const districts = [
-    "Thiruvananthapuram", "Kollam", "Pathanamthitta", "Alappuzha",
-    "Kottayam", "Idukki", "Ernakulam", "Thrissur", "Palakkad",
-    "Malappuram", "Kozhikode", "Wayanad", "Kannur", "Kasaragod"
+    "Thiruvananthapuram",
+    "Kollam",
+    "Pathanamthitta",
+    "Alappuzha",
+    "Kottayam",
+    "Idukki",
+    "Ernakulam",
+    "Thrissur",
+    "Palakkad",
+    "Malappuram",
+    "Kozhikode",
+    "Wayanad",
+    "Kannur",
+    "Kasaragod"
   ];
 
   const lower = String(text || "").toLowerCase();
@@ -398,7 +372,7 @@ function detectKeralaDistrict(text) {
   return null;
 }
 
-async function getBhoomiMitraReply(userText, weatherContext, forecastContext) {
+async function getAIReply(userText, weatherContext, forecastContext) {
   try {
     const completion = await openai.chat.completions.create({
       model: OPENAI_MODEL,
@@ -407,12 +381,15 @@ async function getBhoomiMitraReply(userText, weatherContext, forecastContext) {
           role: "system",
           content:
             SYSTEM_PROMPT +
-            "\n\nUse the following BhoomiMitra weather database only when the question involves weather, spraying, irrigation, rainfall, wind, disease risk or farm operations.\n\n" +
+            "\n\nUse this live weather data only when relevant:\n" +
             weatherContext +
             "\n\n7-day forecast:\n" +
             forecastContext
         },
-        { role: "user", content: userText }
+        {
+          role: "user",
+          content: userText
+        }
       ]
     });
 
@@ -426,9 +403,9 @@ async function getBhoomiMitraReply(userText, weatherContext, forecastContext) {
         : "ക്ഷമിക്കണം, ഇപ്പോൾ മറുപടി നൽകാൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.";
 
     return limitWhatsAppText(reply);
+
   } catch (error) {
-    console.error("OpenAI error:");
-    console.error(error.response && error.response.data ? error.response.data : error.message);
+    console.error("OpenAI error:", error.response && error.response.data ? error.response.data : error.message);
     return "ക്ഷമിക്കണം, ഇപ്പോൾ BhoomiMitra മറുപടി നൽകാൻ കഴിഞ്ഞില്ല. കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക.";
   }
 }
@@ -460,7 +437,7 @@ async function sendWhatsAppMessage(to, text) {
 async function appendSafe(sheetName, row) {
   try {
     if (!GOOGLE_SHEET_ID || !GOOGLE_CLIENT_EMAIL || !GOOGLE_PRIVATE_KEY) {
-      console.log("Google Sheets credentials missing. Skipping append.");
+      console.log("Google Sheets credentials missing.");
       return;
     }
 
@@ -468,8 +445,11 @@ async function appendSafe(sheetName, row) {
       spreadsheetId: GOOGLE_SHEET_ID,
       range: sheetName + "!A:Z",
       valueInputOption: "USER_ENTERED",
-      requestBody: { values: [row] }
+      requestBody: {
+        values: [row]
+      }
     });
+
   } catch (error) {
     console.error("Google Sheet append error for sheet:", sheetName);
     console.error(error.response && error.response.data ? error.response.data : error.message);
@@ -494,15 +474,19 @@ async function logAI(from, userText, reply, type) {
 }
 
 function limitWhatsAppText(text) {
-  if (!text) return "ക്ഷമിക്കണം, മറുപടി നൽകാൻ കഴിഞ്ഞില്ല.";
+  if (!text) {
+    return "ക്ഷമിക്കണം, മറുപടി നൽകാൻ കഴിഞ്ഞില്ല.";
+  }
 
   const cleanText = String(text).trim();
 
-  if (cleanText.length <= 3500) return cleanText;
+  if (cleanText.length <= 3500) {
+    return cleanText;
+  }
 
   return cleanText.substring(0, 3400) + "\n\nമറുപടി ചുരുക്കി നൽകി. കൂടുതൽ വിവരങ്ങൾക്ക് തുടർചോദ്യം ചോദിക്കാം.";
 }
 
 app.listen(PORT, "0.0.0.0", function () {
   console.log("BhoomiMitra Server v2.0 running on port " + PORT);
-});
+}); 
