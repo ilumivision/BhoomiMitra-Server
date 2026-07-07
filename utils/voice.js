@@ -39,11 +39,13 @@ async function voiceModule(data) {
         });
 
         const tempDir = path.join(__dirname, "../tmp");
+
         if (!fs.existsSync(tempDir)) {
             fs.mkdirSync(tempDir);
         }
 
         const audioPath = path.join(tempDir, mediaId + ".ogg");
+
         fs.writeFileSync(audioPath, audioResponse.data);
 
         const transcription = await openai.audio.transcriptions.create({
@@ -62,7 +64,7 @@ async function voiceModule(data) {
         };
 
     } catch (error) {
-        console.error("Voice transcription error:", error.response?.data || error.message);
+        console.error("Voice transcription error:", error.response && error.response.data ? error.response.data : error.message);
 
         return {
             success: false,
