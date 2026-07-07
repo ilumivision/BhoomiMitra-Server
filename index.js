@@ -4,7 +4,7 @@ require("dotenv").config();
 
 const OpenAI = require("openai");
 const { google } = require("googleapis");
-
+const detectIntent = require("./utils/detectIntent");
 const app = express();
 app.use(express.json());
 
@@ -103,12 +103,17 @@ app.post("/webhook", async function (req, res) {
     let userText = "";
 
     if (message.type === "text") {
-      userText = message.text && message.text.body ? message.text.body.trim() : "";
-    } else {
-      userText = "User sent a non-text message.";
-    }
+    userText = message.text && message.text.body
+        ? message.text.body.trim()
+        : "";
+} else {
+    userText = "User sent a non-text message.";
+}
 
-    await appendSafe(SHEETS.conversation, [
+const detectedIntent = detectIntent(userText);
+console.log("Detected Intent:", detectedIntent);
+
+await appendSafe(SHEETS.conversation, [
       new Date().toISOString(),
       from,
       userText,
