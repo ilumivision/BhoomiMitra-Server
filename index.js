@@ -6,8 +6,8 @@ const OpenAI = require("openai");
 const { google } = require("googleapis");
 const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
+const photoVision = require("./utils/photoVision");
 const app = express();
-app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
