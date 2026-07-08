@@ -39,10 +39,10 @@ const sessions = {};
 const processedMessages = new Set();
 
 const SHEETS = {
-  farmers: "Farmer_Master",
-  expertRegistration: "Expert_Registration",
-  skilledWorkerRegistration: "Skilled_Worker_Registration",
-  serviceProviderRegistration: "Service_Provider_Registration",
+  farmers: "Farmers",
+  expertRegistration: "Expert_Directory",
+  skilledWorkerRegistration: "Skilled Workers",
+  serviceProviderRegistration: "Workforce Providers",
   conversation: "AI_Conversation_History",
   aiLog: "AI_Response_Log",
   farmerQueries: "Farmer_Queries",
