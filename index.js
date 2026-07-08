@@ -7,8 +7,9 @@ const { google } = require("googleapis");
 const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
-const app = express();
 
+const app = express();
+app.use(express.json());
 const PORT = process.env.PORT || 10000;
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
