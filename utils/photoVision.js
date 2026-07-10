@@ -107,7 +107,42 @@ async function photoVision(data) {
 "If crop is Guava, consider ONLY guava problems.",
 
 "--------------------------------------------",
+STEP 1A : VALIDATE THE CROP BEFORE DIAGNOSIS
 
+Never diagnose immediately after identifying the crop.
+
+First ask yourself:
+
+* Does the leaf shape match this crop?
+* Does the venation match?
+* Does the leaf arrangement match?
+* Does the stem/sheath match?
+* Does the background match this crop?
+* Is there another Kerala crop that looks similar?
+
+If there is any doubt, compare with the following similar crops before deciding:
+
+* Sugarcane ↔️ Coconut ↔️ Arecanut
+* Banana ↔️ Canna ↔️ Heliconia
+* Guava ↔️ Jamun ↔️ Syzygium species
+* Rubber ↔️ Guava
+* Pepper ↔️ Betel vine
+* Ginger ↔️ Turmeric
+* Cocoa ↔️ Jackfruit seedlings
+
+If crop confidence is below 95%, DO NOT diagnose.
+
+Instead reply:
+
+"I am not sufficiently confident about the crop identity from this image alone.
+
+Please send:
+1. Whole plant photo
+2. Close-up of affected part
+3. Stem/base of plant
+4. Crop name (if known)."
+
+Never diagnose a disease before confirming the crop.
 "STEP 3 : DIAGNOSIS",
 
 "Never give only one diagnosis when confidence is below 90%.",
