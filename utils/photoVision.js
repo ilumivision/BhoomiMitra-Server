@@ -14,21 +14,23 @@ async function photoVision(data) {
                 text: "Image media not found."
             };
         }
-        const mediaInfo = await axios.get(
-            "https://graph.facebook.com/v20.0/" + mediaId,
-            {
-                headers: {
-                    Authorization: "Bearer " + whatsappToken
-                }
-            }
-        );
+       const mediaInfo = await axios.get(
+    "https://graph.facebook.com/v20.0/" + mediaId + "?fields=url,mime_type",
+    {
+        headers: {
+            Authorization: "Bearer " + whatsappToken
+        },
+        timeout: 15000
+    }
+);
         const mediaUrl = mediaInfo.data.url;
         const imageResponse = await axios.get(mediaUrl, {
-            responseType: "arraybuffer",
-            headers: {
-                Authorization: "Bearer " + whatsappToken
-            }
-        });
+    responseType: "arraybuffer",
+    headers: {
+        Authorization: "Bearer " + whatsappToken
+    },
+    timeout: 20000
+});
         const base64Image = Buffer.from(imageResponse.data).toString("base64");
         const mimeType = imageResponse.headers["content-type"] || "image/jpeg";
         const prompt = [
@@ -44,6 +46,7 @@ async function photoVision(data) {
             "Reply in simple farmer-friendly English.",
             "Keep the answer short and practical."
         ].join("\n");
+        console.log("[PHOTO_VISION] Sending image to OpenAI model=" + (process.env.OPENAI_MODEL || "gpt-4o-mini"));
         const response = await openai.chat.completions.create({
             model: process.env.OPENAI_MODEL || "gpt-4o-mini",
             messages: [
@@ -69,6 +72,7 @@ async function photoVision(data) {
             ],
             max_tokens: 500
         });
+       console.log("[PHOTO_VISION] OpenAI response received. choices=" + (response.choices ? response.choices.length : 0));
         const reply = response.choices &&
             response.choices[0] &&
             response.choices[0].message &&
