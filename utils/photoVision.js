@@ -70,7 +70,7 @@ async function photoVision(data) {
                     ]
                 }
             ],
-            max_tokens: 500
+          max_completion_tokens: 500
         });
        console.log("[PHOTO_VISION] OpenAI response received. choices=" + (response.choices ? response.choices.length : 0));
         const reply = response.choices &&
