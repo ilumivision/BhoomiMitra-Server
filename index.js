@@ -101,7 +101,7 @@ app.post("/webhook", async function (req, res) {
     if (processedMessages.has(message.id)) return;
     processedMessages.add(message.id);
 
-    const from = message.from;
+       const from = message.from;
     let userText = "";
 if (message.type === "text") {
     userText = message.text && message.text.body
@@ -122,10 +122,73 @@ if (message.type === "text") {
         : "Voice transcription failed.";
 
     console.log("Voice Transcription:", userText);
+} else if (message.type === "image") {
+    const mediaId = message.image && message.image.id
+        ? message.image.id
+        : null;
+
+    if (!mediaId) {
+        await sendWhatsAppMessage(from, "ചിത്രം ലഭിച്ചു, പക്ഷേ മീഡിയ ഫയൽ കണ്ടെത്താനായില്ല. ദയവായി വീണ്ടും അയക്കുക.");
+        return;
+    }
+
+    const caption = message.image && message.image.caption
+        ? message.image.caption
+        : "";
+
+    const photoResult = await photoVision({
+        mediaId,
+        from,
+        caption
+    });
+
+    const photoReply =
+        photoResult && (photoResult.reply || photoResult.text)
+            ? (photoResult.reply || photoResult.text)
+            : "ചിത്രം ലഭിച്ചു, പക്ഷേ വിശകലനം ചെയ്യാൻ കഴിഞ്ഞില്ല.";
+
+    await sendWhatsAppMessage(from, photoReply);
+    await logAI(from, "<image>", photoReply, "photo_diagnosis");
+    return;
+} else if (message.type === "document") {
+    const mimeType = message.document && message.document.mime_type
+        ? message.document.mime_type
+        : "";
+
+    if (!mimeType.startsWith("image/")) {
+        userText = "User sent a non-image document.";
+    } else {
+        const mediaId = message.document && message.document.id
+            ? message.document.id
+            : null;
+
+        if (!mediaId) {
+            await sendWhatsAppMessage(from, "ചിത്രം ലഭിച്ചു, പക്ഷേ മീഡിയ ഫയൽ കണ്ടെത്താനായില്ല. ദയവായി വീണ്ടും അയക്കുക.");
+            return;
+        }
+
+        const caption = message.document && message.document.caption
+            ? message.document.caption
+            : "";
+
+        const photoResult = await photoVision({
+            mediaId,
+            from,
+            caption
+        });
+
+        const photoReply =
+            photoResult && (photoResult.reply || photoResult.text)
+                ? (photoResult.reply || photoResult.text)
+                : "ചിത്രം ലഭിച്ചു, പക്ഷേ വിശകലനം ചെയ്യാൻ കഴിഞ്ഞില്ല.";
+
+        await sendWhatsAppMessage(from, photoReply);
+        await logAI(from, "<image>", photoReply, "photo_diagnosis");
+        return;
+    }
 } else {
     userText = "User sent a non-text message.";
 }
-
 const detectedIntent = detectIntent(userText);
 console.log("Detected Intent:", detectedIntent);
 await appendSafe(SHEETS.conversation, [
