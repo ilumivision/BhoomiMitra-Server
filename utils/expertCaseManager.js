@@ -800,15 +800,10 @@ module.exports = {
   recordExpertReply,
   notifyFarmerRecommendation,
 
-  calculateResolutionHours,
-  resolveExpertCase,
-  recordFarmerFeedback,
   closeExpertCase,
   requestFarmerFeedback,
 
   calculateExpertStatistics,
   groupCasesByCrop,
-  groupCasesByDistrict,
-  groupCasesByExpert
+  groupCasesByDistrict
 };
- 
