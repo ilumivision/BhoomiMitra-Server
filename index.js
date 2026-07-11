@@ -370,7 +370,13 @@ await appendSafe(SHEETS.conversation, [
       weatherContext,
       forecastContext
     );
-
+// Expert escalation
+if (activeCase && activeCase.requiresExpert === true) {
+  await expertCaseManager.registerAndAssignCase(
+    activeCase,
+    assignExpertCase
+  );
+}
     await sendWhatsAppMessage(from, aiReply);
     await logAI(
       from,
