@@ -317,21 +317,58 @@ function createExpertCaseManager(dependencies) {
   }
 
 return {
-    config,
+  config: config,
 
+  saveExpertCase:
     saveExpertCase,
 
+  assignCaseToExpert:
     assignCaseToExpert,
 
-    registerAndAssignCase,
+  registerAndAssignCase:
+    function (
+      input,
+      assignFunction
+    ) {
+      return registerAndAssignCase(
+        input,
+        assignFunction,
+        saveExpertCase
+      );
+    },
 
+  recordExpertReply:
     recordExpertReply,
 
+  notifyFarmerRecommendation:
     notifyFarmerRecommendation,
 
+  resolveExpertCase:
+    resolveExpertCase,
+
+  recordFarmerFeedback:
+    recordFarmerFeedback,
+
+  closeExpertCase:
     closeExpertCase,
 
-    requestFarmerFeedback
+  requestFarmerFeedback:
+    requestFarmerFeedback,
+
+  calculateResolutionHours:
+    calculateResolutionHours,
+
+  calculateExpertStatistics:
+    calculateExpertStatistics,
+
+  groupCasesByCrop:
+    groupCasesByCrop,
+
+  groupCasesByDistrict:
+    groupCasesByDistrict,
+
+  groupCasesByExpert:
+    groupCasesByExpert
 };
 }
 async function assignCaseToExpert(expertCase, assignFunction) {
@@ -620,3 +657,158 @@ async function requestFarmerFeedback(
     success: true
   };
 }
+/*
+ * -------------------------------------------------------
+ * PART 7
+ * Expert Dashboard & Analytics
+ * -------------------------------------------------------
+ */
+
+function calculateExpertStatistics(cases) {
+
+  const rows = Array.isArray(cases)
+    ? cases
+    : [];
+
+  const stats = {
+    totalCases: rows.length,
+    openCases: 0,
+    assignedCases: 0,
+    resolvedCases: 0,
+    closedCases: 0,
+    emergencyCases: 0,
+    highPriorityCases: 0,
+    averageResolutionHours: 0
+  };
+
+  let totalHours = 0;
+  let completedCount = 0;
+
+  rows.forEach(function (item) {
+
+    const status =
+      String(item.status || "").toLowerCase();
+
+    if (
+      status === "new" ||
+      status === "assigned" ||
+      status === "under review"
+    ) {
+      stats.openCases++;
+    }
+
+    if (status === "assigned") {
+      stats.assignedCases++;
+    }
+
+    if (status === "resolved") {
+      stats.resolvedCases++;
+    }
+
+    if (status === "closed") {
+      stats.closedCases++;
+    }
+
+    if (
+      String(item.priority || "")
+        .toLowerCase() === "emergency"
+    ) {
+      stats.emergencyCases++;
+    }
+
+    if (
+      String(item.priority || "")
+        .toLowerCase() === "high"
+    ) {
+      stats.highPriorityCases++;
+    }
+
+    const hours =
+      Number(item.resolutionHours || 0);
+
+    if (hours > 0) {
+      totalHours += hours;
+      completedCount++;
+    }
+
+  });
+
+  if (completedCount > 0) {
+    stats.averageResolutionHours =
+      Number(
+        (totalHours / completedCount)
+          .toFixed(2)
+      );
+  }
+
+  return stats;
+}
+
+function groupCasesByCrop(cases) {
+
+  const result = {};
+
+  (cases || []).forEach(function (item) {
+
+    const crop =
+      item.crop || "Unknown";
+
+    result[crop] =
+      (result[crop] || 0) + 1;
+
+  });
+
+  return result;
+}
+
+function groupCasesByDistrict(cases) {
+
+  const result = {};
+
+  (cases || []).forEach(function (item) {
+
+    const district =
+      item.district || "Unknown";
+
+    result[district] =
+      (result[district] || 0) + 1;
+
+  });
+
+  return result;
+}
+module.exports = {
+  createExpertCaseManager,
+
+  DEFAULT_SETTINGS,
+
+  cleanText,
+  normalisePhone,
+  normaliseConfidence,
+
+  createExpertCaseId,
+  detectPriority,
+  shouldEscalateToExpert,
+
+  buildExpertCase,
+  expertCaseToSheetRow,
+  validateExpertCase,
+
+  assignCaseToExpert,
+  registerAndAssignCase,
+
+  recordExpertReply,
+  notifyFarmerRecommendation,
+
+  calculateResolutionHours,
+  resolveExpertCase,
+  recordFarmerFeedback,
+  closeExpertCase,
+  requestFarmerFeedback,
+
+  calculateExpertStatistics,
+  groupCasesByCrop,
+  groupCasesByDistrict,
+  groupCasesByExpert
+};
+ 
