@@ -316,8 +316,74 @@ function createExpertCaseManager(dependencies) {
     };
   }
 
+ return {
+    config,
+
+    saveExpertCase,
+
+    assignCaseToExpert,
+
+    registerAndAssignCase
+};
+}
+async function assignCaseToExpert(expertCase, assignFunction) {
+
+  if (typeof assignFunction !== "function") {
+    return {
+      success: false,
+      error: "expertAssignment function not connected."
+    };
+  }
+
+  const assignment = await assignFunction(expertCase);
+
+  if (!assignment || assignment.success === false) {
+    return {
+      success: false,
+      error: "No suitable expert found."
+    };
+  }
+
+  expertCase.assignedExpert =
+    assignment.expertName || "";
+
+  expertCase.status = "Assigned";
+
+  expertCase.assignmentId =
+    assignment.assignmentId || "";
+
   return {
-    config: config,
-    saveExpertCase: saveExpertCase
+    success: true,
+    case: expertCase,
+    assignment: assignment
+  };
+}
+
+async function registerAndAssignCase(
+  input,
+  assignFunction
+) {
+
+  const saveResult =
+    await saveExpertCase(input);
+
+  if (!saveResult.success) {
+    return saveResult;
+  }
+
+  const assignmentResult =
+    await assignCaseToExpert(
+      saveResult.case,
+      assignFunction
+    );
+
+  if (!assignmentResult.success) {
+    return assignmentResult;
+  }
+
+  return {
+    success: true,
+    case: assignmentResult.case,
+    assignment: assignmentResult.assignment
   };
 }
