@@ -423,16 +423,20 @@ function getActiveCase(from) {
 
 function createCase(from, initialData) {
   const store = removeExpiredCases(from);
+  const safeInitialData = initialData || {};
 
   const newCase = {
     caseId: makeCaseId(),
-    crop: initialData.crop || "",
-    subject: truncate(initialData.subject || "", 150),
-    summary: truncate(initialData.summary || "", MAX_SUMMARY_LENGTH),
-    latestDiagnosis: truncate(
-      initialData.latestDiagnosis || "",
-      MAX_DIAGNOSIS_LENGTH
-    ),
+    crop: safeInitialData.crop || "",
+subject: truncate(safeInitialData.subject || "", 150),
+summary: truncate(
+  safeInitialData.summary || "",
+  MAX_SUMMARY_LENGTH
+),
+latestDiagnosis: truncate(
+  safeInitialData.latestDiagnosis || "",
+  MAX_DIAGNOSIS_LENGTH
+),
     createdAt: Date.now(),
     updatedAt: Date.now(),
     awaitingPhoto: false,
@@ -644,8 +648,8 @@ function getCases(from) {
 }
 
 module.exports = {
-
   CASE_EXPIRY_MS,
+  CLARIFICATION_EXPIRY_MS,
   MAX_CASES_PER_USER,
   MAX_RECENT_MESSAGES,
 
