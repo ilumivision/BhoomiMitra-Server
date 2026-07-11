@@ -7,7 +7,7 @@ const { google } = require("googleapis");
 const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
-
+const caseManager = require("./utils/caseManager");
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 10000;
@@ -132,24 +132,100 @@ if (message.type === "text") {
         return;
     }
 
-    const caption = message.image && message.image.caption
-        ? message.image.caption
-        : "";
+  const caption = message.image && message.image.caption
+  ? message.image.caption
+  : "";
 
-    const photoResult = await photoVision({
-        mediaId,
-        from,
-        caption
+const captionCrop =
+  caseManager.extractRecognisedCrop(caption);
+
+let activeCase =
+  caseManager.getActiveCase(from);
+
+const startsNewCase =
+  caseManager.messageStartsNewCase(caption);
+
+const isDifferentCrop =
+  activeCase &&
+  captionCrop &&
+  activeCase.crop &&
+  captionCrop.toLowerCase() !==
+    activeCase.crop.toLowerCase();
+
+if (
+  !activeCase ||
+  startsNewCase ||
+  isDifferentCrop
+) {
+  const createdCase =
+    caseManager.createCase(from, {
+      crop: captionCrop || "",
+      subject: caption || "Photo diagnosis"
     });
 
-    const photoReply =
-        photoResult && (photoResult.reply || photoResult.text)
-            ? (photoResult.reply || photoResult.text)
-            : "ചിത്രം ലഭിച്ചു, പക്ഷേ വിശകലനം ചെയ്യാൻ കഴിഞ്ഞില്ല.";
+  activeCase = createdCase.case;
+} else if (
+  captionCrop &&
+  !activeCase.crop
+) {
+  activeCase.crop = captionCrop;
+}
 
-    await sendWhatsAppMessage(from, photoReply);
-    await logAI(from, "<image>", photoReply, "photo_diagnosis");
-    return;
+const photoContext =
+  caseManager.buildPhotoContext(
+    activeCase,
+    caption
+  );
+
+const photoResult = await photoVision({
+  mediaId,
+  from,
+  caption: photoContext
+});
+
+const photoReply =
+  photoResult &&
+  (photoResult.reply || photoResult.text)
+    ? (photoResult.reply || photoResult.text)
+    : "ചിത്രം ലഭിച്ചു, പക്ഷേ വിശകലനം ചെയ്യാൻ കഴിഞ്ഞില്ല.";
+
+if (activeCase) {
+  caseManager.addPhoto(
+    activeCase,
+    mediaId,
+    caption
+  );
+
+  caseManager.updateDiagnosis(
+    activeCase,
+    photoReply
+  );
+
+  if (!activeCase.crop) {
+    const replyCrop =
+      caseManager.extractRecognisedCrop(
+        photoReply
+      );
+
+    if (replyCrop) {
+      activeCase.crop = replyCrop;
+    }
+  }
+}
+
+await sendWhatsAppMessage(
+  from,
+  photoReply
+);
+
+await logAI(
+  from,
+  caption || "<image>",
+  photoReply,
+  "photo_diagnosis"
+);
+
+return;
 } else if (message.type === "document") {
     const mimeType = message.document && message.document.mime_type
         ? message.document.mime_type
@@ -205,12 +281,95 @@ await appendSafe(SHEETS.conversation, [
       return;
     }
 
-    const weatherContext = await getLatestWeatherContext(userText);
-    const forecastContext = await getForecastContext(userText);
-    const aiReply = await getAIReply(userText, weatherContext, forecastContext);
+    let activeCase = caseManager.getActiveCase(from);
+    const textCrop = caseManager.extractRecognisedCrop(userText);
+    const startsNewCase = caseManager.messageStartsNewCase(userText);
+    const refersToCurrentCase =
+      caseManager.messageRefersToCurrentCase(userText);
+
+    if (startsNewCase) {
+      const createdCase = caseManager.createCase(from, {
+        crop: textCrop || "",
+        subject: userText || "Agricultural query"
+      });
+
+      activeCase = createdCase.case;
+    } else if (activeCase && textCrop) {
+      const lowerText = String(userText || "").toLowerCase();
+
+      const looksLikeCropCorrection =
+        lowerText.includes("it is") ||
+        lowerText.includes("it's") ||
+        lowerText.includes("this is") ||
+        lowerText.includes("crop is") ||
+        lowerText.includes("ഇത്") ||
+        lowerText.includes("വിള") ||
+        lowerText.includes("ആണ്");
+
+      if (
+        looksLikeCropCorrection ||
+        !activeCase.crop ||
+        refersToCurrentCase
+      ) {
+        activeCase.crop = textCrop;
+        activeCase.updatedAt = Date.now();
+      } else if (
+        activeCase.crop.toLowerCase() !==
+        textCrop.toLowerCase()
+      ) {
+        const createdCase = caseManager.createCase(from, {
+          crop: textCrop,
+          subject: userText
+        });
+
+        activeCase = createdCase.case;
+      }
+    }
+
+    if (activeCase) {
+      caseManager.addMessage(
+        activeCase,
+        message.type === "audio" ||
+        message.type === "voice"
+          ? "voice"
+          : "text",
+        userText
+      );
+    }
+
+    let caseContext = "";
+
+    if (activeCase) {
+      caseContext =
+        "\n\nCURRENT AGRICULTURAL CASE CONTEXT:\n" +
+        "Crop: " +
+        (activeCase.crop || "Not yet confirmed") +
+        "\nSubject: " +
+        (activeCase.subject || "Crop problem") +
+        "\nPrevious image diagnosis or case summary: " +
+        (activeCase.summary || activeCase.latestDiagnosis || "Not available") +
+        "\n\nUse this context when answering short follow-up replies such as 1, 2, 3, YES, control, symptoms, or crop-name corrections. Do not treat such replies as unrelated questions.";
+    }
+
+    const weatherContext =
+      await getLatestWeatherContext(userText);
+
+    const forecastContext =
+      await getForecastContext(userText);
+
+    const aiReply = await getAIReply(
+      userText + caseContext,
+      weatherContext,
+      forecastContext
+    );
 
     await sendWhatsAppMessage(from, aiReply);
-    await logAI(from, userText, aiReply, "ai_reply");
+    await logAI(
+      from,
+      userText,
+      aiReply,
+      activeCase ? "case_followup" : "ai_reply"
+    );
 
     await appendSafe(SHEETS.farmerQueries, [
       new Date().toISOString(),
