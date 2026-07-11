@@ -316,7 +316,7 @@ function createExpertCaseManager(dependencies) {
     };
   }
 
- return {
+return {
     config,
 
     saveExpertCase,
@@ -327,7 +327,11 @@ function createExpertCaseManager(dependencies) {
 
     recordExpertReply,
 
-    notifyFarmerRecommendation
+    notifyFarmerRecommendation,
+
+    closeExpertCase,
+
+    requestFarmerFeedback
 };
 }
 async function assignCaseToExpert(expertCase, assignFunction) {
@@ -381,9 +385,18 @@ async function registerAndAssignCase(
       assignFunction
     );
 
-  if (!assignmentResult.success) {
-    return assignmentResult;
-  }
+ if (!assignmentResult.success) {
+
+  return {
+    success: true,
+    case: saveResult.case,
+    assignment: null,
+    waitingForExpert: true,
+    message:
+      "Expert case created successfully. Waiting for expert assignment."
+  };
+
+}
 
   return {
     success: true,
@@ -472,6 +485,130 @@ async function notifyFarmerRecommendation(
     expertCase.expertRemark || "-",
     "",
     "Thank you for using BhoomiMitra."
+  ].join("\n");
+
+  await sendFunction(
+    expertCase.whatsapp,
+    message
+  );
+
+  return {
+    success: true
+  };
+}
+/*
+ * -------------------------------------------------------
+ * PART 6
+ * Case Closure & Farmer Feedback
+ * -------------------------------------------------------
+ */
+
+async function closeExpertCase(
+  expertCase,
+  farmerFeedback,
+  updateFunction
+) {
+
+  if (!expertCase) {
+    return {
+      success: false,
+      error: "Expert case not found."
+    };
+  }
+
+  const closedDate =
+    new Date().toISOString();
+
+  expertCase.status = "Closed";
+
+  expertCase.closedDate = closedDate;
+
+  expertCase.farmerFeedback =
+    cleanText(farmerFeedback);
+
+  const created =
+    new Date(
+      expertCase.createdAt ||
+      expertCase.dateTime
+    );
+
+  const closed =
+    new Date(closedDate);
+
+  const resolutionHours =
+    (
+      closed.getTime() -
+      created.getTime()
+    ) /
+    (1000 * 60 * 60);
+
+  expertCase.resolutionHours =
+    Number(
+      resolutionHours.toFixed(2)
+    );
+
+  if (
+    typeof updateFunction ===
+    "function"
+  ) {
+
+    await updateFunction(
+      expertCase.caseId,
+      {
+        Status: "Closed",
+        Closed_Date:
+          closedDate,
+        Farmer_Feedback:
+          expertCase.farmerFeedback,
+        Resolution_Time_Hours:
+          expertCase.resolutionHours
+      }
+    );
+
+  }
+
+  return {
+    success: true,
+    case: expertCase
+  };
+}
+
+/*
+ * Ask farmer for feedback
+ */
+
+async function requestFarmerFeedback(
+  expertCase,
+  sendFunction
+) {
+
+  if (
+    typeof sendFunction !==
+    "function"
+  ) {
+
+    return {
+      success: false,
+      error:
+        "WhatsApp sender not connected."
+    };
+
+  }
+
+  const message = [
+    "🙏 BhoomiMitra",
+    "",
+    "Your expert consultation has been completed.",
+    "",
+    "Please rate our service:",
+    "",
+    "1 ⭐ Poor",
+    "2 ⭐⭐ Fair",
+    "3 ⭐⭐⭐ Good",
+    "4 ⭐⭐⭐⭐ Very Good",
+    "5 ⭐⭐⭐⭐⭐ Excellent",
+    "",
+    "Reply with only the number."
   ].join("\n");
 
   await sendFunction(
