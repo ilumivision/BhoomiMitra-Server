@@ -304,7 +304,7 @@ async function photoVision(data) {
 
             "Use short headings and simple farmer-friendly language.",
 
-            "Keep the answer practical and concise.",
+          "Keep the total reply within about 250 to 350 words unless the user asks for detailed advice.",
 
             "Avoid unnecessary scientific jargon.",
 
