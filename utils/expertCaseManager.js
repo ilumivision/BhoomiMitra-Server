@@ -246,3 +246,78 @@ function expertCaseToSheetRow(expertCase) {
     data.escalationReason || ""
   ];
 }
+function validateExpertCase(expertCase) {
+  const data = expertCase || {};
+  const errors = [];
+
+  if (!cleanText(data.caseId)) {
+    errors.push("Case ID is missing.");
+  }
+
+  if (!normalisePhone(data.whatsapp)) {
+    errors.push("Farmer WhatsApp number is missing.");
+  }
+
+  if (!cleanText(data.problem)) {
+    errors.push("Problem description is missing.");
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors: errors
+  };
+}
+
+function createExpertCaseManager(dependencies) {
+  const deps = dependencies || {};
+
+  const appendSafe =
+    typeof deps.appendSafe === "function"
+      ? deps.appendSafe
+      : null;
+
+  const config = Object.assign(
+    {},
+    DEFAULT_SETTINGS,
+    deps.config || {}
+  );
+
+  async function saveExpertCase(input) {
+    const expertCase = buildExpertCase(input);
+    const validation = validateExpertCase(expertCase);
+
+    if (!validation.valid) {
+      return {
+        success: false,
+        case: expertCase,
+        errors: validation.errors
+      };
+    }
+
+    if (!appendSafe) {
+      return {
+        success: false,
+        case: expertCase,
+        errors: [
+          "Google Sheets append function is not connected."
+        ]
+      };
+    }
+
+    await appendSafe(
+      config.expertCaseSheet,
+      expertCaseToSheetRow(expertCase)
+    );
+
+    return {
+      success: true,
+      case: expertCase,
+      status: expertCase.status
+    };
+  }
+
+  return {
+    config: config,
+    saveExpertCase: saveExpertCase
+  };
+}
