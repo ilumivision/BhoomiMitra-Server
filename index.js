@@ -38,7 +38,11 @@ const googleAuth = new google.auth.JWT({
 });
 
 const sheets = google.sheets({ version: "v4", auth: googleAuth });
-const expertCaseManager = createExpertCaseManager();
+const expertCaseManager = createExpertCaseManager({
+  appendSafe,
+  readSheetRows,
+  sendWhatsAppMessage
+});
 const sessions = {};
 const processedMessages = new Set();
 
