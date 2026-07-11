@@ -323,7 +323,11 @@ function createExpertCaseManager(dependencies) {
 
     assignCaseToExpert,
 
-    registerAndAssignCase
+    registerAndAssignCase,
+
+    recordExpertReply,
+
+    notifyFarmerRecommendation
 };
 }
 async function assignCaseToExpert(expertCase, assignFunction) {
@@ -385,5 +389,97 @@ async function registerAndAssignCase(
     success: true,
     case: assignmentResult.case,
     assignment: assignmentResult.assignment
+  };
+}
+/*
+ * -------------------------------------------------------
+ * PART 5
+ * Expert Reply Handling
+ * -------------------------------------------------------
+ */
+
+async function recordExpertReply(
+  expertCase,
+  replyText,
+  updateFunction
+) {
+
+  if (!expertCase) {
+    return {
+      success: false,
+      error: "Expert case not found."
+    };
+  }
+
+  expertCase.expertRemark =
+    cleanText(replyText);
+
+  expertCase.status =
+    "Recommendation Sent";
+
+  expertCase.updatedAt =
+    new Date().toISOString();
+
+  if (typeof updateFunction === "function") {
+
+    await updateFunction(
+      expertCase.caseId,
+      {
+        Expert_Remark:
+          expertCase.expertRemark,
+
+        Status:
+          expertCase.status
+      }
+    );
+
+  }
+
+  return {
+    success: true,
+    case: expertCase
+  };
+}
+
+/*
+ * Send expert recommendation to farmer
+ */
+
+async function notifyFarmerRecommendation(
+  expertCase,
+  sendFunction
+) {
+
+  if (
+    typeof sendFunction !== "function"
+  ) {
+    return {
+      success: false,
+      error:
+        "WhatsApp sender not connected."
+    };
+  }
+
+  const message = [
+    "👨‍🌾 BhoomiMitra Expert Recommendation",
+    "",
+    "Case ID: " + expertCase.caseId,
+    "",
+    "Crop: " +
+      (expertCase.crop || "-"),
+    "",
+    "Recommendation:",
+    expertCase.expertRemark || "-",
+    "",
+    "Thank you for using BhoomiMitra."
+  ].join("\n");
+
+  await sendFunction(
+    expertCase.whatsapp,
+    message
+  );
+
+  return {
+    success: true
   };
 }
