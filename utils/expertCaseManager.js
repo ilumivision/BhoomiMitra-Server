@@ -130,3 +130,119 @@ function shouldEscalateToExpert(data) {
 
   return confidence < threshold;
 }
+function buildExpertCase(data) {
+  const input = data || {};
+
+  const farmerMessage = cleanText(
+    input.farmerMessage ||
+    input.userText ||
+    input.problem
+  );
+
+  const aiDiagnosis = cleanText(
+    input.aiDiagnosis ||
+    input.diagnosis ||
+    input.aiReply
+  );
+
+  const aiConfidence = normaliseConfidence(
+    input.aiConfidence
+  );
+
+  return {
+    caseId:
+      cleanText(input.caseId) ||
+      createExpertCaseId(),
+
+    createdAt:
+      cleanText(input.createdAt) ||
+      new Date().toISOString(),
+
+    farmerName:
+      cleanText(input.farmerName),
+
+    whatsapp:
+      normalisePhone(
+        input.whatsapp ||
+        input.from
+      ),
+
+    district:
+      cleanText(input.district),
+
+    panchayath:
+      cleanText(input.panchayath),
+
+    crop:
+      cleanText(input.crop),
+
+    problem:
+      farmerMessage,
+
+    aiDiagnosis:
+      aiDiagnosis,
+
+    aiConfidence:
+      aiConfidence,
+
+    priority:
+      cleanText(input.priority) ||
+      detectPriority(
+        farmerMessage + " " + aiDiagnosis
+      ),
+
+    assignedExpert:
+      cleanText(input.assignedExpert),
+
+    status:
+      cleanText(input.status) ||
+      DEFAULT_SETTINGS.defaultStatus,
+
+    expertRemark:
+      cleanText(input.expertRemark),
+
+    closedDate:
+      cleanText(input.closedDate),
+
+    photoCount:
+      Number(input.photoCount) || 0,
+
+    source:
+      cleanText(input.source) ||
+      "WhatsApp",
+
+    escalationReason:
+      cleanText(input.escalationReason),
+
+    farmerUnsatisfied:
+      Boolean(input.farmerUnsatisfied),
+
+    expertRequested:
+      Boolean(input.expertRequested)
+  };
+}
+
+function expertCaseToSheetRow(expertCase) {
+  const data = expertCase || {};
+
+  return [
+    data.caseId || "",
+    data.createdAt || "",
+    data.farmerName || "",
+    data.whatsapp || "",
+    data.district || "",
+    data.panchayath || "",
+    data.crop || "",
+    data.problem || "",
+    data.aiDiagnosis || "",
+    data.aiConfidence || 0,
+    data.priority || "Medium",
+    data.assignedExpert || "",
+    data.status || "New",
+    data.expertRemark || "",
+    data.closedDate || "",
+    data.photoCount || 0,
+    data.source || "WhatsApp",
+    data.escalationReason || ""
+  ];
+}
