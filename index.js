@@ -701,7 +701,29 @@ async function appendSafe(sheetName, row) {
     console.error(error.response && error.response.data ? error.response.data : error.message);
   }
 }
+async function readSheetRows(sheetName, range) {
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      range: sheetName + "!" + (range || "A:Z")
+    });
 
+    return response.data.values || [];
+  } catch (error) {
+    console.error(
+      "Google Sheet read error for sheet:",
+      sheetName
+    );
+
+    console.error(
+      error.response && error.response.data
+        ? error.response.data
+        : error.message
+    );
+
+    return [];
+  }
+}
 async function logAI(from, userText, reply, type) {
   await appendSafe(SHEETS.aiLog, [
     new Date().toISOString(),
