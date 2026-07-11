@@ -1,0 +1,132 @@
+"use strict";
+
+/*
+ * BhoomiMitra Expert Case Manager
+ *
+ * Purpose:
+ * - Create expert-review cases
+ * - Save cases to Google Sheets
+ * - Track status, priority and assignment
+ * - Support later expert reply and farmer notification
+ */
+
+const DEFAULT_SETTINGS = {
+  expertCaseSheet: "Expert_Cases",
+  expertDirectorySheet: "Expert_Directory",
+  settingsSheet: "BM_Setting",
+  defaultStatus: "New",
+  defaultPriority: "Medium",
+  confidenceThreshold: 80
+};
+
+function cleanText(value) {
+  return String(value || "").trim();
+}
+
+function normalisePhone(value) {
+  return cleanText(value).replace(/[^\d]/g, "");
+}
+
+function normaliseConfidence(value) {
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) {
+    return 0;
+  }
+
+  if (numberValue < 0) {
+    return 0;
+  }
+
+  if (numberValue > 100) {
+    return 100;
+  }
+
+  return Math.round(numberValue);
+}
+
+function createExpertCaseId() {
+  const timestamp = Date.now();
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+
+  return "BM-EX-" + timestamp + "-" + randomPart;
+}
+
+function detectPriority(input) {
+  const text = cleanText(input).toLowerCase();
+
+  const emergencyWords = [
+    "emergency",
+    "urgent",
+    "severe",
+    "rapid spread",
+    "whole field",
+    "entire crop",
+    "വിള നശിക്കുന്നു",
+    "വേഗത്തിൽ പടരുന്നു",
+    "അടിയന്തിരം",
+    "ഗുരുതരം"
+  ];
+
+  const highWords = [
+    "spreading",
+    "many plants",
+    "many trees",
+    "yield loss",
+    "wilting",
+    "rotting",
+    "stem damage",
+    "root damage",
+    "പടരുന്നു",
+    "പല ചെടികൾ",
+    "വാടുന്നു",
+    "ചീഞ്ഞു",
+    "വിളനഷ്ടം"
+  ];
+
+  if (
+    emergencyWords.some(function (word) {
+      return text.includes(word);
+    })
+  ) {
+    return "Emergency";
+  }
+
+  if (
+    highWords.some(function (word) {
+      return text.includes(word);
+    })
+  ) {
+    return "High";
+  }
+
+  return "Medium";
+}
+
+function shouldEscalateToExpert(data) {
+  const confidence = normaliseConfidence(
+    data && data.aiConfidence
+  );
+
+  const farmerUnsatisfied =
+    Boolean(data && data.farmerUnsatisfied);
+
+  const expertRequested =
+    Boolean(data && data.expertRequested);
+
+  const threshold =
+    Number(
+      data &&
+      data.confidenceThreshold
+    ) || DEFAULT_SETTINGS.confidenceThreshold;
+
+  if (expertRequested) {
+    return true;
+  }
+
+  if (farmerUnsatisfied) {
+    return true;
+  }
+
+  return confidence < threshold;
+}
