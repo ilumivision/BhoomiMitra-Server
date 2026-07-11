@@ -8,6 +8,9 @@ const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
 const caseManager = require("./utils/caseManager");
+const {
+  createExpertCaseManager
+} = require("./utils/expertCaseManager");
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 10000;
@@ -35,7 +38,7 @@ const googleAuth = new google.auth.JWT({
 });
 
 const sheets = google.sheets({ version: "v4", auth: googleAuth });
-
+const expertCaseManager = createExpertCaseManager();
 const sessions = {};
 const processedMessages = new Set();
 
@@ -48,8 +51,9 @@ const SHEETS = {
   aiLog: "AI_Response_Log",
   farmerQueries: "Farmer_Queries",
   weatherData: "Weather_Data",
-  weatherForecast: "Weather_Forecast",
-  aiMemory: "AI_Memory"
+ weatherForecast: "Weather_Forecast",
+aiMemory: "AI_Memory",
+expertCases: "Expert_Cases"
 };
 
 const SYSTEM_PROMPT = [
