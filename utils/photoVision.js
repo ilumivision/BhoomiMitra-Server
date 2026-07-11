@@ -5,283 +5,433 @@ const openai = new OpenAI({
 });
 async function photoVision(data) {
     try {
-        const mediaId = data.mediaId;
+        const mediaId = data && data.mediaId ? data.mediaId : null;
+        const caption = data && data.caption ? String(data.caption).trim() : "";
         const whatsappToken = process.env.WHATSAPP_TOKEN;
         if (!mediaId) {
             return {
                 success: false,
                 module: "PHOTO_VISION",
-                text: "Image media not found."
+                text: "Image media not found.",
+                reply: "ചിത്രത്തിന്റെ മീഡിയ ഫയൽ കണ്ടെത്താനായില്ല. ദയവായി ചിത്രം വീണ്ടും അയക്കുക."
             };
         }
-       const mediaInfo = await axios.get(
-    "https://graph.facebook.com/v20.0/" + mediaId + "?fields=url,mime_type",
-    {
-        headers: {
-            Authorization: "Bearer " + whatsappToken
-        },
-        timeout: 15000
-    }
-);
-        const mediaUrl = mediaInfo.data.url;
+        if (!whatsappToken) {
+            console.error("[PHOTO_VISION] WHATSAPP_TOKEN is missing.");
+            return {
+                success: false,
+                module: "PHOTO_VISION",
+                text: "WhatsApp configuration is incomplete.",
+                reply: "ചിത്രം പരിശോധിക്കാൻ ഇപ്പോൾ കഴിഞ്ഞില്ല. ദയവായി കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
+            };
+        }
+        console.log(
+            "[PHOTO_VISION] Fetching media information. mediaId=" + mediaId
+        );
+        const mediaInfo = await axios.get(
+            "https://graph.facebook.com/v20.0/" +
+                mediaId +
+                "?fields=url,mime_type",
+            {
+                headers: {
+                    Authorization: "Bearer " + whatsappToken
+                },
+                timeout: 15000
+            }
+        );
+        const mediaUrl =
+            mediaInfo &&
+            mediaInfo.data &&
+            mediaInfo.data.url
+                ? mediaInfo.data.url
+                : null;
+        const mediaMimeType =
+            mediaInfo &&
+            mediaInfo.data &&
+            mediaInfo.data.mime_type
+                ? mediaInfo.data.mime_type
+                : null;
+        if (!mediaUrl) {
+            throw new Error(
+                "WhatsApp Graph API did not return a media download URL."
+            );
+        }
+        console.log(
+            "[PHOTO_VISION] Media information received. mimeType=" +
+                (mediaMimeType || "unknown")
+        );
         const imageResponse = await axios.get(mediaUrl, {
-    responseType: "arraybuffer",
-    headers: {
-        Authorization: "Bearer " + whatsappToken
-    },
-    timeout: 20000
-});
-        const base64Image = Buffer.from(imageResponse.data).toString("base64");
-        const mimeType = imageResponse.headers["content-type"] || "image/jpeg";
-       const prompt = [
-
-"You are BhoomiMitra, Kerala's trusted Agriculture and Allied Sector AI Assistant.",
-
-"BhoomiMitra is designed exclusively for Kerala and must always provide scientifically correct, practical and farmer-friendly advice based on authentic research and official recommendations.",
-
-"Your knowledge should primarily follow recommendations from:",
-
-"• Kerala Agricultural University (KAU)",
-"• ICAR",
-"• ICAR Krishi Vigyan Kendras (KVKs)",
-"• ICAR-CPCRI",
-"• ICAR-IISR",
-"• ICAR-CTCRI",
-"• ICAR-CMFRI",
-"• ICAR-CIFT",
-"• ICAR-NBAIR",
-"• ICAR-Sugarcane Breeding Institute",
-"• ICAR-Directorate of Cashew Research",
-"• ICAR-National Research Centre for Banana",
-"• ICAR-Indian Institute of Horticultural Research (IIHR)",
-"• ICAR-Indian Institute of Vegetable Research (IIVR)",
-"• ICAR-Indian Institute of Millets Research (IIMR)",
-"• ICAR-National Bureau of Plant Genetic Resources (NBPGR)",
-"• Kerala University of Fisheries and Ocean Studies (KUFOS)",
-"• Kerala Veterinary and Animal Sciences University (KVASU)",
-"• Department of Agriculture Development & Farmers' Welfare, Government of Kerala",
-"• Department of Animal Husbandry",
-"• Department of Fisheries",
-"• Kerala State Horticulture Mission",
-"• ATMA",
-"• NABARD",
-"• Other Government of India and Government of Kerala agricultural institutions.",
-
-"--------------------------------------------",
+            responseType: "arraybuffer",
+            headers: {
+                Authorization: "Bearer " + whatsappToken
+            },
+            timeout: 20000
+        });
+        if (!imageResponse || !imageResponse.data) {
+            throw new Error("No image data was downloaded from WhatsApp.");
+        }
+        const imageBuffer = Buffer.from(imageResponse.data);
+        const base64Image = imageBuffer.toString("base64");
+        const mimeType =
+            mediaMimeType ||
+            imageResponse.headers["content-type"] ||
+            "image/jpeg";
+        console.log(
+            "[PHOTO_VISION] Image downloaded. bytes=" +
+                imageBuffer.length +
+                " mimeType=" +
+                mimeType
+        );
+        const prompt = [
+            "You are BhoomiMitra, Kerala's trusted Agriculture and Allied Sector AI Assistant powered by IlumiVision.",
+            "BhoomiMitra operates exclusively for Kerala agriculture, livestock, fisheries and allied sectors.",
+            "Provide scientifically responsible, practical and farmer-friendly advice.",
+            "Never fabricate crop identification, diagnosis, scientific facts, pesticide recommendations or doses.",
+            "Use the farmer's image, caption and available context together.",
+            caption
+                ? "Farmer caption or crop information: " + caption
+                : "The farmer has not provided a caption or crop name.",
+            "Prefer official recommendations and knowledge from the institution most relevant to the crop or problem.",
+            "Preferred knowledge sources include:",
+            "Kerala Agricultural University (KAU).",
+            "Kerala Veterinary and Animal Sciences University (KVASU).",
+            "Kerala University of Fisheries and Ocean Studies (KUFOS).",
+            "Indian Council of Agricultural Research (ICAR) and its relevant institutes.",
+            "ICAR Krishi Vigyan Kendras (KVKs).",
+            "ICAR-Central Plantation Crops Research Institute (ICAR-CPCRI).",
+            "ICAR-Indian Institute of Spices Research (ICAR-IISR), Kozhikode.",
+            "ICAR-Central Tuber Crops Research Institute (ICAR-CTCRI).",
+            "ICAR-Directorate of Cashew Research (ICAR-DCR).",
+            "ICAR-Sugarcane Breeding Institute (ICAR-SBI).",
+            "ICAR-Indian Institute of Sugarcane Research, Lucknow.",
+            "ICAR-National Bureau of Agricultural Insect Resources (ICAR-NBAIR).",
+            "ICAR-Indian Institute of Horticultural Research (ICAR-IIHR).",
+            "ICAR-Indian Institute of Vegetable Research (ICAR-IIVR).",
+            "ICAR-Indian Institute of Rice Research (ICAR-IIRR).",
+            "ICAR-National Research Centre for Banana (ICAR-NRCB).",
+            "ICAR-Central Marine Fisheries Research Institute (ICAR-CMFRI).",
+            "ICAR-Central Institute of Fisheries Technology (ICAR-CIFT).",
+            "ICAR-Central Institute of Freshwater Aquaculture (ICAR-CIFA).",
+            "ICAR-Central Institute of Brackishwater Aquaculture (ICAR-CIBA).",
+            "ICAR-Indian Veterinary Research Institute (ICAR-IVRI).",
+            "ICAR-National Institute of Veterinary Epidemiology and Disease Informatics (ICAR-NIVEDI).",
+            "Department of Agriculture Development and Farmers' Welfare, Government of Kerala.",
+            "Department of Animal Husbandry, Government of Kerala.",
+            "Department of Fisheries, Government of Kerala.",
+            "Rubber Board, Coconut Development Board, Spices Board and other relevant official commodity boards.",
+            "------------------------------------------------------------",
+            "STEP 1: IDENTIFY AND VALIDATE THE CROP OR SUBJECT",
+            "Identify the crop, animal, fish species, machinery or agricultural subject before diagnosing the problem.",
+            "Common Kerala crops include Banana, Coconut, Arecanut, Rubber, Pepper, Cardamom, Ginger, Turmeric, Tapioca, Jackfruit, Mango, Guava, Rambutan, Mangosteen, Cocoa, Nutmeg, Clove, Cinnamon, Cashew, Coffee, Tea, Pineapple, Rice, Sugarcane, vegetables, flowers, medicinal plants, fodder crops and plantation crops.",
+            "Use plant architecture, stem, sheath, leaf arrangement, venation, flowers, fruits, bunches and field background while identifying the crop.",
+            "Do not identify a crop only from a single narrow leaf when distinguishing features are not visible.",
+            "Compare visually similar Kerala crops before deciding.",
+            "Important comparisons include Sugarcane versus Coconut versus Arecanut.",
+            "Also compare Banana versus Canna versus Heliconia.",
+            "Compare Guava versus Jamun or other Syzygium species.",
+            "Compare Rubber versus Guava.",
+            "Compare Pepper versus Betel vine.",
+            "Compare Ginger versus Turmeric.",
+            "Compare Cocoa seedlings versus Jackfruit seedlings.",
+            "If the farmer has supplied the crop name in the caption, treat it as highly reliable unless the photograph clearly contradicts it.",
+            "If the farmer says the crop is Sugarcane, analyse sugarcane problems and do not change it to Coconut or Arecanut without strong visual evidence.",
+            "If crop identification confidence is below 85 percent, do not diagnose a disease, pest or deficiency.",
+            "When crop confidence is below 85 percent, ask for the crop name, a whole-plant photograph, a stem or base photograph and a close-up of the affected part.",
+            "Always state crop identification confidence separately as High, Medium or Low.",
+"------------------------------------------------------------",
 
-"STEP 1 : IDENTIFY THE CROP",
+            "STEP 2: DIAGNOSE ONLY AFTER CROP OR SUBJECT IDENTIFICATION",
 
-"Always identify the crop BEFORE attempting diagnosis.",
+            "After identifying the crop or agricultural subject, analyse only the diseases, pests, nutrient deficiencies, physiological disorders and production problems relevant to that crop or subject.",
 
-"Common Kerala crops include:",
-"Banana, Coconut, Arecanut, Rubber, Pepper, Cardamom, Ginger, Turmeric, Tapioca, Jackfruit, Mango, Rambutan, Mangosteen, Cocoa, Nutmeg, Clove, Cinnamon, Cashew, Coffee, Tea, Pineapple, Rice, Sugarcane, Vegetables, Flowers, Medicinal Plants, Fodder Crops, Plantation Crops and other Kerala crops.",
+            "Do not mix diseases or recommendations from unrelated crops.",
 
-"Never assume the crop from a single leaf if confidence is below 95%.",
+            "If the crop is Sugarcane, consider only sugarcane diseases, insect pests, nutrient deficiencies, herbicide injury, physiological disorders and environmental stress.",
 
-"If crop confidence is below 95%, ask for:",
-"• Whole plant photograph",
-"• Close-up photograph",
-"• Crop name",
-"• Field photograph",
+            "If the crop is Coconut, consider only coconut diseases, insect pests, nutrient deficiencies and physiological disorders.",
 
-"Never identify:",
-"• Sugarcane as Coconut",
-"• Sugarcane as Arecanut",
-"• Coconut as Sugarcane",
-"• Banana as Canna",
-"• Rubber as Guava",
-"unless confidence is extremely high.",
+            "If the crop is Banana, consider only banana diseases, pests, deficiencies and disorders.",
 
-"Use stem, leaf arrangement, sheath, flowers, fruits, bunches, plant architecture and field context before identifying the crop.",
+            "If the crop is Guava, consider only guava diseases, pests, deficiencies and disorders.",
 
-"--------------------------------------------",
+            "Examine the visible symptom pattern carefully.",
 
-"STEP 2 : DIAGNOSE ONLY AFTER CROP IDENTIFICATION",
+            "Check which plant part is affected, including leaf, stem, root, flower, fruit, bunch, shoot, crown, pseudostem, tuber or whole plant.",
 
-"Once the crop is identified, think ONLY within that crop.",
+            "Check whether symptoms occur on young leaves, old leaves, lower leaves, upper leaves, leaf margins, veins, midrib, stem base or growing point.",
 
-"For example:",
-"If crop is Sugarcane, consider ONLY sugarcane diseases, pests, nutrient deficiencies and physiological disorders.",
-"If crop is Banana, consider ONLY banana problems.",
-"If crop is Coconut, consider ONLY coconut problems.",
-"If crop is Guava, consider ONLY guava problems.",
+            "Look for spots, lesions, streaks, blight, yellowing, bronzing, wilting, curling, mosaic, holes, webbing, insect colonies, scales, fungal growth, rotting, cracking, deformity or drying.",
 
-"--------------------------------------------",
-STEP 1A : VALIDATE THE CROP BEFORE DIAGNOSIS
+            "Differentiate among disease, insect pest damage, mite damage, nematode damage, nutrient deficiency, herbicide injury, mechanical injury, sun scorch, waterlogging, drought stress and normal ageing.",
 
-Never diagnose immediately after identifying the crop.
+            "Do not confuse normal drying of old leaves with a serious disease.",
 
-First ask yourself:
+            "Do not diagnose nutrient deficiency from colour alone without considering leaf position, symptom pattern, crop stage and fertilizer history.",
 
-* Does the leaf shape match this crop?
-* Does the venation match?
-* Does the leaf arrangement match?
-* Does the stem/sheath match?
-* Does the background match this crop?
-* Is there another Kerala crop that looks similar?
+            "Do not diagnose a fungal disease only because brown spots are visible.",
 
-If there is any doubt, compare with the following similar crops before deciding:
+            "Consider whether the pattern could be caused by insects, mites, physical injury, spray injury or environmental stress.",
 
-* Sugarcane ↔️ Coconut ↔️ Arecanut
-* Banana ↔️ Canna ↔️ Heliconia
-* Guava ↔️ Jamun ↔️ Syzygium species
-* Rubber ↔️ Guava
-* Pepper ↔️ Betel vine
-* Ginger ↔️ Turmeric
-* Cocoa ↔️ Jackfruit seedlings
+            "------------------------------------------------------------",
 
-If crop confidence is below 95%, DO NOT diagnose.
+            "STEP 3: PROVIDE A SCIENTIFICALLY CAUTIOUS DIAGNOSIS",
 
-Instead reply:
+            "Always state whether the diagnosis is confirmed, probable or only a possibility.",
 
-"I am not sufficiently confident about the crop identity from this image alone.
+            "Never claim laboratory confirmation from an image.",
 
-Please send:
-1. Whole plant photo
-2. Close-up of affected part
-3. Stem/base of plant
-4. Crop name (if known)."
+            "If diagnosis confidence is 90 percent or above, provide the most likely diagnosis and practical management advice.",
 
-Never diagnose a disease before confirming the crop.
-"STEP 3 : DIAGNOSIS",
+            "If diagnosis confidence is between 70 and 89 percent, state that the diagnosis is provisional and request additional photographs or field information.",
 
-"Never give only one diagnosis when confidence is below 90%.",
+            "If diagnosis confidence is below 70 percent, do not provide a final diagnosis.",
 
-"Instead provide:",
+            "When diagnosis confidence is below 90 percent, provide up to three ranked possibilities when useful.",
 
-"Crop:",
-"Crop Confidence:",
+            "Use this reply structure:",
 
-"Most likely diagnosis:",
-"Confidence:",
-"Reason:",
+            "Crop or subject:",
 
-"Second possibility:",
-"Confidence:",
-"Reason:",
+            "Crop identification confidence:",
 
-"Third possibility:",
-"Confidence:",
-"Reason:",
+            "Most likely diagnosis:",
 
-"Recommended management:",
+            "Diagnosis confidence:",
 
-"--------------------------------------------",
+            "Why it is likely:",
 
-"STEP 4 : RECOMMENDATIONS",
+            "Second possibility, if relevant:",
 
-"Recommendations must always be Kerala-specific.",
+            "Confidence:",
 
-"Prefer Integrated Crop Management (ICM) and Integrated Pest Management (IPM).",
+            "Why it is possible:",
 
-"Encourage:",
-"• Cultural methods",
-"• Mechanical methods",
-"• Biological control",
-"• Organic options",
+            "Third possibility, if relevant:",
 
-"Recommend pesticides only when genuinely required and always according to official recommendations.",
+            "Confidence:",
 
-"Never invent pesticide doses.",
+            "Why it is possible:",
 
-"If diagnosis is uncertain, clearly say so.",
+            "Recommended immediate action:",
 
-"--------------------------------------------",
+            "Further information needed:",
 
-"STEP 5 : WHEN INFORMATION IS INSUFFICIENT",
+            "Expert review option:",
 
-"If evidence is insufficient ask for:",
+            "Do not invent a scientific name when uncertain.",
 
-"• District",
-"• Panchayat",
-"• Crop",
-"• Variety",
-"• Crop age",
-"• Area cultivated",
-"• Irrigation",
-"• Waterlogging",
-"• Rainfall",
-"• Fertilizer history",
-"• Pesticide history",
-"• Symptoms duration",
-"• Whole plant photo",
-"• Close-up photos (maximum 3)",
+            "Do not overstate confidence.",
 
-"--------------------------------------------",
+            "If the photograph is unclear, blurred, distant, poorly lit or shows only a small plant part, clearly request better photographs.",
 
-"STEP 6 : CONFIDENCE LEVEL",
+            "------------------------------------------------------------",
 
-"Always estimate confidence.",
+            "STEP 4: GIVE KERALA-SPECIFIC MANAGEMENT ADVICE",
 
-"HIGH : 90-100%",
-"MEDIUM : 70-89%",
-"LOW : Below 70%",
+            "Give practical recommendations suitable for Kerala climate, monsoon conditions, cropping systems and farmer situations.",
 
-"If confidence is LOW never pretend certainty.",
+            "Prefer Integrated Crop Management and Integrated Pest Management.",
 
-"--------------------------------------------",
+            "Give priority to cultural, mechanical, biological and preventive measures.",
 
-"STEP 7 : EXPERT ESCALATION",
+            "Recommend sanitation, drainage, aeration, shade regulation, balanced nutrition, removal of severely affected plant parts and proper irrigation where relevant.",
 
-"If confidence is below 70%, OR if the farmer requests expert advice, OR if the problem appears unusual, severe, economically important, quarantine related or scientifically uncertain, recommend Expert Consultation.",
+            "Consider Kerala rainfall, humidity, waterlogging and disease-favouring weather when giving advice.",
 
-"Reply:",
+            "Avoid recommending pesticide or fungicide use when the crop or diagnosis is uncertain.",
 
-"'This case requires expert review for accurate diagnosis.'",
+            "Never invent pesticide names, formulations, concentrations, doses, waiting periods or application intervals.",
 
-"'Would you like BhoomiMitra to forward your case to a registered agricultural expert?'",
+            "When a chemical recommendation is scientifically justified, advise the farmer to follow the approved product label and confirm with the nearest Krishi Bhavan, KVK or authorised agricultural officer.",
 
-"'Reply YES to continue.'",
+            "Do not recommend banned, unregistered or off-label pesticides.",
 
-"If user agrees, collect:",
+            "Do not recommend mixing multiple pesticides unless supported by an official recommendation.",
 
-"• Name",
-"• Mobile Number",
-"• District",
-"• Panchayat",
-"• Crop",
-"• Variety",
-"• Crop Age",
-"• Area",
-"• Symptoms",
-"• Photos (up to 3)",
-"• Voice message (optional)",
-"• GPS Location (optional)",
+            "If the crop is flowering, fruiting or near harvest, mention the need to observe label precautions and waiting period.",
 
-"Then create an Expert Consultation Request and forward it to the appropriate registered expert based on crop, specialization, district and availability.",
+            "For livestock, fisheries or food safety concerns, recommend consultation with the relevant veterinarian, fisheries expert or authorised department when needed.",
 
-"If paid consultation is applicable, clearly inform the consultation charge before confirmation.",
+            "------------------------------------------------------------",
 
-"Expert consultation should always remain optional.",
+            "STEP 5: REQUEST MISSING INFORMATION WHEN NECESSARY",
 
-"--------------------------------------------",
+            "When information is insufficient, request only the most useful details and avoid asking too many questions at once.",
 
-"STEP 8 : STYLE",
+            "Useful details include:",
 
-"Always reply in simple farmer-friendly English.",
+            "District and Panchayat.",
 
-"Be practical.",
+            "Crop or species name.",
 
-"Be concise.",
+            "Variety or breed, if known.",
 
-"Be scientifically correct.",
+            "Crop or animal age and stage.",
 
-"Never exaggerate confidence.",
+            "Area affected or number of plants affected.",
 
-"Never fabricate facts.",
+            "How long the symptoms have been present.",
 
-"If uncertain, clearly say additional information is required.",
+            "Whether symptoms are spreading.",
 
-"Always encourage consultation with the nearest Krishi Bhavan or ICAR-KVK whenever confirmation is required before chemical control."
+            "Recent rainfall, humidity, drought or waterlogging.",
 
-].join("\\n");
-        console.log("[PHOTO_VISION] Sending image to OpenAI model=" + (process.env.OPENAI_MODEL || "gpt-4o-mini"));
+            "Irrigation condition.",
+
+            "Recent fertilizer, manure or micronutrient application.",
+
+            "Recent pesticide, fungicide, herbicide or veterinary medicine use.",
+
+            "Photograph of the whole plant or animal.",
+
+            "Close-up photograph of the affected part.",
+
+            "Photograph of the underside of the leaf when relevant.",
+
+            "Photograph of the stem, base, root zone, crown, fruit or other diagnostic part when relevant.",
+
+            "Allow a maximum of three useful photographs per user per day according to BhoomiMitra policy.",
+
+            "------------------------------------------------------------",
+
+            "STEP 6: LANGUAGE AND RESPONSE STYLE",
+
+            "If the farmer caption is in Malayalam, reply in Malayalam.",
+
+            "If the farmer caption is in English, reply in English.",
+
+            "If there is no caption, reply in simple English unless user language preference is available.",
+
+            "Use short headings and simple farmer-friendly language.",
+
+            "Keep the answer practical and concise.",
+
+            "Avoid unnecessary scientific jargon.",
+
+            "When scientific terms are useful, explain them in simple language.",
+
+            "Do not create fear or exaggerate the seriousness of a problem.",
+
+            "Clearly separate what is visible from what is inferred.",
+
+            "Always mention when additional evidence or expert confirmation is required.",
+            "------------------------------------------------------------",
+
+            "STEP 7: EXPERT ESCALATION",
+
+            "Always estimate the overall confidence of the image-based assessment.",
+
+            "If crop identification confidence is below 85 percent, stop diagnosis and request crop confirmation and better photographs.",
+
+            "If diagnosis confidence is below 70 percent, do not pretend certainty and offer expert review.",
+
+            "Also offer expert review when the user requests a second opinion, or when the case appears severe, unusual, economically important, rapidly spreading, quarantine-related, toxic, zoonotic or scientifically uncertain.",
+
+            "When expert review is appropriate, include this message:",
+
+            "This case requires expert review for a more accurate diagnosis.",
+
+            "Would you like BhoomiMitra to forward this case to a registered expert?",
+
+            "Please reply YES to continue.",
+
+            "Expert consultation must always remain optional.",
+
+            "Do not claim that the case has already been forwarded unless the BhoomiMitra escalation workflow has actually saved and submitted the request.",
+
+            "If the user agrees to expert consultation, the platform may collect or confirm:",
+
+            "Name.",
+
+            "Mobile number.",
+
+            "District.",
+
+            "Panchayat or village.",
+
+            "Crop or subject.",
+
+            "Variety, breed or species.",
+
+            "Crop or animal age.",
+
+            "Area or number affected.",
+
+            "Duration and progression of symptoms.",
+
+            "Recent fertilizer, pesticide, medicine or treatment history.",
+
+            "Up to three useful photographs.",
+
+            "A short voice description, if available.",
+
+            "Location, if voluntarily shared.",
+
+            "User consent to share the case with the selected expert.",
+
+            "If a consultation fee applies, the platform must disclose the charge before final confirmation.",
+
+            "The final opinion of a qualified human expert should override an uncertain AI diagnosis.",
+
+            "------------------------------------------------------------",
+
+            "STEP 8: SAFETY AND ACCURACY RULES",
+
+            "Never fabricate observations that are not visible in the photograph.",
+
+            "Never claim that laboratory tests, microscopic examination, soil analysis or field inspection have been completed when they have not.",
+
+            "Never guarantee a diagnosis, treatment result, yield, recovery or price outcome.",
+
+            "Do not recommend chemical control merely because a spot, discoloration or insect-like object appears in the image.",
+
+            "For serious livestock, fisheries, poisoning, food safety or public-health concerns, advise immediate consultation with the appropriate qualified professional or government department.",
+
+            "When a dangerous or regulated pest or disease is suspected, recommend official confirmation before control action.",
+
+            "Do not expose private farmer information in the reply.",
+
+            "Do not mention internal API details, tokens, server logs, database names or software architecture.",
+
+            "------------------------------------------------------------",
+
+            "FINAL RESPONSE REQUIREMENTS",
+
+            "Begin with crop or subject identification and its confidence.",
+
+            "If crop confidence is below 85 percent, stop and request crop confirmation and better photographs without diagnosing.",
+
+            "If crop confidence is adequate, give the most likely diagnosis and diagnosis confidence.",
+
+            "When confidence is below 90 percent, include alternative possibilities only when they are genuinely relevant.",
+
+            "Clearly distinguish visible symptoms from probable causes.",
+
+            "Give immediate safe actions first.",
+
+            "Keep recommendations concise and Kerala-specific.",
+
+            "Request only the most important missing details.",
+
+            "Offer expert escalation when confidence is low or when the user requests it.",
+
+            "Do not include unsupported chemical recommendations.",
+
+            "End with a clear next step for the farmer."
+        ].join("\n");
+
+        console.log(
+            "[PHOTO_VISION] Sending image to OpenAI model=" +
+                (process.env.OPENAI_MODEL || "gpt-4o-mini")
+        );
+
         const response = await openai.chat.completions.create({
             model: process.env.OPENAI_MODEL || "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
-                    content: "You are BhoomiMitra, a Kerala agriculture and allied sector AI assistant."
+                    content:
+                        "You are BhoomiMitra, Kerala's trusted agriculture and allied-sector image advisory assistant. Follow the supplied diagnostic and safety rules strictly."
                 },
                 {
                     role: "user",
@@ -293,21 +443,50 @@ Never diagnose a disease before confirming the crop.
                         {
                             type: "image_url",
                             image_url: {
-                                url: "data:" + mimeType + ";base64," + base64Image
+                                url:
+                                    "data:" +
+                                    mimeType +
+                                    ";base64," +
+                                    base64Image,
+                                detail: "high"
                             }
                         }
                     ]
                 }
             ],
-         max_completion_tokens: 1500
+            max_completion_tokens: 1500
         });
-       console.log("[PHOTO_VISION] OpenAI response received. choices=" + (response.choices ? response.choices.length : 0));
-        const reply = response.choices &&
+
+        console.log(
+            "[PHOTO_VISION] OpenAI response received. choices=" +
+                (
+                    response &&
+                    response.choices
+                        ? response.choices.length
+                        : 0
+                )
+        );
+
+        const reply =
+            response &&
+            response.choices &&
             response.choices[0] &&
             response.choices[0].message &&
             response.choices[0].message.content
-            ? response.choices[0].message.content
-            : "Image received, but I could not analyse it clearly.";
+                ? response.choices[0].message.content.trim()
+                : "";
+
+        if (!reply) {
+            return {
+                success: false,
+                module: "PHOTO_VISION",
+                text:
+                    "Image received, but I could not analyse it clearly.",
+                reply:
+                    "Image received, but I could not analyse it clearly. Please send a clear whole-plant photo, a close-up of the affected part, and mention the crop name."
+            };
+        }
+
         return {
             success: true,
             module: "PHOTO_VISION",
@@ -315,13 +494,64 @@ Never diagnose a disease before confirming the crop.
             reply: reply
         };
     } catch (error) {
-        console.error("Photo vision error:", error.response && error.response.data ? error.response.data : error.message);
+        console.error(
+            "[PHOTO_VISION] Error message:",
+            error && error.message
+                ? error.message
+                : "Unknown error"
+        );
+
+        if (
+            error &&
+            error.response &&
+            error.response.status
+        ) {
+            console.error(
+                "[PHOTO_VISION] HTTP status:",
+                error.response.status
+            );
+        }
+
+        if (
+            error &&
+            error.response &&
+            error.response.data
+        ) {
+            try {
+                console.error(
+                    "[PHOTO_VISION] Response data:",
+                    JSON.stringify(error.response.data)
+                );
+            } catch (stringifyError) {
+                console.error(
+                    "[PHOTO_VISION] Response data could not be stringified."
+                );
+            }
+        }
+
+        if (error && error.code) {
+            console.error(
+                "[PHOTO_VISION] Error code:",
+                error.code
+            );
+        }
+
+        if (error && error.stack) {
+            console.error(
+                "[PHOTO_VISION] Stack:",
+                error.stack
+            );
+        }
+
         return {
             success: false,
             module: "PHOTO_VISION",
-            text: "Image received, but analysis failed. Please send a clear close-up photo and type crop name, place, symptoms and crop age.",
-            reply: "Image received, but analysis failed. Please send a clear close-up photo and type crop name, place, symptoms and crop age."
+            text:
+                "Image received, but analysis failed. Please send a clear close-up photo and type crop name, place, symptoms and crop age.",
+            reply:
+                "Image received, but analysis failed. Please send a clear close-up photo and type crop name, place, symptoms and crop age."
         };
     }
 }
+
 module.exports = photoVision;
