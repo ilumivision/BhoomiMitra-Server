@@ -343,22 +343,7 @@ return {
   notifyFarmerRecommendation:
     notifyFarmerRecommendation,
 
-  resolveExpertCase:
-    resolveExpertCase,
-
-  recordFarmerFeedback:
-    recordFarmerFeedback,
-
-  closeExpertCase:
-    closeExpertCase,
-
-  requestFarmerFeedback:
-    requestFarmerFeedback,
-
-  calculateResolutionHours:
-    calculateResolutionHours,
-
-  calculateExpertStatistics:
+      calculateExpertStatistics:
     calculateExpertStatistics,
 
   groupCasesByCrop:
@@ -367,8 +352,6 @@ return {
   groupCasesByDistrict:
     groupCasesByDistrict,
 
-  groupCasesByExpert:
-    groupCasesByExpert
 };
 }
 async function assignCaseToExpert(expertCase, assignFunction) {
