@@ -345,23 +345,37 @@ async function assignExpertCase(options) {
     imageIds: clean(caseData.imageIds),
     caseSummary: clean(caseData.caseSummary)
   };
- const match = chooseBestExpert(
+let match = chooseBestExpert(
   expertRows,
   preparedCase
 );
 
-console.log("Experts loaded:", expertRows.length);
-console.log("Best Match:", match);
+// Guaranteed fallback: select the first valid directory expert
+if (!match) {
+  const fallbackExpert = (expertRows || [])
+    .map(mapExpertRow)
+    .find(function (expert) {
+      return (
+        expert.expertId &&
+        expert.expertName &&
+        expert.phone
+      );
+    });
 
-if (match) {
-  console.log(
-    "Assigned Expert:",
-    match.expert.expertId,
-    match.expert.expertName
-  );
-} else {
-  console.log("No suitable expert found.");
+  if (fallbackExpert) {
+    match = {
+      expert: fallbackExpert,
+      score: 0
+    };
+  }
 }
+
+console.log("Experts loaded:", expertRows.length);
+console.log(
+  "Selected expert:",
+  match ? match.expert.expertId : "NONE",
+  match ? match.expert.expertName : "NONE"
+);
 
 const selectedExpert = match
   ? match.expert
