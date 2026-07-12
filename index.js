@@ -379,7 +379,7 @@ const needExpert =
   aiReply.toLowerCase().includes("krishi bhavan") ||
   aiReply.toLowerCase().includes("field visit");
 
-if (needsExpert) {
+if (needExpert) {
   const assignmentResult = await assignExpertCase({
     caseData: {
       from: from,
