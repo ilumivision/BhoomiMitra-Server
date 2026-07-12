@@ -226,26 +226,44 @@ function chooseBestExpert(expertRows, caseData) {
   const experts = (expertRows || [])
     .map(mapExpertRow)
     .filter(function (expert) {
-      const approval = lower(
-        expert.approvalStatus || expert.status
-      );
-      const availability = lower(expert.availability);
-      const approved =
-        approval === "approved" ||
-        approval === "active" ||
-        approval === "";
-      const available =
-        availability === "available" ||
-        availability === "yes" ||
-        availability === "active" ||
-        availability === "";
-      return (
-        approved &&
-        available &&
-        expert.name &&
-        expert.whatsapp
-      );
-    });
+  const verification =
+    lower(expert.approvalStatus);
+
+  const status =
+    lower(expert.status);
+
+  const activeStatus =
+    lower(expert.activeStatus);
+
+  const availability =
+    lower(expert.availability);
+
+  const verified =
+    verification === "verified" ||
+    verification === "approved" ||
+    verification === "";
+
+  const active =
+    status === "active" &&
+    (
+      activeStatus === "active" ||
+      activeStatus === ""
+    );
+
+  const available =
+    availability === "available" ||
+    availability === "yes" ||
+    availability === "active" ||
+    availability === "";
+
+  return (
+    verified &&
+    active &&
+    available &&
+    expert.expertName &&
+    expert.phone
+  );
+});
   if (experts.length === 0) {
     return null;
   }
