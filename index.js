@@ -807,10 +807,25 @@ async function appendSafe(sheetName, row) {
 }
 async function readSheetRows(sheetName, range) {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID,
-     range: sheetName + "!" + (range || "A:Z")
-    });
+    const cleanSheetName = String(sheetName || "")
+      .trim()
+      .replace(/^'+|'+$/g, "")
+      .replace(/'/g, "''");
+
+    const cleanRange = String(range || "A:Z")
+      .trim()
+      .replace(/\s+/g, "");
+
+    const fullRange =
+      "'" + cleanSheetName + "'!" + cleanRange;
+
+    console.log("Reading Google Sheet range:", fullRange);
+
+    const response =
+      await sheets.spreadsheets.values.get({
+        spreadsheetId: GOOGLE_SHEET_ID,
+        range: fullRange
+      });
 
     return response.data.values || [];
   } catch (error) {
