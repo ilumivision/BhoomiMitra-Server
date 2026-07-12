@@ -13,6 +13,17 @@
 function clean(value) {
   return String(value || "").trim();
 }
+function formatWhatsAppNumber(number) {
+    let mobile = String(number || "").trim();
+
+    mobile = mobile.replace(/[^\d]/g, "");
+
+    if (mobile.length === 10) {
+        mobile = "91" + mobile;
+    }
+
+    return mobile;
+}
 function lower(value) {
   return clean(value).toLowerCase();
 }
