@@ -225,46 +225,30 @@ function mapExpertRow(row) {
 function chooseBestExpert(expertRows, caseData) {
   const experts = (expertRows || [])
     .map(mapExpertRow)
-    .filter(function (expert) {
-      const verification =
-        lower(expert.approvalStatus);
+   .filter(function (expert) {
+  const status = lower(expert.status);
+  const availability = lower(expert.availability);
+  const autoRoute = lower(expert.autoRoute);
 
-      const status =
-        lower(expert.status);
+  const isActive =
+    status === "active" ||
+    status === "";
 
-      const activeStatus =
-        lower(expert.activeStatus);
+  const isAvailable =
+    availability === "available" ||
+    availability === "yes" ||
+    availability === "active" ||
+    availability === "";
 
-      const availability =
-        lower(expert.availability);
+  const canAutoRoute =
+    autoRoute === "yes" ||
+    autoRoute === "active" ||
+    autoRoute === "";
 
-      const verified =
-        verification === "verified" ||
-        verification === "approved" ||
-        verification === "";
-
-      const active =
-        status === "active" &&
-        (
-          activeStatus === "active" ||
-          activeStatus === ""
-        );
-
-      const available =
-        availability === "available" ||
-        availability === "yes" ||
-        availability === "active" ||
-        availability === "";
-
-      return (
-        verified &&
-        active &&
-        available &&
-        expert.expertName &&
-        expert.phone
-      );
-    });
-
+  return (
+    isActive &&
+    isAvailable &&
+    canAutoRoute &&
   if (experts.length === 0) {
     return null;
   }
