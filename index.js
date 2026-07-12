@@ -443,28 +443,7 @@ if (needsExpert) {
   }
 }
 
-  const result = await expertCaseManager.saveExpertCase({
-    from,
-    farmerMessage: userText,
-    aiDiagnosis: aiReply,
-    aiConfidence: 60,
-    crop: "",
-    district: "",
-    panchayath: "",
-    source: "WhatsApp",
-    escalationReason: "AI referred to expert"
-  });
-
-  if (result.success) {
-    await sendWhatsAppMessage(
-      from,
-      "📋 Expert Case Registered\nCase ID: " +
-      result.case.caseId +
-      "\n\nYour query has been forwarded to a BhoomiMitra expert."
-    );
-  }
-}
-// -------------- End Expert Escalation --------------
+ // -------------- End Expert Escalation --------------
     await sendWhatsAppMessage(from, aiReply);
     await logAI(
       from,
