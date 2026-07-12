@@ -379,7 +379,69 @@ const needExpert =
   aiReply.toLowerCase().includes("krishi bhavan") ||
   aiReply.toLowerCase().includes("field visit");
 
-if (needExpert) {
+if (needsExpert) {
+  const assignmentResult = await assignExpertCase({
+    caseData: {
+      from: from,
+      whatsapp: from,
+      farmerPhone: from,
+      farmerWhatsapp: from,
+
+      crop:
+        activeCase && activeCase.crop
+          ? activeCase.crop
+          : "",
+
+      problem: userText,
+      farmerMessage: userText,
+      aiDiagnosis: aiReply,
+      aiConfidence: 60,
+      priority: "High",
+      source: "WhatsApp",
+      expertRequested: true,
+      escalationReason:
+        "Farmer requested expert assistance"
+    },
+
+    readSheetRows: readSheetRows,
+    appendRow: appendSafe
+  });
+
+  if (assignmentResult.success) {
+    const selectedExpert =
+      assignmentResult.expert || {};
+
+    const expertPhone =
+      selectedExpert.phone ||
+      selectedExpert.whatsappNumber ||
+      selectedExpert.mobileNumber ||
+      "";
+
+    expertConfirmation =
+      assignmentResult.farmerMessage ||
+      (
+        "📋 Expert Case Registered\n" +
+        "Case ID: " +
+        assignmentResult.caseId +
+        "\n\nYour query has been forwarded to a BhoomiMitra expert."
+      );
+
+    if (
+      expertPhone &&
+      assignmentResult.expertMessage
+    ) {
+      await sendWhatsAppMessage(
+        expertPhone,
+        assignmentResult.expertMessage
+      );
+    }
+  } else {
+    console.error(
+      "Expert assignment failed:",
+      assignmentResult.error
+    );
+  }
+}
 
   const result = await expertCaseManager.saveExpertCase({
     from,
