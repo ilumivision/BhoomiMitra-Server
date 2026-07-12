@@ -460,19 +460,19 @@ const needExpert =
   expertConfirmation || aiReply
 );
     await logAI(
-      from,
-      userText,
-      aiReply,
-      activeCase ? "case_followup" : "ai_reply"
-    );
+  from,
+  userText,
+  expertConfirmation || aiReply,
+  activeCase ? "case_followup" : "ai_reply"
+);
 
     await appendSafe(SHEETS.farmerQueries, [
-      new Date().toISOString(),
-      from,
-      userText,
-      aiReply,
-      "Open"
-    ]);
+  new Date().toISOString(),
+  from,
+  userText,
+  expertConfirmation || aiReply,
+  "Open"
+]);
 
   } catch (error) {
     console.error("Webhook error:", error.response && error.response.data ? error.response.data : error.message);
