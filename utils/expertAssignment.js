@@ -329,25 +329,31 @@ async function assignExpertCase(options) {
     imageIds: clean(caseData.imageIds),
     caseSummary: clean(caseData.caseSummary)
   };
-  const match = chooseBestExpert(
-    expertRows,
-    preparedCase
-  );
-  console.log("Experts loaded:", expertRows.length);
+ const match = chooseBestExpert(
+  expertRows,
+  preparedCase
+);
 
+console.log("Experts loaded:", expertRows.length);
 console.log("Best Match:", match);
 
 if (match) {
-  console.log("Assigned Expert:", match.expert.expertId, match.expert.expertName);
+  console.log(
+    "Assigned Expert:",
+    match.expert.expertId,
+    match.expert.expertName
+  );
 } else {
   console.log("No suitable expert found.");
 }
-  const selectedExpert = match
-    ? match.expert
-    : null;
-  const status = selectedExpert
-    ? "Assigned"
-    : "New";
+
+const selectedExpert = match
+  ? match.expert
+  : null;
+
+const status = selectedExpert
+  ? "Assigned"
+  : "New";
   await appendRow("Expert_Cases", [
     preparedCase.caseId,
     preparedCase.dateTime,
