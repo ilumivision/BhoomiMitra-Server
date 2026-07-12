@@ -428,14 +428,27 @@ const needExpert =
       selectedExpert.mobileNumber ||
       "";
 
-    expertConfirmation =
-      assignmentResult.farmerMessage ||
-      (
-        "📋 Expert Case Registered\n" +
-        "Case ID: " +
-        assignmentResult.caseId +
-        "\n\nYour query has been forwarded to a BhoomiMitra expert."
-      );
+   expertConfirmation =
+  "📋 Expert Case Registered\n" +
+  "Case ID: " +
+  assignmentResult.caseId +
+  "\n" +
+  (
+    selectedExpert.expertId
+      ? "Expert ID: " + selectedExpert.expertId + "\n"
+      : ""
+  ) +
+  (
+    selectedExpert.expertName
+      ? "Assigned Expert: " + selectedExpert.expertName + "\n"
+      : ""
+  ) +
+  "\n" +
+  (
+    selectedExpert.expertId
+      ? "Your query has been assigned to a BhoomiMitra expert."
+      : "Your query has been registered. An appropriate expert will be assigned."
+  );
 
     if (
       expertPhone &&
