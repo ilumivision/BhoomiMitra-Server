@@ -223,37 +223,53 @@ function mapExpertRow(row) {
   };
 }
 function chooseBestExpert(expertRows, caseData) {
-  const experts = (expertRows || [])
+  const mappedExperts = (expertRows || [])
     .map(mapExpertRow)
     .filter(function (expert) {
-      const status = lower(expert.status);
-      const availability = lower(expert.availability);
-      const autoRoute = lower(expert.autoRoute);
-
-      const isActive =
-        status === "active" ||
-        status === "";
-
-      const isAvailable =
-        availability === "available" ||
-        availability === "yes" ||
-        availability === "active" ||
-        availability === "";
-
-      const canAutoRoute =
-        autoRoute === "yes" ||
-        autoRoute === "active" ||
-        autoRoute === "";
-
       return (
-        isActive &&
-        isAvailable &&
-        canAutoRoute &&
         expert.expertId &&
         expert.expertName &&
         expert.phone
       );
     });
+
+  let experts = mappedExperts.filter(function (expert) {
+    const status = lower(expert.status);
+    const availability = lower(expert.availability);
+    const autoRoute = lower(expert.autoRoute);
+    const activeStatus = lower(expert.activeStatus);
+
+    const isActive =
+      status === "active" ||
+      status === "";
+
+    const isAvailable =
+      availability === "available" ||
+      availability === "yes" ||
+      availability === "active" ||
+      availability === "";
+
+    const canAutoRoute =
+      autoRoute === "yes" ||
+      autoRoute === "active" ||
+      autoRoute === "";
+
+    const profileActive =
+      activeStatus === "active" ||
+      activeStatus === "";
+
+    return (
+      isActive &&
+      isAvailable &&
+      canAutoRoute &&
+      profileActive
+    );
+  });
+
+  // Safe fallback for approved BhoomiMitra directory
+  if (experts.length === 0) {
+    experts = mappedExperts;
+  }
 
   if (experts.length === 0) {
     return null;
