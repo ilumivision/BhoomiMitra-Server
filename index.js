@@ -807,25 +807,36 @@ async function appendSafe(sheetName, row) {
 }
 async function readSheetRows(sheetName, range) {
   try {
+    const spreadsheetInfo = await sheets.spreadsheets.get({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      fields: "sheets.properties.title"
+    });
+
+    const visibleSheetNames =
+      (spreadsheetInfo.data.sheets || []).map(function (sheet) {
+        return sheet.properties.title;
+      });
+
+    console.log("Spreadsheet ID being used:", GOOGLE_SHEET_ID);
+    console.log("Tabs visible to server:", visibleSheetNames);
+    console.log("Requested tab:", JSON.stringify(sheetName));
+
     const cleanSheetName = String(sheetName || "")
       .trim()
       .replace(/^'+|'+$/g, "")
       .replace(/'/g, "''");
 
-    const cleanRange = String(range || "A:Z")
-      .trim()
-      .replace(/\s+/g, "");
+    const cleanRange = String(range || "A:Z").trim();
 
     const fullRange =
       "'" + cleanSheetName + "'!" + cleanRange;
 
     console.log("Reading Google Sheet range:", fullRange);
 
-    const response =
-      await sheets.spreadsheets.values.get({
-        spreadsheetId: GOOGLE_SHEET_ID,
-        range: fullRange
-      });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      range: fullRange
+    });
 
     return response.data.values || [];
   } catch (error) {
