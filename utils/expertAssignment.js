@@ -226,62 +226,67 @@ function chooseBestExpert(expertRows, caseData) {
   const experts = (expertRows || [])
     .map(mapExpertRow)
     .filter(function (expert) {
-  const verification =
-    lower(expert.approvalStatus);
+      const verification =
+        lower(expert.approvalStatus);
 
-  const status =
-    lower(expert.status);
+      const status =
+        lower(expert.status);
 
-  const activeStatus =
-    lower(expert.activeStatus);
+      const activeStatus =
+        lower(expert.activeStatus);
 
-  const availability =
-    lower(expert.availability);
+      const availability =
+        lower(expert.availability);
 
-  const verified =
-    verification === "verified" ||
-    verification === "approved" ||
-    verification === "";
+      const verified =
+        verification === "verified" ||
+        verification === "approved" ||
+        verification === "";
 
-  const active =
-    status === "active" &&
-    (
-      activeStatus === "active" ||
-      activeStatus === ""
-    );
+      const active =
+        status === "active" &&
+        (
+          activeStatus === "active" ||
+          activeStatus === ""
+        );
 
-  const available =
-    availability === "available" ||
-    availability === "yes" ||
-    availability === "active" ||
-    availability === "";
+      const available =
+        availability === "available" ||
+        availability === "yes" ||
+        availability === "active" ||
+        availability === "";
 
-  return (
-    verified &&
-    active &&
-    available &&
-    expert.expertName &&
-    expert.phone
-  );
-});
+      return (
+        verified &&
+        active &&
+        available &&
+        expert.expertName &&
+        expert.phone
+      );
+    });
+
   if (experts.length === 0) {
     return null;
   }
+
   const scored = experts.map(function (expert) {
     return {
       expert: expert,
       score: scoreExpert(expert, caseData)
     };
   });
+
   scored.sort(function (a, b) {
     if (b.score !== a.score) {
       return b.score - a.score;
     }
+
     return (
       Number(a.expert.openCases || 0) -
       Number(b.expert.openCases || 0)
     );
   });
+
   return scored[0];
 }
 function createCaseId() {
