@@ -373,8 +373,7 @@ const status = selectedExpert
       ? selectedExpert.name
       : "",
     selectedExpert
-   selectedExpert
-  ? selectedExpert.whatsappNumber
+     ? selectedExpert.whatsappNumber
   : "",
     status,
     "",
