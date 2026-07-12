@@ -311,9 +311,8 @@ async function assignExpertCase(options) {
   const expertRows = await readSheetRows(
   "Expert_Directory",
   "A2:AS"
-);
-  );
-  const problemCategory =
+   );
+    const problemCategory =
     caseData.problemCategory ||
     getProblemCategory(caseData.problem);
   const priority =
