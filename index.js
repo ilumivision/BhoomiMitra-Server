@@ -809,7 +809,7 @@ async function readSheetRows(sheetName, range) {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: GOOGLE_SHEET_ID,
-      range: sheetName + "!" + (range || "A:Z")
+     range: sheetName + "!" + (range || "A:Z")
     });
 
     return response.data.values || [];
