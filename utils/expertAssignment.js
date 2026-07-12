@@ -190,18 +190,35 @@ function scoreExpert(expert, caseData) {
 }
 function mapExpertRow(row) {
   return {
-    expertId: clean(row[0]),
+    expertId: clean(row[0]),          // A  Expert_ID
+    expertName: clean(row[1]),        // B  Name
     name: clean(row[1]),
-    whatsapp: clean(row[2]),
-    district: clean(row[3]),
-    panchayath: clean(row[4]),
-    specialisation: clean(row[5]),
-    cropExpertise: clean(row[6]),
-    problemExpertise: clean(row[7]),
-    availability: clean(row[8]),
-    openCases: clean(row[9]),
-    approvalStatus: clean(row[10]),
-    status: clean(row[11]),
+
+    mobileNumber: formatWhatsAppNumber(row[3]),   // D Mobile_No
+    whatsappNumber: formatWhatsAppNumber(row[4]), // E WhatsApp_No
+    phone: formatWhatsAppNumber(row[4] || row[3]),
+
+    district: clean(row[9]),          // J District
+    organization: clean(row[10]),     // K Organization
+    department: clean(row[11]),       // L Department
+    designation: clean(row[12]),      // M Designation
+
+    expertGroup: clean(row[16]),      // Q Expert_Group
+    specialisation: clean(row[17]),   // R Specialization
+    cropExpertise: clean(row[16]) + " " + clean(row[17]),
+    problemExpertise: clean(row[16]) + " " + clean(row[17]),
+
+    availability: clean(row[25]),     // Z Availability
+    autoRoute: clean(row[26]),        // AA Auto_Route
+    status: clean(row[27]),           // AB Status
+    approvalStatus: clean(row[30]),   // AE Verification_Status
+    activeStatus: clean(row[32]),     // AG Active_Status
+
+    totalConsultations: Number(row[34]) || 0, // AI
+    averageRating: Number(row[35]) || 0,      // AJ
+    openCases: Number(row[36]) || 0,          // AK Farmers_Assigned
+    aiPriority: clean(row[37]),                // AL
+
     raw: row
   };
 }
