@@ -389,7 +389,8 @@ const needExpert =
   aiReply.toLowerCase().includes("expert") ||
   aiReply.toLowerCase().includes("krishi bhavan") ||
   aiReply.toLowerCase().includes("field visit");
-if (needExpert) {
+  let expertConfirmation = "";  
+ if (needExpert) {
   const assignmentResult = await assignExpertCase({
     caseData: {
       from: from,
@@ -454,7 +455,10 @@ if (needExpert) {
 }
 
  // -------------- End Expert Escalation --------------
-    await sendWhatsAppMessage(from, aiReply);
+   await sendWhatsAppMessage(
+  from,
+  expertConfirmation || aiReply
+);
     await logAI(
       from,
       userText,
