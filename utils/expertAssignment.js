@@ -327,6 +327,15 @@ async function assignExpertCase(options) {
     expertRows,
     preparedCase
   );
+  console.log("Experts loaded:", expertRows.length);
+
+console.log("Best Match:", match);
+
+if (match) {
+  console.log("Assigned Expert:", match.expert.expertId, match.expert.expertName);
+} else {
+  console.log("No suitable expert found.");
+}
   const selectedExpert = match
     ? match.expert
     : null;
