@@ -258,8 +258,9 @@ async function assignExpertCase(options) {
     throw new Error("appendRow function is required.");
   }
   const expertRows = await readSheetRows(
-    "Expert_Directory",
-    "A2:L"
+  "Expert_Directory",
+  "A2:AS"
+);
   );
   const problemCategory =
     caseData.problemCategory ||
