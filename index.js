@@ -11,6 +11,9 @@ const caseManager = require("./utils/caseManager");
 const {
   createExpertCaseManager
 } = require("./utils/expertCaseManager");
+const {
+  assignExpertCase
+} = require("./utils/expertAssignment");
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 10000;
