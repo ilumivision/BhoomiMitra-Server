@@ -132,65 +132,118 @@ function getProblemCategory(problemText) {
 }
 function scoreExpert(expert, caseData) {
   let score = 0;
-  const expertDistrict = lower(expert.district);
-  const farmerDistrict = lower(caseData.district);
-  const skills = splitSkills(
+
+  function normalize(value) {
+    return lower(value)
+      .replace(/\bgoats\b/g, "goat")
+      .replace(/\bcows\b/g, "cow")
+      .replace(/\bchickens\b/g, "chicken")
+      .replace(/\bducks\b/g, "duck")
+      .replace(/\bfishes\b/g, "fish")
+      .replace(/[^a-z0-9\u0D00-\u0D7F\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  const farmerText = normalize(
     [
-      expert.specialisation,
-      expert.cropExpertise,
-      expert.problemExpertise,
-      expert.expertise,
-      expert.subject
-    ].join(",")
+      caseData.crop,
+      caseData.problem,
+      caseData.problemCategory,
+      caseData.caseSummary
+    ].join(" ")
   );
-  const crop = lower(caseData.crop);
-  const category = lower(caseData.problemCategory);
+
+  const expertGroup = normalize(
+    expert.expertGroup
+  );
+
+  const specializationText = clean(
+    expert.specialisation
+  );
+
+  const specializationKeywords =
+    specializationText
+      .split(/[,;|/]+/)
+      .map(function (item) {
+        return normalize(item);
+      })
+      .filter(Boolean);
+
+  // Strong match with Expert_Group — column Q
+  const groupWords = expertGroup
+    .split(" ")
+    .filter(function (word) {
+      return word.length >= 4;
+    });
+
+  groupWords.forEach(function (word) {
+    if (farmerText.includes(word)) {
+      score += 20;
+    }
+  });
+
+  // Match each specialization phrase — column R
+  specializationKeywords.forEach(function (keyword) {
+    if (farmerText.includes(keyword)) {
+      score += 60;
+      return;
+    }
+
+    const keywordWords = keyword
+      .split(" ")
+      .filter(function (word) {
+        return word.length >= 3;
+      });
+
+    keywordWords.forEach(function (word) {
+      if (farmerText.includes(word)) {
+        score += 12;
+      }
+    });
+  });
+
+  // District preference
   if (
-    expertDistrict &&
-    farmerDistrict &&
-    expertDistrict === farmerDistrict
+    lower(expert.district) &&
+    lower(caseData.district) &&
+    lower(expert.district) ===
+      lower(caseData.district)
   ) {
-    score += 30;
+    score += 10;
   }
-  if (
-    crop &&
-    skills.some(function (skill) {
-      return skill.includes(crop) || crop.includes(skill);
-    })
-  ) {
-    score += 40;
-  }
-  if (
-    category &&
-    skills.some(function (skill) {
-      return skill.includes(category) || category.includes(skill);
-    })
-  ) {
-    score += 25;
-  }
-  if (
-    lower(expert.status) === "approved" ||
-    lower(expert.approvalStatus) === "approved"
-  ) {
-    score += 20;
-  }
+
+  // Availability
   if (
     lower(expert.availability) === "available" ||
     lower(expert.availability) === "yes" ||
     lower(expert.availability) === "active"
   ) {
-    score += 20;
-  }
-  const openCases = Number(expert.openCases || 0);
-  if (openCases === 0) {
-    score += 15;
-  } else if (openCases <= 3) {
     score += 10;
-  } else if (openCases <= 5) {
+  }
+
+  // Rating
+  const rating =
+    Number(expert.averageRating || 0);
+
+  if (rating >= 4.5) {
+    score += 10;
+  } else if (rating >= 4) {
     score += 5;
-  } else {
+  }
+
+  // Workload
+  const openCases =
+    Number(expert.openCases || 0);
+
+  if (openCases === 0) {
+    score += 10;
+  } else if (openCases <= 3) {
+    score += 5;
+  } else if (openCases > 5) {
     score -= 10;
   }
+
   return score;
 }
 function mapExpertRow(row) {
