@@ -807,31 +807,63 @@ async function appendSafe(sheetName, row) {
 }
 async function readSheetRows(sheetName, range) {
   try {
+    const requestedName = String(sheetName || "").trim();
+    const requestedRange = String(range || "A:Z").trim();
+
     const spreadsheetInfo = await sheets.spreadsheets.get({
       spreadsheetId: GOOGLE_SHEET_ID,
-      fields: "sheets.properties.title"
+      fields: "sheets(properties(sheetId,title))"
     });
 
-    const visibleSheetNames =
-      (spreadsheetInfo.data.sheets || []).map(function (sheet) {
-        return sheet.properties.title;
-      });
+    const availableSheets = spreadsheetInfo.data.sheets || [];
 
-    console.log("Spreadsheet ID being used:", GOOGLE_SHEET_ID);
-    console.log("Tabs visible to server:", visibleSheetNames);
-    console.log("Requested tab:", JSON.stringify(sheetName));
+    console.log(
+      "Tabs visible to server:",
+      availableSheets.map(function (sheet) {
+        return {
+          sheetId: sheet.properties.sheetId,
+          title: sheet.properties.title
+        };
+      })
+    );
 
-    const cleanSheetName = String(sheetName || "")
-      .trim()
-      .replace(/^'+|'+$/g, "")
-      .replace(/'/g, "''");
+    function normalizeTitle(value) {
+      return String(value || "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .trim()
+        .toLowerCase();
+    }
 
-    const cleanRange = String(range || "A:Z").trim();
+    const targetSheet = availableSheets.find(function (sheet) {
+      return (
+        normalizeTitle(sheet.properties.title) ===
+        normalizeTitle(requestedName)
+      );
+    });
+
+    if (!targetSheet) {
+      console.error(
+        "Requested sheet was not found:",
+        JSON.stringify(requestedName)
+      );
+      return [];
+    }
+
+    const actualSheetTitle = targetSheet.properties.title;
+    const escapedSheetTitle =
+      actualSheetTitle.replace(/'/g, "''");
 
     const fullRange =
-      "'" + cleanSheetName + "'!" + cleanRange;
+      "'" + escapedSheetTitle + "'!" + requestedRange;
 
-    console.log("Reading Google Sheet range:", fullRange);
+    console.log(
+      "Resolved actual sheet title:",
+      JSON.stringify(actualSheetTitle)
+    );
+    console.log(
+      "Reading exact Google Sheet range:",
+      JSON.stringify(fullRange)
+    );
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: GOOGLE_SHEET_ID,
