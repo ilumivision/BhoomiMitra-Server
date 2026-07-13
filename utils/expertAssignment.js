@@ -448,18 +448,18 @@ const status = selectedExpert
     preparedCase.imageIds,
     preparedCase.caseSummary
   ]);
-  const farmerMessage =
-    selectedExpert
-      ? (
+ const farmerMessage =
+  selectedExpert
+    ? (
         settings &&
         settings.MSG_EXPERT_ASSIGNED
       ) ||
         "നിങ്ങളുടെ കേസ് BhoomiMitra വിദഗ്ധ പരിശോധനയ്ക്കായി രജിസ്റ്റർ ചെയ്തിരിക്കുന്നു. അനുയോജ്യനായ വിദഗ്ധന് കേസ് കൈമാറിയിട്ടുണ്ട്. വിദഗ്ധൻ പരിശോധിച്ച ശേഷം മറുപടി നൽകുന്നതാണ്."
-      : (
+    : (
         settings &&
         settings.MSG_EXPERT_REGISTERED
       ) ||
-     നിങ്ങളുടെ കേസ് BhoomiMitra വിദഗ്ധ പരിശോധനയ്ക്കായി രജിസ്റ്റർ ചെയ്തിരിക്കുന്നു. രജിസ്റ്റർ ചെയ്ത അനുയോജ്യനായ വിദഗ്ധൻ പരിശോധിച്ച ശേഷം മറുപടി നൽകുന്നതാണ്.";
+        "നിങ്ങളുടെ കേസ് BhoomiMitra വിദഗ്ധ പരിശോധനയ്ക്കായി രജിസ്റ്റർ ചെയ്തിരിക്കുന്നു. രജിസ്റ്റർ ചെയ്ത അനുയോജ്യനായ വിദഗ്ധൻ പരിശോധിച്ച ശേഷം മറുപടി നൽകുന്നതാണ്.";
     let expertReplyLink = "";
 
 if (selectedExpert) {
