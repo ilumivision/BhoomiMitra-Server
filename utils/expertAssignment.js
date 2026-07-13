@@ -1,4 +1,9 @@
 "use strict";
+
+const {
+  buildExpertReplyLink
+} = require("./expertReply");
+
 /*
  * BhoomiMitra Expert Assignment Module
  *
@@ -454,9 +459,28 @@ const status = selectedExpert
         settings &&
         settings.MSG_EXPERT_REGISTERED
       ) ||
-        "നിങ്ങളുടെ കേസ് BhoomiMitra വിദഗ്ധ പരിശോധനയ്ക്കായി രജിസ്റ്റർ ചെയ്തിരിക്കുന്നു. രജിസ്റ്റർ ചെയ്ത അനുയോജ്യനായ വിദഗ്ധൻ പരിശോധിച്ച ശേഷം മറുപടി നൽകുന്നതാണ്.";
-  const expertMessage = selectedExpert
-    ? [
+     നിങ്ങളുടെ കേസ് BhoomiMitra വിദഗ്ധ പരിശോധനയ്ക്കായി രജിസ്റ്റർ ചെയ്തിരിക്കുന്നു. രജിസ്റ്റർ ചെയ്ത അനുയോജ്യനായ വിദഗ്ധൻ പരിശോധിച്ച ശേഷം മറുപടി നൽകുന്നതാണ്.";
+    let expertReplyLink = "";
+
+if (selectedExpert) {
+  try {
+    expertReplyLink = buildExpertReplyLink({
+      baseUrl:
+        process.env.EXPERT_REPLY_URL ||
+        "https://ilumivision.in/expert-reply",
+      caseId: preparedCase.caseId,
+      expertId: selectedExpert.expertId
+    });
+  } catch (error) {
+    console.error(
+      "Expert reply link generation failed:",
+      error.message
+    );
+  }
+}
+
+const expertMessage = selectedExpert
+  ? [
         "പുതിയ BhoomiMitra വിദഗ്ധ കേസ് ലഭിച്ചിട്ടുണ്ട്.",
         "",
         "Case ID: " + preparedCase.caseId,
@@ -480,7 +504,10 @@ const status = selectedExpert
         "AI confidence: " +
           (preparedCase.aiConfidence || "Not available"),
         "",
-        "Please review and reply with Case ID."
+       "Reply to this case using the secure link:",
+expertReplyLink || "Reply link is temporarily unavailable.",
+"",
+"Please do not share this link."
       ].join("\n")
     : "";
   return {
