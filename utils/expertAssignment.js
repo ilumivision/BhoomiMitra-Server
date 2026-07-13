@@ -223,59 +223,89 @@ function mapExpertRow(row) {
   };
 }
 function chooseBestExpert(expertRows, caseData) {
-  const mappedExperts = (expertRows || [])
+  const experts = (expertRows || [])
     .map(mapExpertRow)
     .filter(function (expert) {
+      const status = lower(expert.status);
+      const availability = lower(expert.availability);
+      const autoRoute = lower(expert.autoRoute);
+
+      const isActive =
+        status === "active" ||
+        status === "";
+
+      const isAvailable =
+        availability === "available" ||
+        availability === "yes" ||
+        availability === "active" ||
+        availability === "";
+
+      const canAutoRoute =
+        autoRoute === "yes" ||
+        autoRoute === "active" ||
+        autoRoute === "";
+
       return (
+        isActive &&
+        isAvailable &&
+        canAutoRoute &&
         expert.expertId &&
         expert.expertName &&
         expert.phone
       );
     });
 
-  let experts = mappedExperts.filter(function (expert) {
-    const status = lower(expert.status);
-    const availability = lower(expert.availability);
-    const autoRoute = lower(expert.autoRoute);
-    const activeStatus = lower(expert.activeStatus);
-
-    const isActive =
-      status === "active" ||
-      status === "";
-
-    const isAvailable =
-      availability === "available" ||
-      availability === "yes" ||
-      availability === "active" ||
-      availability === "";
-
-    const canAutoRoute =
-      autoRoute === "yes" ||
-      autoRoute === "active" ||
-      autoRoute === "";
-
-    const profileActive =
-      activeStatus === "active" ||
-      activeStatus === "";
-
-    return (
-      isActive &&
-      isAvailable &&
-      canAutoRoute &&
-      profileActive
-    );
-  });
-
-  // Safe fallback for approved BhoomiMitra directory
-  if (experts.length === 0) {
-    experts = mappedExperts;
-  }
-
   if (experts.length === 0) {
     return null;
   }
 
-  const scored = experts.map(function (expert) {
+  const cropAndProblem = lower(
+    (caseData.crop || "") +
+    " " +
+    (caseData.problem || "")
+  );
+
+  const routeKeywords = [];
+
+  if (
+    cropAndProblem.includes("paddy") ||
+    cropAndProblem.includes("rice") ||
+    cropAndProblem.includes("നെല്ല്")
+  ) {
+    routeKeywords.push(
+      "paddy",
+      "rice",
+      "agronomy",
+      "crop production"
+    );
+  }
+
+  const routedExperts =
+    routeKeywords.length > 0
+      ? experts.filter(function (expert) {
+          const profile = lower(
+            [
+              expert.expertGroup,
+              expert.specialisation,
+              expert.cropExpertise,
+              expert.problemExpertise,
+              expert.department,
+              expert.designation
+            ].join(" ")
+          );
+
+          return routeKeywords.some(function (keyword) {
+            return profile.includes(keyword);
+          });
+        })
+      : [];
+
+  const candidates =
+    routedExperts.length > 0
+      ? routedExperts
+      : experts;
+
+  const scored = candidates.map(function (expert) {
     return {
       expert: expert,
       score: scoreExpert(expert, caseData)
