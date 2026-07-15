@@ -17,6 +17,9 @@ const {
 const {
   fetchAllSources
 } = require("./utils/marketFetcher");
+const {
+  getMarketPrice
+} = require("./utils/market");
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 10000;
@@ -284,40 +287,68 @@ console.log("Detected Intent:", detectedIntent);
 
 // ================= MARKET MODULE =================
 if (detectedIntent === "market") {
-  const records = await fetchAllSources({
-    state: "Kerala",
-    commodity: userText,
-    limit: 1000
-  });
-  if (records.length === 0) {
-    await sendWhatsAppMessage(
-      from,
-      "ക്ഷമിക്കണം, ഈ ഉൽപ്പന്നത്തിനായുള്ള മാർക്കറ്റ് വില ഇപ്പോൾ ലഭ്യമല്ല."
-    );
-    return;
+  const commodity =
+    extractMarketCommodity(userText);
+  console.log(
+    "Market commodity detected:",
+    commodity || "NONE"
+  );
+  let finalReply = "";
+  if (commodity) {
+    const savedResult =
+      await getMarketPrice({
+        readSheetRows,
+        query: {
+          commodity: commodity
+        }
+      });
+    if (savedResult.success) {
+      finalReply = savedResult.reply;
+    } else {
+      console.log(
+        "No saved price. Checking AGMARKNET:",
+        commodity
+      );
+      const liveRecords =
+        await fetchAllSources({
+          state: "Kerala",
+          commodity: commodity,
+          limit: 1000
+        });
+      if (liveRecords.length > 0) {
+        liveRecords.sort(function (a, b) {
+          const first =
+            new Date(a.sourceDate || 0)
+              .getTime();
+          const second =
+            new Date(b.sourceDate || 0)
+              .getTime();
+          return second - first;
+        });
+        finalReply =
+          formatLiveMarketReply(
+            liveRecords[0]
+          );
+      }
+    }
   }
-  const record = records[0];
-  const reply =
-    "📊 BhoomiMitra Market Intelligence\n\n" +
-    "Commodity: " + record.commodity + "\n" +
-    "Variety: " + record.variety + "\n" +
-    "Market: " + record.market + "\n" +
-    "District: " + record.district + "\n\n" +
-    "Modal Price: ₹" + record.price + "/kg\n" +
-    "Minimum: ₹" + record.minimumPrice + "/kg\n" +
-    "Maximum: ₹" + record.maximumPrice + "/kg\n\n" +
-    "Date: " + record.sourceDate + "\n" +
-    "Source: " + record.source;
-  await sendWhatsAppMessage(from, reply);
+  if (!finalReply) {
+    finalReply =
+      "ക്ഷമിക്കണം, ഈ ഉൽപ്പന്നത്തിനായുള്ള മാർക്കറ്റ് വില ഇപ്പോൾ ലഭ്യമല്ല.";
+  }
+  await sendWhatsAppMessage(
+    from,
+    finalReply
+  );
   await logAI(
     from,
     userText,
-    reply,
+    finalReply,
     "market"
   );
   return;
 }
-// ================= END MARKET MODULE =================
+// =============== END MARKET MODULE ===============
 
 
 await appendSafe(SHEETS.conversation, [
@@ -735,6 +766,140 @@ async function getForecastContext(userText) {
     console.error("Forecast read error:", error.response && error.response.data ? error.response.data : error.message);
     return "Forecast data could not be read from BhoomiMitra database.";
   }
+}
+function extractMarketCommodity(text) {
+  const value = String(text || "").toLowerCase();
+  const commodities = [
+    {
+      apiName: "Black pepper",
+      keywords: [
+        "black pepper",
+        "pepper",
+        "കുരുമുളക്"
+      ]
+    },
+    {
+      apiName: "Coconut",
+      keywords: [
+        "coconut",
+        "തേങ്ങ",
+        "നാളികേരം"
+      ]
+    },
+    {
+      apiName: "Banana",
+      keywords: [
+        "banana",
+        "വാഴപ്പഴം",
+        "വാഴ"
+      ]
+    },
+    {
+      apiName: "Cardamom",
+      keywords: [
+        "cardamom",
+        "ഏലം"
+      ]
+    },
+    {
+      apiName: "Ginger",
+      keywords: [
+        "ginger",
+        "ഇഞ്ചി"
+      ]
+    },
+    {
+      apiName: "Turmeric",
+      keywords: [
+        "turmeric",
+        "മഞ്ഞൾ"
+      ]
+    },
+    {
+      apiName: "Arecanut",
+      keywords: [
+        "arecanut",
+        "areca nut",
+        "അടയ്ക്ക"
+      ]
+    },
+    {
+      apiName: "Paddy",
+      keywords: [
+        "paddy",
+        "നെല്ല്"
+      ]
+    },
+    {
+      apiName: "Rice",
+      keywords: [
+        "rice",
+        "അരി"
+      ]
+    },
+    {
+      apiName: "Copra",
+      keywords: [
+        "copra",
+        "കൊപ്ര"
+      ]
+    }
+  ];
+  for (const item of commodities) {
+    const matched = item.keywords.some(function (keyword) {
+      return value.includes(keyword);
+    });
+    if (matched) {
+      return item.apiName;
+    }
+  }
+  return "";
+}
+function formatLiveMarketReply(record) {
+  if (!record) {
+    return "ക്ഷമിക്കണം, ഈ ഉൽപ്പന്നത്തിനായുള്ള മാർക്കറ്റ് വില ഇപ്പോൾ ലഭ്യമല്ല.";
+  }
+  const minimum =
+    record.minimumPrice == null
+      ? "-"
+      : record.minimumPrice;
+  const maximum =
+    record.maximumPrice == null
+      ? "-"
+      : record.maximumPrice;
+  const modal =
+    record.price == null
+      ? "-"
+      : record.price;
+  return [
+    "📊 BhoomiMitra Market Intelligence",
+    "",
+    "Commodity: " +
+      (record.commodity || "-"),
+    "Variety: " +
+      (record.variety || "-"),
+    "Market: " +
+      (record.market || "-"),
+    "District: " +
+      (record.district || "-"),
+    "",
+    "Modal Price: ₹" +
+      modal +
+      "/" +
+      (record.unit || "kg"),
+    "Price Range: ₹" +
+      minimum +
+      " - ₹" +
+      maximum,
+    "",
+    "Source date: " +
+      (record.sourceDate || "-"),
+    "BhoomiMitra checked: " +
+      (record.checkedAt || "-"),
+    "Source: " +
+      (record.source || "AGMARKNET"),
+    "Status: Official source"
+  ].join("\n");
 }
 
 function detectKeralaDistrict(text) {
