@@ -1,71 +1,61 @@
 "use strict";
+
+down to:
+
+module.exports = {
+    fetchAllSources
+};
+
+Step 3 — Paste this complete replacement
+
+"use strict";
 /*
  * BhoomiMitra Market Fetcher
  *
- * Phase 1:
- * Returns standard market-price objects.
+ * Current live source:
+ * - AGMARKNET / data.gov.in API
  *
- * Later:
- * VFPCK
- * AGMARKNET
- * Rubber Board
- * Spices Board
- * Coconut Board
- * etc.
+ * Future sources:
+ * - VFPCK
+ * - Rubber Board
+ * - Spices Board
+ * - Coconut Development Board
  */
 const {
-    getEnabledSources
-} = require("./marketSources");
-async function fetchSource(source) {
-    console.log(
-        "Checking source:",
-        source.name
+  fetchAgmarknet
+} = require("./fetchers/agmarknetFetcher");
+async function fetchAllSources(options) {
+  const input = options || {};
+  let prices = [];
+  try {
+    console.log("Checking source: AGMARKNET");
+    const agmarknetRecords =
+      await fetchAgmarknet({
+        state: input.state || "Kerala",
+        district: input.district || "",
+        market: input.market || "",
+        commodity: input.commodity || "",
+        variety: input.variety || "",
+        limit: input.limit || 1000
+      });
+    prices = prices.concat(
+      agmarknetRecords
     );
-    /*
-     * Temporary sample record.
-     *
-     * Later this block will be replaced
-     * with live website/API reading.
-     */
-    return [{
-        commodity: "Banana",
-        variety: "Nendran",
-        district: "Pathanamthitta",
-        market: "Thiruvalla",
-        price: 48,
-        unit: "Kg",
-        source: source.name,
-        sourceDate:
-            new Date().toISOString().substring(0,10),
-        sourceTime:
-            new Date().toLocaleTimeString(),
-        checkedAt:
-            new Date().toISOString(),
-        status:
-            "Live Update"
-    }];
-}
-async function fetchAllSources() {
-    const sources =
-        getEnabledSources();
-    let prices = [];
-    for (const source of sources) {
-        try {
-            const result =
-                await fetchSource(source);
-            prices =
-                prices.concat(result);
-        }
-        catch (error) {
-            console.error(
-                "Source failed:",
-                source.name,
-                error.message
-            );
-        }
-    }
-    return prices;
+    console.log(
+      "AGMARKNET records added:",
+      agmarknetRecords.length
+    );
+  } catch (error) {
+    console.error(
+      "AGMARKNET source failed:",
+      error.response &&
+      error.response.data
+        ? error.response.data
+        : error.message
+    );
+  }
+  return prices;
 }
 module.exports = {
-    fetchAllSources
+  fetchAllSources
 };
