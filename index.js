@@ -15,8 +15,8 @@ const {
   assignExpertCase
 } = require("./utils/expertAssignment");
 const {
-  getMarketPrice
-} = require("./utils/market");
+  fetchAllSources
+} = require("./utils/marketFetcher");
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 10000;
@@ -284,29 +284,41 @@ console.log("Detected Intent:", detectedIntent);
 
 // ================= MARKET MODULE =================
 if (detectedIntent === "market") {
-
-  const marketResult = await getMarketPrice({
-    readSheetRows,
-    query: {
-      commodity: userText
-    }
+  const records = await fetchAllSources({
+    state: "Kerala",
+    commodity: userText,
+    limit: 1000
   });
-
-  await sendWhatsAppMessage(
-    from,
-    marketResult.reply
-  );
-
+  if (records.length === 0) {
+    await sendWhatsAppMessage(
+      from,
+      "ക്ഷമിക്കണം, ഈ ഉൽപ്പന്നത്തിനായുള്ള മാർക്കറ്റ് വില ഇപ്പോൾ ലഭ്യമല്ല."
+    );
+    return;
+  }
+  const record = records[0];
+  const reply =
+    "📊 BhoomiMitra Market Intelligence\n\n" +
+    "Commodity: " + record.commodity + "\n" +
+    "Variety: " + record.variety + "\n" +
+    "Market: " + record.market + "\n" +
+    "District: " + record.district + "\n\n" +
+    "Modal Price: ₹" + record.price + "/kg\n" +
+    "Minimum: ₹" + record.minimumPrice + "/kg\n" +
+    "Maximum: ₹" + record.maximumPrice + "/kg\n\n" +
+    "Date: " + record.sourceDate + "\n" +
+    "Source: " + record.source;
+  await sendWhatsAppMessage(from, reply);
   await logAI(
     from,
     userText,
-    marketResult.reply,
+    reply,
     "market"
   );
-
   return;
 }
 // ================= END MARKET MODULE =================
+
 
 await appendSafe(SHEETS.conversation, [
       new Date().toISOString(),
