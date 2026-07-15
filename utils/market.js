@@ -370,3 +370,8 @@ function matchesQuery(record, query) {
   );
 
   const market =
+module.exports = {
+  getMarketPrice,
+  findLatestMarketRecord,
+  formatMarketReply
+};
