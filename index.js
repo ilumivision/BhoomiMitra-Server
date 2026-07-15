@@ -284,26 +284,29 @@ console.log("Detected Intent:", detectedIntent);
 
 // ================= MARKET MODULE =================
 if (detectedIntent === "market") {
-  const market = require("./utils/market");
 
-  const reply = await market({
-    text: userText,
+  const marketResult = await getMarketPrice({
     readSheetRows,
-    appendRow: appendSafe
+    query: {
+      commodity: userText
+    }
   });
 
-  await sendWhatsAppMessage(from, reply.reply);
+  await sendWhatsAppMessage(
+    from,
+    marketResult.reply
+  );
 
   await logAI(
     from,
     userText,
-    reply.reply,
+    marketResult.reply,
     "market"
   );
 
   return;
 }
-// ============== END MARKET MODULE ===============
+// ================= END MARKET MODULE =================
 
 await appendSafe(SHEETS.conversation, [
       new Date().toISOString(),
