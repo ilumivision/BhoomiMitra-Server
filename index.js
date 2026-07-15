@@ -17,9 +17,11 @@ const {
 const {
   fetchAllSources
 } = require("./utils/marketFetcher");
+
 const {
   getMarketPrice
 } = require("./utils/market");
+
 const app = express();
 app.use(express.json());
 const PORT = process.env.PORT || 10000;
