@@ -281,6 +281,30 @@ return;
 }
 const detectedIntent = detectIntent(userText);
 console.log("Detected Intent:", detectedIntent);
+
+// ================= MARKET MODULE =================
+if (detectedIntent === "market") {
+  const market = require("./utils/market");
+
+  const reply = await market({
+    text: userText,
+    readSheetRows,
+    appendRow: appendSafe
+  });
+
+  await sendWhatsAppMessage(from, reply.reply);
+
+  await logAI(
+    from,
+    userText,
+    reply.reply,
+    "market"
+  );
+
+  return;
+}
+// ============== END MARKET MODULE ===============
+
 await appendSafe(SHEETS.conversation, [
       new Date().toISOString(),
       from,
