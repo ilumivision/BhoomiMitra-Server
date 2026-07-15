@@ -9,6 +9,7 @@ module.exports = {
 Step 3 — Paste this complete replacement
 
 "use strict";
+const { fetchAgmarknet } = require("./fetchers/agmarknetFetcher");
 /*
  * BhoomiMitra Market Fetcher
  *
