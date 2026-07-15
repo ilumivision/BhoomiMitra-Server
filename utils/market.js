@@ -369,9 +369,180 @@ function matchesQuery(record, query) {
     input.district
   );
 
-  const market =
+const market = normaliseName(input.market);
+if (
+  commodity &&
+  !normaliseName(getCommodity(record)).includes(commodity)
+) {
+  return false;
+}
+if (
+  variety &&
+  !normaliseName(getVariety(record)).includes(variety)
+) {
+  return false;
+}
+if (
+  district &&
+  !normaliseName(getDistrict(record)).includes(district)
+) {
+  return false;
+}
+if (
+  market &&
+  !normaliseName(getMarket(record)).includes(market)
+) {
+  return false;
+}
+return true;
+}
+function findLatestMarketRecord(records, query) {
+  const matched = records.filter(function (record) {
+    return matchesQuery(record, query);
+  });
+
+  if (matched.length === 0) {
+    return null;
+  }
+
+  matched.sort(function (a, b) {
+    return recordTimestamp(b) - recordTimestamp(a);
+  });
+
+  return matched[0];
+}
+function calculateTrend(currentPrice, previousPrice) {
+
+  if (
+    currentPrice == null ||
+    previousPrice == null
+  ) {
+    return "Unknown";
+  }
+
+  if (currentPrice > previousPrice) {
+    return "Rising";
+  }
+
+  if (currentPrice < previousPrice) {
+    return "Falling";
+  }
+
+  return "Stable";
+}
+function formatMarketReply(record) {
+
+  if (!record) {
+
+    return "ക്ഷമിക്കണം, ഈ ഉൽപ്പന്നത്തിനായുള്ള മാർക്കറ്റ് വില ഇപ്പോൾ ലഭ്യമല്ല.";
+
+  }
+
+  const price =
+    getModalPrice(record);
+
+  const minPrice =
+    getMinimumPrice(record);
+
+  const maxPrice =
+    getMaximumPrice(record);
+
+  const reply = [
+
+    "📊 BhoomiMitra Market Intelligence",
+
+    "",
+
+    "Commodity: " +
+      (getCommodity(record) || "-"),
+
+    "Variety: " +
+      (getVariety(record) || "-"),
+
+    "Market: " +
+      (getMarket(record) || "-"),
+
+    "District: " +
+      (getDistrict(record) || "-"),
+
+    "",
+
+    "Latest Price: ₹" +
+      (price == null ? "-" : price) +
+      "/" +
+      (getUnit(record) || "unit"),
+
+    "Today's Range: ₹" +
+      (minPrice == null ? "-" : minPrice) +
+      " - ₹" +
+      (maxPrice == null ? "-" : maxPrice),
+
+    "",
+
+    "Status: " +
+      calculatePriceStatus(record),
+
+    "Freshness: " +
+      calculateFreshness(record),
+
+    "",
+
+    "Source: " +
+      (getSourceName(record) || "-"),
+
+    "Source Updated: " +
+      (
+        getSourcePublishedDate(record) +
+        " " +
+        getSourcePublishedTime(record)
+      ).trim(),
+
+    "BhoomiMitra Checked: " +
+      (getLastCheckedAt(record) || "-")
+
+  ];
+
+  return reply.join("\n");
+
+}
+async function getMarketPrice(options) {
+
+  const input = options || {};
+
+  if (typeof input.readSheetRows !== "function") {
+    throw new Error(
+      "readSheetRows function is required."
+    );
+  }
+
+  const rows =
+    await input.readSheetRows(
+      MARKET_SHEET,
+      "A:ZZ"
+    );
+
+  const parsed =
+    rowsToObjects(rows);
+
+  const latest =
+    findLatestMarketRecord(
+      parsed.records,
+      input.query || {}
+    );
+
+  return {
+    success: latest != null,
+    record: latest,
+    reply: formatMarketReply(latest)
+  };
+
+}
 module.exports = {
+
   getMarketPrice,
+
   findLatestMarketRecord,
+
   formatMarketReply
+
 };
