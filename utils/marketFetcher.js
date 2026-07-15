@@ -21,9 +21,12 @@ Step 3 — Paste this complete replacement
  * - Spices Board
  * - Coconut Development Board
  */
-const {
-  fetchAgmarknet
-} = require("./fetchers/agmarknetFetcher");
+async function fetchSource(source) {
+  if (source.name === "AGMARKNET") {
+    return await fetchAgmarknet();
+  }
+  return [];
+}
 async function fetchAllSources(options) {
   const input = options || {};
   let prices = [];
