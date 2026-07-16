@@ -140,6 +140,10 @@ const response = await axios.get(
       ? response.data.records
       : [];
   console.log(
+  "Raw AGMARKNET response:",
+  JSON.stringify(response.data, null, 2)
+);
+  console.log(
   "First 10 records:",
   records.slice(0, 10).map(function (r) {
     return {
