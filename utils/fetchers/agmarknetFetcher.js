@@ -209,25 +209,54 @@ const commodityAliases = {
 const aliases =
   commodityAliases[requestedCommodity] ||
   [requestedCommodity];
-const mapped = records
+const commodityMatchedRecords = records
   .map(mapRecord)
   .filter(function (record) {
     const recordCommodity =
       clean(record.commodity).toLowerCase();
-    const recordState =
-      clean(record.state).toLowerCase();
     const commodityMatches =
       !requestedCommodity ||
       aliases.some(function (alias) {
+        const cleanAlias =
+          clean(alias).toLowerCase();
         return (
-          recordCommodity === alias ||
-          recordCommodity.includes(alias) ||
-          alias.includes(recordCommodity)
+          recordCommodity === cleanAlias ||
+          recordCommodity.includes(cleanAlias) ||
+          cleanAlias.includes(recordCommodity)
         );
       });
-    const stateMatches =
-      !requestedState ||
-      recordState === requestedState;
+    return (
+      commodityMatches &&
+      record.commodity &&
+      record.market &&
+      record.district &&
+      record.price != null
+    );
+  });
+const stateMatchedRecords =
+  commodityMatchedRecords.filter(function (record) {
+    return (
+      clean(record.state).toLowerCase() ===
+      requestedState
+    );
+  });
+const mapped =
+  stateMatchedRecords.length > 0
+    ? stateMatchedRecords
+    : commodityMatchedRecords;
+console.log(
+  "AGMARKNET commodity matches:",
+  commodityMatchedRecords.length
+);
+console.log(
+  "AGMARKNET preferred-state matches:",
+  stateMatchedRecords.length
+);
+console.log(
+  "AGMARKNET records selected:",
+  mapped.length
+);
+
     return (
       commodityMatches &&
       stateMatches &&
