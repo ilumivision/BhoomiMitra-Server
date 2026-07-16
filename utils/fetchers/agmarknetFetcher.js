@@ -80,11 +80,12 @@ async function fetchAgmarknet(options) {
       10000
     );
   const params = {
-    "api-key": apiKey,
-    format: "json",
-    offset: Number(input.offset || 0),
-    limit
-  };
+  "api-key": apiKey,
+  format: "json",
+  offset: Number(input.offset || 0),
+  limit
+};
+console.log("AGMARKNET Request Params:", params);
   const state =
     clean(input.state || "Kerala");
   if (state) {
@@ -98,10 +99,10 @@ async function fetchAgmarknet(options) {
     params["filters[market]"] =
       clean(input.market);
   }
-  if (clean(input.commodity)) {
-    params["filters[commodity]"] =
-      clean(input.commodity);
-  }
+  // if (clean(input.commodity)) {
+//   params["filters[commodity]"] =
+//     clean(input.commodity);
+// }
   if (clean(input.variety)) {
     params["filters[variety]"] =
       clean(input.variety);
@@ -124,6 +125,17 @@ async function fetchAgmarknet(options) {
     Array.isArray(response.data.records)
       ? response.data.records
       : [];
+  console.log(
+  "First 10 records:",
+  records.slice(0, 10).map(function (r) {
+    return {
+      commodity: r.commodity,
+      variety: r.variety,
+      market: r.market,
+      district: r.district
+    };
+  })
+);
   const mapped = records
     .map(mapRecord)
     .filter(function (record) {
