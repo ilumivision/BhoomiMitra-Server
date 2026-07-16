@@ -169,16 +169,35 @@ console.log(
   "AGMARKNET unique commodities:",
   uniqueCommodities
 );  
-  const mapped = records
-    .map(mapRecord)
-    .filter(function (record) {
-      return (
-        record.commodity &&
-        record.market &&
-        record.district &&
-        record.price != null
-      );
-    });
+ const requestedCommodity =
+  clean(input.commodity).toLowerCase();
+const requestedState =
+  clean(input.state || "Kerala").toLowerCase();
+const mapped = records
+  .map(mapRecord)
+  .filter(function (record) {
+    const recordCommodity =
+      clean(record.commodity).toLowerCase();
+    const recordState =
+      clean(record.state).toLowerCase();
+    const commodityMatches =
+      !requestedCommodity ||
+      recordCommodity === requestedCommodity ||
+      recordCommodity.includes(requestedCommodity) ||
+      requestedCommodity.includes(recordCommodity);
+    const stateMatches =
+      !requestedState ||
+      recordState === requestedState;
+    return (
+      commodityMatches &&
+      stateMatches &&
+      record.commodity &&
+      record.market &&
+      record.district &&
+      record.price != null
+    );
+  });
+
   console.log(
     "AGMARKNET records fetched:",
     mapped.length
