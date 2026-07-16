@@ -99,10 +99,10 @@ async function fetchAgmarknet(options) {
     params["filters[market]"] =
       clean(input.market);
   }
-  if (clean(input.commodity)) {
-  params["filters[commodity]"] =
-    clean(input.commodity);
-}
+  // if (clean(input.commodity)) {
+//   params["filters[commodity]"] =
+//     clean(input.commodity);
+// }
   if (clean(input.variety)) {
     params["filters[variety]"] =
       clean(input.variety);
