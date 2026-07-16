@@ -79,14 +79,13 @@ async function fetchAgmarknet(options) {
       Number(input.limit || 1000),
       10000
     );
-  const params = {
+const params = {
   "api-key": apiKey,
   format: "json",
   offset: Number(input.offset || 0),
   limit
 };
-
-  const state =
+const state =
   clean(input.state || "Kerala");
 if (state) {
   params["filters[state]"] = state;
@@ -99,19 +98,21 @@ if (clean(input.market)) {
   params["filters[market]"] =
     clean(input.market);
 }
-// Temporarily disabled to inspect Kerala commodity names
-// if (clean(input.commodity)) {
-//   params["filters[commodity]"] =
-//     clean(input.commodity);
-// }
+if (clean(input.commodity)) {
+  params["filters[commodity]"] =
+    clean(input.commodity);
+}
 if (clean(input.variety)) {
   params["filters[variety]"] =
     clean(input.variety);
 }
-console.log(
-  "AGMARKNET Request Params:",
-  params
-);
+console.log("AGMARKNET Request Params:", {
+  ...params,
+  "api-key": apiKey
+    ? "**configured**"
+    : "**missing**"
+});
+
   const response = await axios.get(
     API_URL,
     {
