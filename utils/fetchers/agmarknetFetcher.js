@@ -110,7 +110,7 @@ async function fetchAgmarknet(options) {
     API_URL,
     {
       params,
-      timeout: 30000,
+     timeout: 90000,
       headers: {
         Accept: "application/json",
         "User-Agent":
