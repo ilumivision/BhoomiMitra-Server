@@ -169,10 +169,46 @@ console.log(
   "AGMARKNET unique commodities:",
   uniqueCommodities
 );  
- const requestedCommodity =
+const requestedCommodity =
   clean(input.commodity).toLowerCase();
 const requestedState =
   clean(input.state || "Kerala").toLowerCase();
+const commodityAliases = {
+  coconut: [
+    "coconut",
+    "tender coconut",
+    "coconut dry"
+  ],
+  "black pepper": [
+    "black pepper",
+    "pepper"
+  ],
+  pepper: [
+    "pepper",
+    "black pepper"
+  ],
+  ginger: [
+    "ginger",
+    "ginger(green)",
+    "green ginger"
+  ],
+  banana: [
+    "banana",
+    "plantain",
+    "nendran"
+  ],
+  tapioca: [
+    "tapioca",
+    "cassava"
+  ],
+  arecanut: [
+    "arecanut",
+    "betel nut"
+  ]
+};
+const aliases =
+  commodityAliases[requestedCommodity] ||
+  [requestedCommodity];
 const mapped = records
   .map(mapRecord)
   .filter(function (record) {
@@ -182,9 +218,13 @@ const mapped = records
       clean(record.state).toLowerCase();
     const commodityMatches =
       !requestedCommodity ||
-      recordCommodity === requestedCommodity ||
-      recordCommodity.includes(requestedCommodity) ||
-      requestedCommodity.includes(recordCommodity);
+      aliases.some(function (alias) {
+        return (
+          recordCommodity === alias ||
+          recordCommodity.includes(alias) ||
+          alias.includes(recordCommodity)
+        );
+      });
     const stateMatches =
       !requestedState ||
       recordState === requestedState;
@@ -197,7 +237,6 @@ const mapped = records
       record.price != null
     );
   });
-
   console.log(
     "AGMARKNET records fetched:",
     mapped.length
