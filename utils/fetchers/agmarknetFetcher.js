@@ -85,7 +85,7 @@ async function fetchAgmarknet(options) {
   offset: Number(input.offset || 0),
   limit
 };
-console.log("AGMARKNET Request Params:", params);
+
   const state =
     clean(input.state || "Kerala");
   if (state) {
@@ -99,14 +99,15 @@ console.log("AGMARKNET Request Params:", params);
     params["filters[market]"] =
       clean(input.market);
   }
-  // if (clean(input.commodity)) {
-//   params["filters[commodity]"] =
-//     clean(input.commodity);
-// }
+  if (clean(input.commodity)) {
+  params["filters[commodity]"] =
+    clean(input.commodity);
+}
   if (clean(input.variety)) {
     params["filters[variety]"] =
       clean(input.variety);
   }
+  console.log("AGMARKNET Request Params:", params);
   const response = await axios.get(
     API_URL,
     {
