@@ -99,10 +99,11 @@ if (clean(input.market)) {
   params["filters[market]"] =
     clean(input.market);
 }
-if (clean(input.commodity)) {
-  params["filters[commodity]"] =
-    clean(input.commodity);
-}
+// Temporarily disabled to inspect Kerala commodity names
+// if (clean(input.commodity)) {
+//   params["filters[commodity]"] =
+//     clean(input.commodity);
+// }
 if (clean(input.variety)) {
   params["filters[variety]"] =
     clean(input.variety);
@@ -140,6 +141,20 @@ console.log(
     };
   })
 );
+const uniqueCommodities = [
+  ...new Set(
+    records
+      .map(function (record) {
+        return clean(record.commodity);
+      })
+      .filter(Boolean)
+  )
+].sort();
+
+console.log(
+  "AGMARKNET unique commodities:",
+  uniqueCommodities
+);  
   const mapped = records
     .map(mapRecord)
     .filter(function (record) {
