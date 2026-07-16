@@ -74,12 +74,45 @@ async function fetchAgmarknet(options) {
       "AGMARKNET_API_KEY is not configured."
     );
   }
-  const limit =
-    Math.min(
-      Number(input.limit || 1000),
-      10000
-    );
-const response = await axios.get(
+ const limit =
+  Math.min(
+    Number(input.limit || 1000),
+    10000
+  );
+
+const params = {
+  "api-key": apiKey,
+  format: "json",
+  offset: Number(input.offset || 0),
+  limit
+};
+
+const state =
+  clean(input.state || "Kerala");
+
+if (state) {
+  params["filters[state]"] = state;
+}
+
+if (clean(input.district)) {
+  params["filters[district]"] =
+    clean(input.district);
+}
+
+if (clean(input.market)) {
+  params["filters[market]"] =
+    clean(input.market);
+}
+
+if (clean(input.commodity)) {
+  params["filters[commodity]"] =
+    clean(input.commodity);
+}
+
+if (clean(input.variety)) {
+  params["filters[variety]"] =
+    clean(input.variety);
+}
 
 console.log("AGMARKNET Request Params:", {
   ...params,
@@ -88,18 +121,18 @@ console.log("AGMARKNET Request Params:", {
     : "**missing**"
 });
 
-  const response = await axios.get(
-    API_URL,
-    {
-      params,
-     timeout: 90000,
-      headers: {
-        Accept: "application/json",
-        "User-Agent":
-          "BhoomiMitra-Market-Engine/1.0"
-      }
+const response = await axios.get(
+  API_URL,
+  {
+    params,
+    timeout: 90000,
+    headers: {
+      Accept: "application/json",
+      "User-Agent":
+        "BhoomiMitra-Market-Engine/1.0"
     }
-  );
+  }
+);
   const records =
     response &&
     response.data &&
