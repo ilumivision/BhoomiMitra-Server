@@ -120,7 +120,7 @@ console.log("AGMARKNET Request Params:", {
     ? "**configured**"
     : "**missing**"
 });
-
+console.log("AGMARKNET URL:", API_URL);
 const response = await axios.get(
   API_URL,
   {
