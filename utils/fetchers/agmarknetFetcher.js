@@ -87,12 +87,13 @@ const params = {
   limit
 };
 
-const state =
-  clean(input.state || "Kerala");
+// Temporarily disabled to test AGMARKNET without filters
+// const state =
+//   clean(input.state || "Kerala");
 
-if (state) {
-  params["filters[state]"] = state;
-}
+// if (state) {
+//   params["filters[state]"] = state;
+// }
 
 if (clean(input.district)) {
   params["filters[district]"] =
