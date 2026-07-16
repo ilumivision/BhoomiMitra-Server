@@ -87,27 +87,30 @@ async function fetchAgmarknet(options) {
 };
 
   const state =
-    clean(input.state || "Kerala");
-  if (state) {
-    params["filters[state]"] = state;
-  }
-  if (clean(input.district)) {
-    params["filters[district]"] =
-      clean(input.district);
-  }
-  if (clean(input.market)) {
-    params["filters[market]"] =
-      clean(input.market);
-  }
-  // if (clean(input.commodity)) {
-//   params["filters[commodity]"] =
-//     clean(input.commodity);
-// }
-  if (clean(input.variety)) {
-    params["filters[variety]"] =
-      clean(input.variety);
-  }
-  console.log("AGMARKNET Request Params:", params);
+  clean(input.state || "Kerala");
+if (state) {
+  params["filters[state]"] = state;
+}
+if (clean(input.district)) {
+  params["filters[district]"] =
+    clean(input.district);
+}
+if (clean(input.market)) {
+  params["filters[market]"] =
+    clean(input.market);
+}
+if (clean(input.commodity)) {
+  params["filters[commodity]"] =
+    clean(input.commodity);
+}
+if (clean(input.variety)) {
+  params["filters[variety]"] =
+    clean(input.variety);
+}
+console.log(
+  "AGMARKNET Request Params:",
+  params
+);
   const response = await axios.get(
     API_URL,
     {
