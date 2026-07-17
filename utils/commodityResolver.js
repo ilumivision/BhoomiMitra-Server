@@ -21,71 +21,176 @@ function normaliseText(value) {
   return clean(value)
     .toLowerCase()
     .replace(/&/g, " and ")
-    .replace(/[^a-z0-9\u0D00-\u0D7F]+/g, " ")
+    .replace(
+      /[^a-z0-9\u0D00-\u0D7F]+/g,
+      " "
+    )
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function getSpreadsheetId() {
   return clean(
-    process.env.GOOGLE_SHEET_ID ||
-    process.env.SPREADSHEET_ID ||
-    process.env.GOOGLE_SPREADSHEET_ID
+    process.env.GOOGLE_SHEET_ID
   );
 }
 
-function getServiceAccountCredentials() {
-  const rawCredentials =
-    process.env.GOOGLE_SERVICE_ACCOUNT_JSON ||
-    process.env.GOOGLE_CREDENTIALS ||
-    process.env.GOOGLE_SERVICE_ACCOUNT;
+function getGoogleClientEmail() {
+  return clean(
+    process.env.GOOGLE_CLIENT_EMAIL
+  );
+}
 
-  if (!rawCredentials) {
+function getGooglePrivateKey() {
+  return String(
+    process.env.GOOGLE_PRIVATE_KEY ||
+    ""
+  )
+    .replace(/^"|"$/g, "")
+    .replace(/\\n/g, "\n")
+    .trim();
+}
+
+function validateGoogleConfiguration() {
+  const spreadsheetId =
+    getSpreadsheetId();
+
+  const clientEmail =
+    getGoogleClientEmail();
+
+  const privateKey =
+    getGooglePrivateKey();
+
+  if (!spreadsheetId) {
     throw new Error(
-      "Google service account credentials are not configured."
+      "GOOGLE_SHEET_ID is not configured."
     );
   }
 
-  let credentials;
-
-  try {
-    credentials =
-      JSON.parse(rawCredentials);
-  } catch (error) {
+  if (!clientEmail) {
     throw new Error(
-      "Google service account credentials contain invalid JSON."
+      "GOOGLE_CLIENT_EMAIL is not configured."
     );
   }
 
-  if (
-    credentials.private_key
-  ) {
-    credentials.private_key =
-      credentials.private_key.replace(
-        /\\n/g,
-        "\n"
-      );
+  if (!privateKey) {
+    throw new Error(
+      "GOOGLE_PRIVATE_KEY is not configured."
+    );
   }
 
-  return credentials;
+  return {
+    spreadsheetId,
+    clientEmail,
+    privateKey
+  };
 }
 
 async function getSheetsClient() {
-  const credentials =
-    getServiceAccountCredentials();
+  const configuration =
+    validateGoogleConfiguration();
 
   const auth =
-    new google.auth.GoogleAuth({
-      credentials,
+    new google.auth.JWT({
+      email:
+        configuration.clientEmail,
+
+      key:
+        configuration.privateKey,
+
       scopes: [
-        "https://www.googleapis.com/auth/spreadsheets.readonly"
+        "https://www.googleapis.com/auth/spreadsheets"
       ]
     });
 
-  return google.sheets({
-    version: "v4",
-    auth
-  });
+  return {
+    sheets:
+      google.sheets({
+        version: "v4",
+        auth
+      }),
+
+    spreadsheetId:
+      configuration.spreadsheetId
+  };
+}
+
+function normaliseSheetTitle(value) {
+  return clean(value)
+    .replace(
+      /[\u200B-\u200D\uFEFF]/g,
+      ""
+    )
+    .toLowerCase();
+}
+
+async function resolveActualSheetTitle(
+  sheets,
+  spreadsheetId,
+  requestedSheetName
+) {
+  const spreadsheetInfo =
+    await sheets.spreadsheets.get({
+      spreadsheetId,
+
+      fields:
+        "sheets(properties(sheetId,title))"
+    });
+
+  const availableSheets =
+    spreadsheetInfo &&
+    spreadsheetInfo.data &&
+    Array.isArray(
+      spreadsheetInfo.data.sheets
+    )
+      ? spreadsheetInfo.data.sheets
+      : [];
+
+  const targetSheet =
+    availableSheets.find(
+      function (sheet) {
+        const title =
+          sheet &&
+          sheet.properties
+            ? sheet.properties.title
+            : "";
+
+        return (
+          normaliseSheetTitle(
+            title
+          ) ===
+          normaliseSheetTitle(
+            requestedSheetName
+          )
+        );
+      }
+    );
+
+  if (!targetSheet) {
+    console.error(
+      "Commodity_Master was not found."
+    );
+
+    console.error(
+      "Available Google Sheet tabs:",
+      availableSheets.map(
+        function (sheet) {
+          return (
+            sheet &&
+            sheet.properties
+              ? sheet.properties.title
+              : ""
+          );
+        }
+      )
+    );
+
+    throw new Error(
+      "Commodity_Master sheet was not found."
+    );
+  }
+
+  return targetSheet.properties.title;
 }
 
 function rowsToObjects(values) {
@@ -101,26 +206,28 @@ function rowsToObjects(values) {
 
   return values
     .slice(1)
-    .map(function (row) {
-      const item = {};
+    .map(
+      function (row) {
+        const item = {};
 
-      headers.forEach(
-        function (
-          header,
-          index
-        ) {
-          item[header] =
-            clean(
-              row[index]
-            );
-        }
-      );
+        headers.forEach(
+          function (
+            header,
+            index
+          ) {
+            item[header] =
+              clean(
+                row[index]
+              );
+          }
+        );
 
-      return item;
-    })
+        return item;
+      }
+    )
     .filter(
       function (item) {
-        return (
+        return Boolean(
           clean(
             item.Commodity_ID
           ) ||
@@ -144,29 +251,51 @@ async function loadCommodityMaster(
     now - cacheLoadedAt <
       CACHE_TIME_MS
   ) {
+    console.log(
+      "Commodity_Master loaded from cache:",
+      cachedRows.length
+    );
+
     return cachedRows;
   }
 
-  const spreadsheetId =
-    getSpreadsheetId();
-
-  if (!spreadsheetId) {
-    throw new Error(
-      "Google spreadsheet ID is not configured."
-    );
-  }
-
-  const sheets =
+  const client =
     await getSheetsClient();
 
+  const actualSheetTitle =
+    await resolveActualSheetTitle(
+      client.sheets,
+      client.spreadsheetId,
+      SHEET_NAME
+    );
+
+  const escapedSheetTitle =
+    actualSheetTitle.replace(
+      /'/g,
+      "''"
+    );
+
+  const fullRange =
+    "'" +
+    escapedSheetTitle +
+    "'!A:Z";
+
+  console.log(
+    "Reading Commodity_Master range:",
+    fullRange
+  );
+
   const response =
-    await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range:
-        "'" +
-        SHEET_NAME +
-        "'!A:Z"
-    });
+    await client.sheets
+      .spreadsheets
+      .values
+      .get({
+        spreadsheetId:
+          client.spreadsheetId,
+
+        range:
+          fullRange
+      });
 
   const values =
     response &&
@@ -177,8 +306,11 @@ async function loadCommodityMaster(
       ? response.data.values
       : [];
 
+  const allRows =
+    rowsToObjects(values);
+
   cachedRows =
-    rowsToObjects(values).filter(
+    allRows.filter(
       function (row) {
         const active =
           normaliseText(
@@ -221,6 +353,16 @@ function getSearchTerms(row) {
     .filter(Boolean);
 }
 
+function escapeRegularExpression(
+  value
+) {
+  return String(value)
+    .replace(
+      /[.*+?^${}()|[\]\\]/g,
+      "\\$&"
+    );
+}
+
 function removePriceWords(message) {
   let text =
     normaliseText(message);
@@ -228,52 +370,69 @@ function removePriceWords(message) {
   const removablePhrases = [
     "what is the",
     "what is",
+    "tell me the",
     "tell me",
+    "show me the",
     "show me",
-    "market price of",
     "current market price of",
     "latest market price of",
     "today market price of",
-    "price of",
+    "market price today",
+    "market price of",
     "current price of",
     "latest price of",
+    "today price of",
+    "price of",
+    "market rate of",
+    "rate of",
     "market price",
     "price today",
     "today price",
     "latest price",
     "current price",
     "price",
-    "rate today",
     "market rate",
     "rate",
     "today",
     "yesterday",
     "now",
-    "വില",
+    "ഇന്നത്തെ വിപണി വില",
+    "ഇന്നത്തെ മാർക്കറ്റ് വില",
     "ഇന്നത്തെ വില",
+    "വിപണി വില",
     "മാർക്കറ്റ് വില",
-    "വിപണി വില"
+    "വില ഇന്ന്",
+    "വില"
   ];
 
-  removablePhrases.forEach(
+  const sortedPhrases =
+    removablePhrases
+      .map(normaliseText)
+      .filter(Boolean)
+      .sort(
+        function (first, second) {
+          return (
+            second.length -
+            first.length
+          );
+        }
+      );
+
+  sortedPhrases.forEach(
     function (phrase) {
-      const normalisedPhrase =
-        normaliseText(
-          phrase
+      const pattern =
+        new RegExp(
+          "(^|\\s)" +
+          escapeRegularExpression(
+            phrase
+          ) +
+          "(?=\\s|$)",
+          "g"
         );
 
       text = text
         .replace(
-          new RegExp(
-            "(^|\\s)" +
-            normalisedPhrase
-              .replace(
-                /[.*+?^${}()|[\]\\]/g,
-                "\\$&"
-              ) +
-            "(?=\\s|$)",
-            "g"
-          ),
+          pattern,
           " "
         )
         .replace(
@@ -312,21 +471,25 @@ function scoreMatch(
       " " + term
     )
   ) {
-    return 90;
+    return 95;
   }
 
   if (
     query.includes(
-      term
+      " " + term + " "
     )
+  ) {
+    return 90;
+  }
+
+  if (
+    query.includes(term)
   ) {
     return 80;
   }
 
   if (
-    term.includes(
-      query
-    )
+    term.includes(query)
   ) {
     return 60;
   }
@@ -356,12 +519,27 @@ async function resolveCommodity(
       originalMessage
     );
 
+  console.log(
+    "Commodity_Master query:",
+    {
+      originalMessage,
+      cleanedQuery
+    }
+  );
+
   if (!cleanedQuery) {
+    console.log(
+      "Commodity_Master query became empty."
+    );
+
     return null;
   }
 
   let bestMatch =
     null;
+
+  let bestMatchedTerm =
+    "";
 
   let bestScore =
     0;
@@ -387,6 +565,9 @@ async function resolveCommodity(
 
             bestMatch =
               row;
+
+            bestMatchedTerm =
+              term;
           }
         }
       );
@@ -401,8 +582,23 @@ async function resolveCommodity(
       "Commodity_Master no match:",
       {
         originalMessage,
-        cleanedQuery
+        cleanedQuery,
+        bestScore
       }
+    );
+
+    return null;
+  }
+
+  const officialName =
+    clean(
+      bestMatch.AGMARKNET_Name
+    );
+
+  if (!officialName) {
+    console.log(
+      "Commodity_Master row has no AGMARKNET_Name:",
+      bestMatch.BhoomiMitra_Name
     );
 
     return null;
@@ -430,9 +626,7 @@ async function resolveCommodity(
       ),
 
     agmarknetName:
-      clean(
-        bestMatch.AGMARKNET_Name
-      ),
+      officialName,
 
     defaultUnit:
       clean(
@@ -449,6 +643,9 @@ async function resolveCommodity(
 
     cleanedQuery,
 
+    matchedTerm:
+      bestMatchedTerm,
+
     matchScore:
       bestScore
   };
@@ -464,6 +661,10 @@ async function resolveCommodity(
 function clearCommodityCache() {
   cachedRows = [];
   cacheLoadedAt = 0;
+
+  console.log(
+    "Commodity_Master cache cleared."
+  );
 }
 
 module.exports = {
