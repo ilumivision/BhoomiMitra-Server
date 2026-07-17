@@ -1460,7 +1460,25 @@ async function fetchAgmarknet(
             .length
       }
     );
+const uniqueCommodities =
+  Array.from(
+    new Set(
+      pageResult.records
+        .map(
+          function (record) {
+            return clean(
+              record.commodity
+            );
+          }
+        )
+        .filter(Boolean)
+    )
+  ).sort();
 
+console.log(
+  "AGMARKNET unique commodities:",
+  uniqueCommodities
+);
     const pageMatches =
       pageResult.records
         .map(
