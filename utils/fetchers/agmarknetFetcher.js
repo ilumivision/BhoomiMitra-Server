@@ -1,7 +1,9 @@
 "use strict";
 
 const axios = require("axios");
-
+const {
+  resolveCommodity
+} = require("../commodityResolver");
 const RESOURCE_ID =
   "9ef84268-d588-465a-a308-a864a43d0070";
 
@@ -1220,23 +1222,72 @@ async function fetchAgmarknet(
     );
   }
 
-  const requestedCommodity =
-    normaliseCommodityQuery(
-      input.commodity
-    );
+ const resolvedCommodity =
+  await resolveCommodity(
+    input.commodity
+  );
 
-  if (!requestedCommodity) {
-    console.log(
-      "AGMARKNET commodity could not be extracted."
-    );
+if (!resolvedCommodity) {
+  console.log(
+    "Commodity_Master could not resolve:",
+    clean(input.commodity)
+  );
 
-    return [];
+  return [];
+}
+
+const requestedCommodity =
+  normaliseText(
+    resolvedCommodity
+      .bhoomiMitraName
+  );
+
+const officialCommodityName =
+  clean(
+    resolvedCommodity
+      .agmarknetName
+  );
+
+if (!officialCommodityName) {
+  console.log(
+    "AGMARKNET name missing in Commodity_Master:",
+    resolvedCommodity
+      .bhoomiMitraName
+  );
+
+  return [];
+}
+
+console.log(
+  "Commodity_Master selected:",
+  {
+    bhoomiMitraName:
+      resolvedCommodity
+        .bhoomiMitraName,
+
+    malayalamName:
+      resolvedCommodity
+        .malayalamName,
+
+    officialCommodityName
   }
-
-  const aliases =
-    getCommodityAliases(
-      requestedCommodity
-    );
+);
+const aliases =
+  Array.from(
+    new Set(
+      [
+        officialCommodityName,
+        resolvedCommodity
+          .bhoomiMitraName,
+        ...(
+          resolvedCommodity
+            .aliases || []
+        )
+      ]
+        .map(normaliseText)
+        .filter(Boolean)
+    )
+  );
 
   const requestedState =
     normaliseText(
@@ -1344,27 +1395,27 @@ async function fetchAgmarknet(
       startingOffset +
       page * pageSize;
 
-    const params = {
-      "api-key":
-        apiKey,
+   const params = {
+  "api-key":
+    apiKey,
 
-      format:
-        "json",
+  format:
+    "json",
 
-      offset,
+  offset,
 
-      limit:
-        pageSize
-    };
+  limit:
+    pageSize,
+
+  "filters[commodity]":
+    officialCommodityName
+};
 
     /*
-     * Commodity and state filters are
-     * deliberately avoided because the
-     * official API may require exact names.
-     *
-     * BhoomiMitra performs strict local
-     * commodity matching instead.
-     */
+ * Use the exact official AGMARKNET
+ * commodity name resolved from the
+ * Commodity_Master sheet.
+ */
 
     if (
       clean(
@@ -1380,20 +1431,23 @@ async function fetchAgmarknet(
     }
 
     console.log(
-      "AGMARKNET page request:",
-      {
-        page:
-          page + 1,
+  "AGMARKNET page request:",
+  {
+    page:
+      page + 1,
 
-        offset,
+    offset,
 
-        limit:
-          pageSize,
+    limit:
+      pageSize,
 
-        "api-key":
-          "**configured**"
-      }
-    );
+    commodity:
+      officialCommodityName,
+
+    "api-key":
+      "**configured**"
+  }
+);
 
     let pageResult;
 
