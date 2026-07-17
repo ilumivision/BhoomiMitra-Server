@@ -1052,22 +1052,70 @@ function extractMarketCommodity(text) {
   }
   return "";
 }
+function parseMarketDate(value) {
+  const text = String(value || "").trim();
+
+  if (!text) {
+    return 0;
+  }
+
+  const parts = text.split(/[\/\-]/);
+
+  if (parts.length === 3) {
+    const first = Number(parts[0]);
+    const second = Number(parts[1]);
+    const third = Number(parts[2]);
+
+    if (
+      Number.isFinite(first) &&
+      Number.isFinite(second) &&
+      Number.isFinite(third)
+    ) {
+      if (third > 1900) {
+        return new Date(
+          third,
+          second - 1,
+          first
+        ).getTime();
+      }
+
+      if (first > 1900) {
+        return new Date(
+          first,
+          second - 1,
+          third
+        ).getTime();
+      }
+    }
+  }
+
+  const parsed = Date.parse(text);
+
+  return Number.isFinite(parsed)
+    ? parsed
+    : 0;
+}
+
 function formatLiveMarketReply(record) {
   if (!record) {
     return "ക്ഷമിക്കണം, ഈ ഉൽപ്പന്നത്തിനായുള്ള മാർക്കറ്റ് വില ഇപ്പോൾ ലഭ്യമല്ല.";
   }
+
   const minimum =
     record.minimumPrice == null
       ? "-"
       : record.minimumPrice;
+
   const maximum =
     record.maximumPrice == null
       ? "-"
       : record.maximumPrice;
+
   const modal =
     record.price == null
       ? "-"
       : record.price;
+
   return [
     "📊 BhoomiMitra Market Intelligence",
     "",
