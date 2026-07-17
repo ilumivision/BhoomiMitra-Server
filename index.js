@@ -17,7 +17,9 @@ const {
 const {
   fetchAllSources
 } = require("./utils/marketFetcher");
-
+const {
+  resolveCommodity
+} = require("./utils/commodityResolver");
 const {
   getMarketPrice
 } = require("./utils/market");
@@ -289,65 +291,258 @@ console.log("Detected Intent:", detectedIntent);
 
 // ================= MARKET MODULE =================
 if (detectedIntent === "market") {
-  const commodity =
-    extractMarketCommodity(userText);
-  console.log(
-    "Market commodity detected:",
-    commodity || "NONE"
-  );
   let finalReply = "";
-  if (commodity) {
-    const savedResult =
-      await getMarketPrice({
-        readSheetRows,
-        query: {
-          commodity: commodity
-        }
-      });
-    if (savedResult.success) {
-      finalReply = savedResult.reply;
-    } else {
-      console.log(
-        "No saved price. Checking AGMARKNET:",
-        commodity
+
+  try {
+    const resolvedCommodity =
+      await resolveCommodity(
+        userText
       );
-      const liveRecords =
-        await fetchAllSources({
-          state: "Kerala",
-          commodity: commodity,
-          limit: 1000
+
+    if (!resolvedCommodity) {
+      console.log(
+        "Market commodity could not be resolved:",
+        userText
+      );
+
+      finalReply =
+        "ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ഉൽപ്പന്നം തിരിച്ചറിയാനായില്ല. " +
+        "വിളയുടെ പേര് മാത്രം വീണ്ടും അയക്കുക.";
+    } else {
+      const commodity =
+        resolvedCommodity
+          .bhoomiMitraName;
+
+      const officialCommodity =
+        resolvedCommodity
+          .agmarknetName;
+
+      console.log(
+        "Market commodity resolved:",
+        {
+          userMessage:
+            userText,
+
+          bhoomiMitraName:
+            commodity,
+
+          officialCommodity
+        }
+      );
+
+      /*
+       * Check saved price only for the
+       * correctly resolved commodity.
+       */
+      const savedResult =
+        await getMarketPrice({
+          readSheetRows,
+
+          query: {
+            commodity:
+              commodity
+          }
         });
-      if (liveRecords.length > 0) {
-        liveRecords.sort(function (a, b) {
-          const first =
-            new Date(a.sourceDate || 0)
-              .getTime();
-          const second =
-            new Date(b.sourceDate || 0)
-              .getTime();
-          return second - first;
-        });
-        finalReply =
-          formatLiveMarketReply(
-            liveRecords[0]
+
+      let savedReplyIsValid =
+        false;
+
+      if (
+        savedResult &&
+        savedResult.success &&
+        savedResult.reply
+      ) {
+        const replyText =
+          String(
+            savedResult.reply
+          ).toLowerCase();
+
+        const requestedName =
+          String(
+            commodity
+          ).toLowerCase();
+
+        const officialName =
+          String(
+            officialCommodity
+          ).toLowerCase();
+
+        savedReplyIsValid =
+          replyText.includes(
+            requestedName
+          ) ||
+          replyText.includes(
+            officialName
           );
+
+        if (
+          !savedReplyIsValid
+        ) {
+          console.log(
+            "Rejected unrelated saved market result:",
+            {
+              requested:
+                commodity,
+
+              official:
+                officialCommodity,
+
+              savedReply:
+                savedResult.reply
+            }
+          );
+        }
+      }
+
+      if (
+        savedReplyIsValid
+      ) {
+        finalReply =
+          savedResult.reply;
+      } else {
+        console.log(
+          "Checking AGMARKNET:",
+          officialCommodity
+        );
+
+        const liveRecords =
+          await fetchAllSources({
+            state:
+              "Kerala",
+
+            commodity:
+              commodity,
+
+            limit:
+              1000
+          });
+
+        /*
+         * Final safety check:
+         * remove records belonging to
+         * another commodity.
+         */
+        const validRecords =
+          Array.isArray(
+            liveRecords
+          )
+            ? liveRecords.filter(
+                function (
+                  record
+                ) {
+                  const returnedCommodity =
+                    String(
+                      record &&
+                      record.commodity
+                        ? record.commodity
+                        : ""
+                    )
+                      .trim()
+                      .toLowerCase();
+
+                  const acceptedNames = [
+                    commodity,
+                    officialCommodity,
+                    ...(
+                      resolvedCommodity
+                        .aliases || []
+                    )
+                  ]
+                    .map(
+                      function (
+                        value
+                      ) {
+                        return String(
+                          value || ""
+                        )
+                          .trim()
+                          .toLowerCase();
+                      }
+                    )
+                    .filter(Boolean);
+
+                  return acceptedNames.some(
+                    function (
+                      acceptedName
+                    ) {
+                      return (
+                        returnedCommodity ===
+                        acceptedName
+                      );
+                    }
+                  );
+                }
+              )
+            : [];
+
+        console.log(
+          "Valid live market records:",
+          validRecords.length
+        );
+
+        if (
+          validRecords.length >
+          0
+        ) {
+          validRecords.sort(
+            function (
+              firstRecord,
+              secondRecord
+            ) {
+              const firstDate =
+                parseMarketDate(
+                  firstRecord
+                    .sourceDate
+                );
+
+              const secondDate =
+                parseMarketDate(
+                  secondRecord
+                    .sourceDate
+                );
+
+              return (
+                secondDate -
+                firstDate
+              );
+            }
+          );
+
+          finalReply =
+  formatLiveMarketReply(
+    validRecords[0]
+  );
+        }
       }
     }
+  } catch (marketError) {
+    console.error(
+      "Market module error:",
+      marketError &&
+      marketError.message
+        ? marketError.message
+        : marketError
+    );
   }
+
   if (!finalReply) {
     finalReply =
-      "ക്ഷമിക്കണം, ഈ ഉൽപ്പന്നത്തിനായുള്ള മാർക്കറ്റ് വില ഇപ്പോൾ ലഭ്യമല്ല.";
+      "ക്ഷമിക്കണം, ഈ ഉൽപ്പന്നത്തിനായുള്ള " +
+      "ഔദ്യോഗിക മാർക്കറ്റ് വില ഇപ്പോൾ ലഭ്യമല്ല.";
   }
+
   await sendWhatsAppMessage(
     from,
     finalReply
   );
+
   await logAI(
     from,
     userText,
     finalReply,
     "market"
   );
+
   return;
 }
 // =============== END MARKET MODULE ===============
