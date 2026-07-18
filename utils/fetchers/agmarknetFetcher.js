@@ -1395,20 +1395,13 @@ const aliases =
       startingOffset +
       page * pageSize;
 
-   const params = {
-  "api-key":
-    apiKey,
-
-  format:
-    "json",
-
+  const params = {
+  "api-key": apiKey,
+  format: "json",
   offset,
-
-  limit:
-    pageSize,
-
-  "filters[commodity]":
-    officialCommodityName
+  limit: pageSize,
+  "filters[commodity]": officialCommodityName,
+  "filters[state]": input.state || "Kerala"
 };
 
     /*
