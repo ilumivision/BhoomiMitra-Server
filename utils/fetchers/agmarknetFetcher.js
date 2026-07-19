@@ -905,7 +905,7 @@ function selectBestRecords(
   const today =
     getTodayInIndia();
 
-  unction chooseFromScope(
+ function chooseFromScope(
   scopeRecords,
   searchScope
 ) {
@@ -921,16 +921,7 @@ function selectBestRecords(
    * Prefer records with a valid and
    * higher modal price.
    */
-   function chooseFromScope(
-  scopeRecords,
-  searchScope
-) {
-  if (
-    !Array.isArray(scopeRecords) ||
-    scopeRecords.length === 0
-  ) {
-    return null;
-  } 
+
   function rankRecords(records) {
     return records
       .slice()
