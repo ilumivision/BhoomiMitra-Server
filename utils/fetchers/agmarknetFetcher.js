@@ -1,9 +1,25 @@
 "use strict";
 
+/*
+=========================================================
+BhoomiMitra Market Intelligence Engine
+AGMARKNET Fetcher Version 3.0
+Official Government of India Market Data
+=========================================================
+*/
+
 const axios = require("axios");
+
 const {
   resolveCommodity
 } = require("../commodityResolver");
+
+/*
+=========================================================
+AGMARKNET API
+=========================================================
+*/
+
 const RESOURCE_ID =
   "9ef84268-d588-465a-a308-a864a43d0070";
 
@@ -11,100 +27,168 @@ const API_URL =
   "https://api.data.gov.in/resource/" +
   RESOURCE_ID;
 
+/*
+=========================================================
+COMMON UTILITIES
+=========================================================
+*/
+
 function clean(value) {
+
   return String(
     value == null ? "" : value
   ).trim();
+
 }
 
 function normaliseText(value) {
+
   return clean(value)
+
     .toLowerCase()
+
     .replace(/&/g, " and ")
+
     .replace(/[^a-z0-9]+/g, " ")
+
     .replace(/\s+/g, " ")
+
     .trim();
+
 }
 
 function normaliseCommodityQuery(value) {
+
   let query =
     normaliseText(value);
 
   const startWords = [
+
     "what is the",
+
     "what is",
+
     "tell me",
+
     "show me",
+
     "current market price of",
+
     "latest market price of",
+
     "market price of",
+
     "today market price of",
+
     "price of",
+
     "current price of",
+
     "latest price of"
+
   ];
 
-  startWords.forEach(function (text) {
-    if (
-      query.startsWith(text + " ")
-    ) {
-      query = query
-        .substring(text.length)
-        .trim();
+  startWords.forEach(function(word){
+
+    if(query.startsWith(word + " ")){
+
+      query =
+        query.substring(word.length)
+          .trim();
+
     }
+
   });
 
   const endWords = [
+
     "market price",
+
     "price today",
+
     "today",
+
     "price",
+
     "latest",
+
     "current"
+
   ];
 
-  endWords.forEach(function (text) {
-    if (
-      query.endsWith(" " + text)
-    ) {
-      query = query
-        .substring(
+  endWords.forEach(function(word){
+
+    if(query.endsWith(" " + word)){
+
+      query =
+        query.substring(
           0,
           query.length -
-            text.length
-        )
-        .trim();
+          word.length
+        ).trim();
+
     }
+
   });
 
   return query;
+
 }
 
-function normalisePrice(value) {
-  const number = Number(
-    clean(value)
-      .replace(/,/g, "")
-      .replace(/[^\d.-]/g, "")
-  );
+/*
+=========================================================
+PRICE UTILITIES
+=========================================================
+*/
+
+function normalisePrice(value){
+
+  const number =
+    Number(
+
+      clean(value)
+
+      .replace(/,/g,"")
+
+      .replace(/[^\d.-]/g,"")
+
+    );
 
   return Number.isFinite(number)
+
     ? number
+
     : null;
+
 }
-function convertQuintalToKg(price) {
+
+function convertQuintalToKg(price){
+
   const number =
     normalisePrice(price);
 
-  if (number == null) {
+  if(number == null){
+
     return null;
+
   }
 
   return Number(
+
     (number / 100).toFixed(2)
+
   );
+
 }
 
-function mapRecord(record) {
+/*
+=========================================================
+MAP AGMARKNET RECORD
+=========================================================
+*/
+
+function mapRecord(record){
+
   const minimumPrice =
     convertQuintalToKg(
       record.min_price
@@ -121,6 +205,7 @@ function mapRecord(record) {
     );
 
   return {
+
     commodity:
       clean(record.commodity),
 
@@ -140,11 +225,17 @@ function mapRecord(record) {
       clean(record.market),
 
     minimumPrice,
-    maximumPrice,
-    price: modalPrice,
 
-    unit: "kg",
-    originalUnit: "quintal",
+    maximumPrice,
+
+    price:
+      modalPrice,
+
+    unit:
+      "kg",
+
+    originalUnit:
+      "quintal",
 
     originalMinimumPrice:
       normalisePrice(
@@ -161,12 +252,14 @@ function mapRecord(record) {
         record.modal_price
       ),
 
-    source: "AGMARKNET",
+    source:
+      "AGMARKNET",
 
     sourceDate:
       clean(record.arrival_date),
 
-    sourceTime: "",
+    sourceTime:
+      "",
 
     checkedAt:
       new Date().toISOString(),
@@ -178,512 +271,271 @@ function mapRecord(record) {
       "Official Source",
 
     sourceUrl:
-      "https://www.data.gov.in/resource/" +
-      "current-daily-price-various-" +
-      "commodities-various-markets-mandi"
+      "https://www.data.gov.in"
+
   };
+
 }
+/*
+=========================================================
+COMMODITY ALIASES
+=========================================================
+*/
 
 const COMMODITY_ALIASES = {
-  coconut: [
-    "coconut"
-  ],
 
-  "tender coconut": [
+  coconut:["coconut"],
+
+  "tender coconut":[
     "tender coconut"
   ],
 
-  pepper: [
+  pepper:[
     "pepper",
     "black pepper"
   ],
 
-  "black pepper": [
+  "black pepper":[
     "black pepper",
     "pepper"
   ],
 
-  cardamom: [
-    "cardamom"
-  ],
+  cardamom:["cardamom"],
 
-  nutmeg: [
-    "nutmeg"
-  ],
+  nutmeg:["nutmeg"],
 
-  clove: [
-    "clove"
-  ],
+  clove:["clove"],
 
-  cinnamon: [
-    "cinnamon"
-  ],
+  cinnamon:["cinnamon"],
 
-  vanilla: [
-    "vanilla"
-  ],
+  vanilla:["vanilla"],
 
-  ginger: [
+  ginger:[
     "ginger",
     "ginger green",
     "green ginger"
   ],
 
-  turmeric: [
-    "turmeric"
-  ],
+  turmeric:["turmeric"],
 
-  arecanut: [
+  arecanut:[
     "arecanut",
     "betel nut"
   ],
 
-  rubber: [
-    "rubber"
-  ],
+  rubber:["rubber"],
 
-  "rubber latex": [
-    "rubber latex",
-    "latex"
-  ],
-
-  latex: [
+  latex:[
     "latex",
     "rubber latex"
   ],
 
-  cocoa: [
-    "cocoa"
-  ],
+  cocoa:["cocoa"],
 
-  coffee: [
-    "coffee"
-  ],
+  coffee:["coffee"],
 
-  tea: [
-    "tea"
-  ],
+  tea:["tea"],
 
-  cashew: [
+  cashew:[
     "cashew",
     "cashew nut"
   ],
 
-  banana: [
+  banana:[
     "banana",
     "plantain"
   ],
 
-  nendran: [
+  nendran:[
     "nendran",
     "banana",
     "plantain"
   ],
 
-  robusta: [
-    "robusta",
-    "banana",
-    "plantain"
-  ],
-
-  poovan: [
+  poovan:[
     "poovan",
     "banana",
     "plantain"
   ],
 
-  mango: [
-    "mango"
+  robusta:[
+    "robusta",
+    "banana",
+    "plantain"
   ],
 
-  jackfruit: [
-    "jackfruit"
-  ],
+  mango:["mango"],
 
-  pineapple: [
-    "pineapple"
-  ],
+  jackfruit:["jackfruit"],
 
-  papaya: [
-    "papaya"
-  ],
+  pineapple:["pineapple"],
 
-  rambutan: [
-    "rambutan"
-  ],
+  papaya:["papaya"],
 
-  mangosteen: [
-    "mangosteen"
-  ],
+  rambutan:["rambutan"],
 
-  "dragon fruit": [
+  mangosteen:["mangosteen"],
+
+  "dragon fruit":[
     "dragon fruit",
     "dragonfruit"
   ],
 
-  dragonfruit: [
+  dragonfruit:[
     "dragonfruit",
     "dragon fruit"
   ],
 
-  avocado: [
-    "avocado"
-  ],
+  avocado:["avocado"],
 
-  guava: [
-    "guava"
-  ],
-
-  sapota: [
-    "sapota",
-    "chikoo"
-  ],
-
-  chikoo: [
-    "chikoo",
-    "sapota"
-  ],
-
-  "passion fruit": [
-    "passion fruit"
-  ],
-
-  orange: [
-    "orange"
-  ],
-
-  lemon: [
-    "lemon"
-  ],
-
-  lime: [
-    "lime"
-  ],
-
-  "sweet lime": [
-    "sweet lime",
-    "mosambi"
-  ],
-
-  watermelon: [
-    "watermelon"
-  ],
-
-  muskmelon: [
-    "muskmelon"
-  ]
-};
-const MORE_COMMODITY_ALIASES = {
-  tapioca: [
+  tapioca:[
     "tapioca",
     "cassava"
   ],
 
-  cassava: [
+  cassava:[
     "cassava",
     "tapioca"
   ],
 
-  yam: [
-    "yam"
-  ],
+  yam:["yam"],
 
-  "elephant foot yam": [
-    "elephant foot yam",
-    "elephant yam",
-    "suran"
-  ],
+  potato:["potato"],
 
-  colocasia: [
-    "colocasia",
-    "taro"
-  ],
+  tomato:["tomato"],
 
-  potato: [
-    "potato"
-  ],
+  onion:["onion"],
 
-  "sweet potato": [
-    "sweet potato"
-  ],
+  garlic:["garlic"],
 
-  tomato: [
-    "tomato"
-  ],
-
-  onion: [
-    "onion"
-  ],
-
-  "small onion": [
-    "small onion",
-    "shallot",
-    "shallots"
-  ],
-
-  garlic: [
-    "garlic"
-  ],
-
-  chilli: [
+  chilli:[
     "chilli",
     "dry chilli"
   ],
 
-  "green chilli": [
-    "green chilli",
-    "chilli green"
+  "green chilli":[
+    "green chilli"
   ],
 
-  brinjal: [
-    "brinjal",
-    "eggplant"
-  ],
+  brinjal:["brinjal"],
 
-  okra: [
+  okra:[
     "okra",
-    "bhindi",
-    "ladies finger"
+    "bhindi"
   ],
 
-  cabbage: [
-    "cabbage"
-  ],
+  cabbage:["cabbage"],
 
-  cauliflower: [
+  cauliflower:[
     "cauliflower"
   ],
 
-  beans: [
-    "beans"
-  ],
+  beans:["beans"],
 
-  "french beans": [
-    "french beans"
-  ],
+  cucumber:["cucumber"],
 
-  "cluster beans": [
-    "cluster beans"
-  ],
+  pumpkin:["pumpkin"],
 
-  cowpea: [
-    "cowpea"
-  ],
+  carrot:["carrot"],
 
-  cucumber: [
-    "cucumber"
-  ],
+  beetroot:["beetroot"],
 
-  pumpkin: [
-    "pumpkin"
-  ],
+  radish:["radish"],
 
-  "ash gourd": [
-    "ash gourd",
-    "winter melon"
-  ],
+  spinach:["spinach"],
 
-  "bitter gourd": [
-    "bitter gourd"
-  ],
-
-  "snake gourd": [
-    "snake gourd"
-  ],
-
-  "ridge gourd": [
-    "ridge gourd"
-  ],
-
-  "bottle gourd": [
-    "bottle gourd"
-  ],
-
-  chowchow: [
-    "chowchow",
-    "chayote"
-  ],
-
-  drumstick: [
-    "drumstick",
-    "moringa"
-  ],
-
-  beetroot: [
-    "beetroot"
-  ],
-
-  carrot: [
-    "carrot"
-  ],
-
-  radish: [
-    "radish"
-  ],
-
-  spinach: [
-    "spinach"
-  ],
-
-  amaranthus: [
-    "amaranthus",
-    "amaranth"
-  ],
-
-  coriander: [
-    "coriander"
-  ],
-
-  mint: [
-    "mint"
-  ],
-
-  paddy: [
+  paddy:[
     "paddy",
     "paddy dhan common",
     "paddy dhan fine"
   ],
 
-  rice: [
-    "rice"
-  ],
+  rice:["rice"],
 
-  maize: [
+  maize:[
     "maize",
     "corn"
   ],
 
-  ragi: [
+  ragi:[
     "ragi",
     "finger millet"
   ],
 
-  millet: [
-    "millet"
-  ],
+  millet:["millet"],
 
-  "green gram": [
-    "green gram",
-    "moong"
-  ],
-
-  "black gram": [
-    "black gram",
-    "urad"
-  ],
-
-  "bengal gram": [
-    "bengal gram",
-    "chana"
-  ],
-
-  "red gram": [
-    "red gram",
-    "tur"
-  ],
-
-  groundnut: [
+  groundnut:[
     "groundnut",
     "peanut"
   ],
 
-  sesame: [
-    "sesame"
-  ],
+  sesame:["sesame"],
 
-  mustard: [
-    "mustard"
-  ],
+  mustard:["mustard"]
 
-  jasmine: [
-    "jasmine"
-  ],
-
-  marigold: [
-    "marigold"
-  ],
-
-  rose: [
-    "rose"
-  ],
-
-  tuberose: [
-    "tuberose"
-  ]
 };
-
-Object.assign(
-  COMMODITY_ALIASES,
-  MORE_COMMODITY_ALIASES
-);
-
-function getCommodityAliases(
-  requestedCommodity
-) {
-  const aliases =
-    COMMODITY_ALIASES[
-      requestedCommodity
-    ] || [
-      requestedCommodity
-    ];
-
-  return aliases
-    .map(normaliseText)
-    .filter(Boolean);
-}
 
 function commodityMatchesAliases(
   recordCommodity,
   aliases
-) {
-  const normalisedRecord =
+){
+
+  const commodity =
     normaliseText(
       recordCommodity
     );
 
-  return aliases.some(
-    function (alias) {
-      return (
-        normalisedRecord === alias
-      );
-    }
-  );
+  return aliases.some(function(alias){
+
+    return commodity === alias;
+
+  });
+
 }
 
-function parseSourceDate(value) {
-  const text = clean(value);
+/*
+=========================================================
+DATE UTILITIES
+=========================================================
+*/
 
-  if (!text) {
+function parseSourceDate(value){
+
+  const text =
+    clean(value);
+
+  if(!text){
+
     return null;
+
   }
 
   const parts =
     text.split("/");
 
-  if (parts.length === 3) {
-    const day =
-      Number(parts[0]);
-
-    const month =
-      Number(parts[1]) - 1;
-
-    const year =
-      Number(parts[2]);
+  if(parts.length===3){
 
     const parsed =
       new Date(
-        year,
-        month,
-        day
+
+        Number(parts[2]),
+
+        Number(parts[1])-1,
+
+        Number(parts[0])
+
       );
 
-    if (
+    if(
       !Number.isNaN(
         parsed.getTime()
       )
-    ) {
+    ){
+
       return parsed;
+
     }
+
   }
 
   const parsed =
@@ -694,120 +546,117 @@ function parseSourceDate(value) {
   )
     ? null
     : parsed;
+
 }
 
 function isSameCalendarDay(
-  firstDate,
-  secondDate
-) {
-  if (
-    !firstDate ||
-    !secondDate
-  ) {
+  a,
+  b
+){
+
+  if(
+    !a ||
+    !b
+  ){
+
     return false;
+
   }
 
   return (
-    firstDate.getFullYear() ===
-      secondDate.getFullYear() &&
-    firstDate.getMonth() ===
-      secondDate.getMonth() &&
-    firstDate.getDate() ===
-      secondDate.getDate()
+
+    a.getFullYear()===b.getFullYear()
+
+    &&
+
+    a.getMonth()===b.getMonth()
+
+    &&
+
+    a.getDate()===b.getDate()
+
   );
+
 }
 
-function sortByLatestDate(
-  records
-) {
-  return records
-    .slice()
-    .sort(
-      function (a, b) {
-        const first =
-          parseSourceDate(
-            a.sourceDate
-          );
-
-        const second =
-          parseSourceDate(
-            b.sourceDate
-          );
-
-        const firstTime =
-          first
-            ? first.getTime()
-            : 0;
-
-        const secondTime =
-          second
-            ? second.getTime()
-            : 0;
-
-        return (
-          secondTime -
-          firstTime
-        );
-      }
-    );
-}
 function latestDateRecords(
   records
-) {
-  if (
+){
+
+  if(
     !records ||
-    records.length === 0
-  ) {
+    records.length===0
+  ){
+
     return [];
+
   }
 
   const sorted =
-    sortByLatestDate(
-      records
-    );
+    records
 
-  const latestDate =
+    .slice()
+
+    .sort(function(a,b){
+
+      return (
+
+        parseSourceDate(
+          b.sourceDate
+        ).getTime()
+
+        -
+
+        parseSourceDate(
+          a.sourceDate
+        ).getTime()
+
+      );
+
+    });
+
+  const latest =
     parseSourceDate(
       sorted[0].sourceDate
     );
 
-  if (!latestDate) {
-    return sorted;
-  }
+  return sorted.filter(function(record){
 
-  return sorted.filter(
-    function (record) {
-      const recordDate =
-        parseSourceDate(
-          record.sourceDate
-        );
+    return isSameCalendarDay(
 
-      return isSameCalendarDay(
-        recordDate,
-        latestDate
-      );
-    }
-  );
+      parseSourceDate(
+        record.sourceDate
+      ),
+
+      latest
+
+    );
+
+  });
+
 }
 
-function uniqueStates(records) {
+function uniqueStates(records){
+
   return Array.from(
+
     new Set(
-      records
-        .map(
-          function (record) {
-            return clean(
-              record.state
-            );
-          }
-        )
-        .filter(Boolean)
+
+      records.map(function(r){
+
+        return clean(r.state);
+
+      })
+
     )
+
   ).sort();
+
 }
 
-function getTodayInIndia() {
-  const indiaText =
+function getTodayInIndia(){
+
+  const today =
     new Date().toLocaleDateString(
       "en-CA",
       {
@@ -817,964 +666,948 @@ function getTodayInIndia() {
     );
 
   return new Date(
-    indiaText +
-      "T00:00:00+05:30"
+    today +
+    "T00:00:00+05:30"
   );
+
 }
 
-function addResultMetadata(
-  records,
-  details
+/*
+=========================================================
+KERALA DISTRICT PRIORITY
+=========================================================
+*/
+
+const KERALA_DISTRICT_PRIORITY={
+
+  thiruvananthapuram:["kollam","pathanamthitta","alappuzha","kottayam","idukki","ernakulam","thrissur","palakkad","malappuram","kozhikode","wayanad","kannur","kasaragod"],
+
+  kollam:["pathanamthitta","thiruvananthapuram","alappuzha","kottayam","idukki","ernakulam","thrissur","palakkad","malappuram","kozhikode","wayanad","kannur","kasaragod"],
+
+  pathanamthitta:["kollam","kottayam","alappuzha","idukki","thiruvananthapuram","ernakulam","thrissur","palakkad","malappuram","kozhikode","wayanad","kannur","kasaragod"],
+
+  alappuzha:["kottayam","pathanamthitta","kollam","ernakulam","idukki","thrissur","thiruvananthapuram","palakkad","malappuram","kozhikode","wayanad","kannur","kasaragod"],
+
+  kottayam:["idukki","alappuzha","pathanamthitta","ernakulam","kollam","thrissur","thiruvananthapuram","palakkad","malappuram","kozhikode","wayanad","kannur","kasaragod"],
+
+  idukki:["kottayam","ernakulam","pathanamthitta","thrissur","alappuzha","palakkad","kollam","malappuram","kozhikode","thiruvananthapuram","wayanad","kannur","kasaragod"],
+
+  ernakulam:["thrissur","kottayam","idukki","alappuzha","palakkad","pathanamthitta","malappuram","kozhikode","kollam","wayanad","thiruvananthapuram","kannur","kasaragod"],
+
+  thrissur:["palakkad","ernakulam","malappuram","idukki","kottayam","kozhikode","alappuzha","wayanad","pathanamthitta","kollam","kannur","thiruvananthapuram","kasaragod"],
+
+  palakkad:["thrissur","malappuram","ernakulam","kozhikode","wayanad","idukki","kottayam","kannur","alappuzha","pathanamthitta","kasaragod","kollam","thiruvananthapuram"],
+
+  malappuram:["kozhikode","palakkad","thrissur","wayanad","kannur","ernakulam","kasaragod","idukki","kottayam","alappuzha","pathanamthitta","kollam","thiruvananthapuram"],
+
+  kozhikode:["wayanad","malappuram","kannur","palakkad","kasaragod","thrissur","ernakulam","idukki","kottayam","alappuzha","pathanamthitta","kollam","thiruvananthapuram"],
+
+  wayanad:["kozhikode","kannur","malappuram","kasaragod","palakkad","thrissur","ernakulam","idukki","kottayam","alappuzha","pathanamthitta","kollam","thiruvananthapuram"],
+
+  kannur:["kasaragod","wayanad","kozhikode","malappuram","palakkad","thrissur","ernakulam","idukki","kottayam","alappuzha","pathanamthitta","kollam","thiruvananthapuram"],
+
+  kasaragod:["kannur","wayanad","kozhikode","malappuram","palakkad","thrissur","ernakulam","idukki","kottayam","alappuzha","pathanamthitta","kollam","thiruvananthapuram"]
+
+};
+/*
+=========================================================
+KERALA MARKET INTELLIGENCE
+=========================================================
+*/
+
+function getKeralaRecords(records) {
+
+  return records.filter(function(record) {
+
+    return normaliseText(record.state) === "kerala";
+
+  });
+
+}
+
+function getOutsideKeralaRecords(records) {
+
+  return records.filter(function(record) {
+
+    return normaliseText(record.state) !== "kerala";
+
+  });
+
+}
+
+function findDistrictRecords(records, district) {
+
+  const wanted =
+    normaliseText(district);
+
+  return records.filter(function(record) {
+
+    return normaliseText(record.district) === wanted;
+
+  });
+
+}
+
+function getHighestPriceRecord(records) {
+
+  const valid = records.filter(function(r) {
+
+    return r.price != null;
+
+  });
+
+  if (!valid.length) {
+
+    return null;
+
+  }
+
+  return valid.reduce(function(best, current) {
+
+    return current.price > best.price
+      ? current
+      : best;
+
+  });
+
+}
+
+function getLowestPriceRecord(records) {
+
+  const valid = records.filter(function(r) {
+
+    return r.price != null;
+
+  });
+
+  if (!valid.length) {
+
+    return null;
+
+  }
+
+  return valid.reduce(function(best, current) {
+
+    return current.price < best.price
+      ? current
+      : best;
+
+  });
+
+}
+
+function getAveragePrice(records) {
+
+  const values =
+    records
+
+      .map(function(r) {
+
+        return r.price;
+
+      })
+
+      .filter(function(price) {
+
+        return price != null;
+
+      });
+
+  if (!values.length) {
+
+    return null;
+
+  }
+
+  const total =
+    values.reduce(function(a, b) {
+
+      return a + b;
+
+    }, 0);
+
+  return Number(
+
+    (total / values.length)
+
+      .toFixed(2)
+
+  );
+
+}
+
+function getPriceSpread(records) {
+
+  const highest =
+    getHighestPriceRecord(records);
+
+  const lowest =
+    getLowestPriceRecord(records);
+
+  if (!highest || !lowest) {
+
+    return null;
+
+  }
+
+  return Number(
+
+    (highest.price - lowest.price)
+
+      .toFixed(2)
+
+  );
+
+}
+
+/*
+=========================================================
+BEST NEARBY MARKET
+=========================================================
+*/
+
+function getBestNearbyMarket(
+
+  keralaRecords,
+
+  requestedDistrict
+
 ) {
-  return records.map(
-    function (record) {
-      return {
-        ...record,
 
-        isTodayPrice:
-          details.isTodayPrice,
+  const priority =
 
-        todayPriceAvailable:
-          details.isTodayPrice,
-
-        todayPriceMessage:
-          details.isTodayPrice
-            ? "Today's official price is available."
-            : "Today's official price is not available. Showing the latest available official price.",
-
-        searchScope:
-          details.searchScope,
-
-        requestedMarket:
-          details.requestedMarket,
-
-        requestedDistrict:
-          details.requestedDistrict,
-
-        requestedState:
-          details.requestedState,
-
-        needsStateChoice:
-          Boolean(
-            details.needsStateChoice
-          ),
-
-        availableStates:
-          details.availableStates ||
-          []
-      };
-    }
-  );
-}
-
-function selectBestRecords(
-  commodityRecords,
-  options
-) {
-  const input =
-    options || {};
-
-  const requestedMarket =
-    normaliseText(
-      input.market
-    );
-
-  const requestedDistrict =
-    normaliseText(
-      input.district
-    );
-
-  const requestedState =
-    normaliseText(
-      input.state || "Kerala"
-    );
-
-  const today =
-    getTodayInIndia();
-
-  function chooseFromScope(
-    scopeRecords,
-    searchScope
-  ) {
-    if (
-      scopeRecords.length === 0
-    ) {
-      return null;
-    }
-
-    const todayRecords =
-      scopeRecords.filter(
-        function (record) {
-          return isSameCalendarDay(
-            parseSourceDate(
-              record.sourceDate
-            ),
-            today
-          );
-        }
-      );
-
-    if (
-      todayRecords.length > 0
-    ) {
-      return addResultMetadata(
-        todayRecords.slice(0, 5),
-        {
-          isTodayPrice: true,
-          searchScope,
-          requestedMarket:
-            clean(input.market),
-          requestedDistrict:
-            clean(input.district),
-          requestedState:
-            clean(
-              input.state ||
-              "Kerala"
-            ),
-          needsStateChoice: false,
-          availableStates: []
-        }
-      );
-    }
-
-    const latestRecords =
-      latestDateRecords(
-        scopeRecords
-      );
-
-    return addResultMetadata(
-      latestRecords.slice(0, 5),
-      {
-        isTodayPrice: false,
-        searchScope,
-        requestedMarket:
-          clean(input.market),
-        requestedDistrict:
-          clean(input.district),
-        requestedState:
-          clean(
-            input.state ||
-            "Kerala"
-          ),
-        needsStateChoice: false,
-        availableStates: []
-      }
-    );
-  }
-
-  /*
-   * Priority 1:
-   * Requested market in requested state.
-   */
-  if (requestedMarket) {
-    const marketRecords =
-      commodityRecords.filter(
-        function (record) {
-          return (
-            normaliseText(
-              record.market
-            ) ===
-              requestedMarket &&
-            normaliseText(
-              record.state
-            ) ===
-              requestedState
-          );
-        }
-      );
-
-    const selected =
-      chooseFromScope(
-        marketRecords,
-        "Requested Market"
-      );
-
-    if (selected) {
-      return selected;
-    }
-  }
-
-  /*
-   * Priority 2:
-   * Requested district in requested state.
-   */
-  if (requestedDistrict) {
-    const districtRecords =
-      commodityRecords.filter(
-        function (record) {
-          return (
-            normaliseText(
-              record.district
-            ) ===
-              requestedDistrict &&
-            normaliseText(
-              record.state
-            ) ===
-              requestedState
-          );
-        }
-      );
-
-    const selected =
-      chooseFromScope(
-        districtRecords,
-        "Requested District"
-      );
-
-    if (selected) {
-      return selected;
-    }
-  }
-
-  /*
-   * Priority 3:
-   * Any market in Kerala or other
-   * specifically requested state.
-   */
-  const stateRecords =
-    commodityRecords.filter(
-      function (record) {
-        return (
-          normaliseText(
-            record.state
-          ) ===
-          requestedState
-        );
-      }
-    );
-
-  const selectedStateRecords =
-    chooseFromScope(
-      stateRecords,
-      requestedState === "kerala"
-        ? "Any Kerala Market"
-        : "Requested State"
-    );
-
-  if (selectedStateRecords) {
-    return selectedStateRecords;
-  }
-
-  /*
-   * Priority 4:
-   * Same commodity exists only outside
-   * Kerala/requested state.
-   */
-  const otherStateRecords =
-    commodityRecords.filter(
-      function (record) {
-        return (
-          normaliseText(
-            record.state
-          ) !==
-          requestedState
-        );
-      }
-    );
-
-  if (
-    otherStateRecords.length === 0
-  ) {
-    return [];
-  }
-
-  const availableStates =
-    uniqueStates(
-      otherStateRecords
-    );
-
-  /*
-   * If the farmer already requested a
-   * particular non-Kerala state, return
-   * that state's latest records.
-   */
-  if (
-    requestedState &&
-    requestedState !== "kerala"
-  ) {
-    const selected =
-      chooseFromScope(
-        otherStateRecords,
-        "Other State"
-      );
-
-    if (selected) {
-      return selected;
-    }
-  }
-
-  /*
-   * For a normal Kerala request, return
-   * latest same-commodity records from
-   * another state and mark that a state
-   * choice may be offered.
-   */
-  const latestOtherStateRecords =
-    latestDateRecords(
-      otherStateRecords
-    ).slice(0, 5);
-
-  return addResultMetadata(
-    latestOtherStateRecords,
-    {
-      isTodayPrice:
-        latestOtherStateRecords.some(
-          function (record) {
-            return isSameCalendarDay(
-              parseSourceDate(
-                record.sourceDate
-              ),
-              today
-            );
-          }
-        ),
-
-      searchScope:
-        "Other State",
-
-      requestedMarket:
-        clean(input.market),
-
-      requestedDistrict:
-        clean(input.district),
-
-      requestedState:
-        clean(
-          input.state ||
-          "Kerala"
-        ),
-
-      needsStateChoice: true,
-
-      availableStates
-    }
-  );
-}
-async function fetchAgmarknetPage(
-  params,
-  timeout
-) {
-  const response =
-    await axios.get(
-      API_URL,
-      {
-        params,
-        timeout,
-
-        headers: {
-          Accept:
-            "application/json",
-
-          "User-Agent":
-            "BhoomiMitra-" +
-            "Market-Engine/2.0"
-        }
-      }
-    );
-
-  const data =
-    response &&
-    response.data
-      ? response.data
-      : {};
-
-  return {
-    records:
-      Array.isArray(
-        data.records
-      )
-        ? data.records
-        : [],
-
-    total:
-      Number(
-        data.total || 0
-      ),
-
-    count:
-      Number(
-        data.count || 0
-      ),
-
-    status:
-      clean(
-        data.status
-      )
-  };
-}
-
-async function fetchAgmarknet(
-  options
-) {
-  const input =
-    options || {};
-
-  const apiKey =
-    clean(
-      input.apiKey ||
-      process.env
-        .AGMARKNET_API_KEY
-    );
-
-  if (!apiKey) {
-    throw new Error(
-      "AGMARKNET_API_KEY is not configured."
-    );
-  }
-
- const resolvedCommodity =
-  await resolveCommodity(
-    input.commodity
-  );
-
-if (!resolvedCommodity) {
-  console.log(
-    "Commodity_Master could not resolve:",
-    clean(input.commodity)
-  );
-
-  return [];
-}
-
-const requestedCommodity =
-  normaliseText(
-    resolvedCommodity
-      .bhoomiMitraName
-  );
-
-const officialCommodityName =
-  clean(
-    resolvedCommodity
-      .agmarknetName
-  );
-
-if (!officialCommodityName) {
-  console.log(
-    "AGMARKNET name missing in Commodity_Master:",
-    resolvedCommodity
-      .bhoomiMitraName
-  );
-
-  return [];
-}
-
-console.log(
-  "Commodity_Master selected:",
-  {
-    bhoomiMitraName:
-      resolvedCommodity
-        .bhoomiMitraName,
-
-    malayalamName:
-      resolvedCommodity
-        .malayalamName,
-
-    officialCommodityName
-  }
-);
-const aliases =
-  Array.from(
-    new Set(
-      [
-        officialCommodityName,
-        resolvedCommodity
-          .bhoomiMitraName,
-        ...(
-          resolvedCommodity
-            .aliases || []
-        )
-      ]
-        .map(normaliseText)
-        .filter(Boolean)
-    )
-  );
-
-  const requestedState =
-    normaliseText(
-      input.state ||
-      "Kerala"
-    );
-
-  const requestedDistrict =
-    normaliseText(
-      input.district
-    );
-
-  const requestedMarket =
-    normaliseText(
-      input.market
-    );
-
-  const pageSize =
-    Math.min(
-      Math.max(
-        Number(
-          input.limit ||
-          1000
-        ),
-        1
-      ),
-      10000
-    );
-
-  const maxPages =
-    Math.min(
-      Math.max(
-        Number(
-          input.maxPages ||
-          10
-        ),
-        1
-      ),
-      30
-    );
-
-  const timeout =
-    Math.max(
-      Number(
-        input.timeout ||
-        90000
-      ),
-      10000
-    );
-
-  console.log(
-    "AGMARKNET original commodity input:",
-    clean(
-      input.commodity
-    )
-  );
-
-  console.log(
-    "AGMARKNET requested commodity:",
-    requestedCommodity
-  );
-
-  console.log(
-    "AGMARKNET aliases:",
-    aliases
-  );
-
-  console.log(
-    "AGMARKNET requested state:",
-    requestedState
-  );
-
-  console.log(
-    "AGMARKNET requested district:",
-    requestedDistrict ||
-    "not specified"
-  );
-
-  console.log(
-    "AGMARKNET requested market:",
-    requestedMarket ||
-    "not specified"
-  );
-
-  const allMatchedRecords =
-    [];
-
-  let totalAvailable =
-    0;
-
-  const startingOffset =
-    Math.max(
-      Number(
-        input.offset || 0
-      ),
-      0
-    );
+    KERALA_DISTRICT_PRIORITY[
+      normaliseText(requestedDistrict)
+    ] || [];
 
   for (
-    let page = 0;
-    page < maxPages;
-    page += 1
+
+    let i = 0;
+
+    i < priority.length;
+
+    i++
+
   ) {
-    const offset =
-      startingOffset +
-      page * pageSize;
 
- const params = {
-  "api-key": apiKey,
-  format: "json",
-  offset,
-  limit: pageSize,
-  "filters[commodity]": officialCommodityName
-};
+    const district =
+      priority[i];
 
-    /*
- * Use the exact official AGMARKNET
- * commodity name resolved from the
- * Commodity_Master sheet.
- */
+    const matches =
 
-    if (
-      clean(
-        input.variety
-      )
-    ) {
-      params[
-        "filters[variety]"
-      ] =
-        clean(
-          input.variety
+      keralaRecords.filter(function(record) {
+
+        return (
+
+          normaliseText(
+            record.district
+          ) === district
+
         );
-    }
 
-    console.log(
-  "AGMARKNET page request:",
-  {
-    page:
-      page + 1,
+      });
 
-    offset,
+    if (matches.length) {
 
-    limit:
-      pageSize,
+      return getHighestPriceRecord(
 
-    commodity:
-      officialCommodityName,
+        matches
 
-    "api-key":
-      "**configured**"
-  }
-);
-
-    let pageResult;
-
-    try {
-      pageResult =
-        await fetchAgmarknetPage(
-          params,
-          timeout
-        );
-    } catch (error) {
-      console.error(
-        "AGMARKNET page request failed:",
-        {
-          page:
-            page + 1,
-
-          offset,
-
-          message:
-            error &&
-            error.message
-              ? error.message
-              : String(
-                  error
-                )
-        }
       );
 
-      /*
-       * If earlier pages already produced
-       * correct records, continue using
-       * those records.
-       */
-      if (
-        allMatchedRecords
-          .length > 0
-      ) {
-        break;
-      }
-
-      throw error;
     }
 
-    totalAvailable =
-      pageResult.total;
-
-    console.log(
-      "AGMARKNET page response:",
-      {
-        page:
-          page + 1,
-
-        status:
-          pageResult.status,
-
-        total:
-          pageResult.total,
-
-        count:
-          pageResult.count,
-
-        receivedRecords:
-          pageResult.records
-            .length
-      }
-    );
-const uniqueCommodities =
-  Array.from(
-    new Set(
-      pageResult.records
-        .map(
-          function (record) {
-            return clean(
-              record.commodity
-            );
-          }
-        )
-        .filter(Boolean)
-    )
-  ).sort();
-
-console.log(
-  "AGMARKNET unique commodities:",
-  uniqueCommodities
-);
-    const pageMatches =
-      pageResult.records
-        .map(
-          mapRecord
-        )
-        .filter(
-          function (
-            record
-          ) {
-            return (
-              record.commodity &&
-              record.market &&
-              record.district &&
-              record.price != null &&
-              commodityMatchesAliases(
-                record.commodity,
-                aliases
-              )
-            );
-          }
-        );
-
-    console.log(
-      "AGMARKNET matches on page:",
-      pageMatches.length
-    );
-
-    allMatchedRecords.push(
-      ...pageMatches
-    );
-
-    /*
-     * Stop when the API returns fewer
-     * records than requested.
-     */
-    if (
-      pageResult.records
-        .length <
-      pageSize
-    ) {
-      break;
-    }
-
-    /*
-     * Stop when all available records
-     * have been checked.
-     */
-    if (
-      totalAvailable > 0 &&
-      offset +
-        pageSize >=
-        totalAvailable
-    ) {
-      break;
-    }
   }
 
-  /*
-   * Remove duplicate market records.
-   */
-  const deduplicatedRecords =
-    Array.from(
-      new Map(
-        allMatchedRecords.map(
-          function (
-            record
-          ) {
-            const key = [
-              normaliseText(
-                record.commodity
-              ),
+  return null;
 
-              normaliseText(
-                record.variety
-              ),
-
-              normaliseText(
-                record.state
-              ),
-
-              normaliseText(
-                record.district
-              ),
-
-              normaliseText(
-                record.market
-              ),
-
-              clean(
-                record.sourceDate
-              ),
-
-              record.price
-            ].join("|");
-
-            return [
-              key,
-              record
-            ];
-          }
-        )
-      ).values()
-    );
-
-  console.log(
-    "AGMARKNET total commodity matches:",
-    deduplicatedRecords
-      .length
-  );
-const matchedStateCounts =
-  deduplicatedRecords.reduce(
-    function (counts, record) {
-      const state =
-        normaliseText(record.state) ||
-        "unknown";
-      counts[state] =
-        (counts[state] || 0) + 1;
-      return counts;
-    },
-    {}
-  );
-console.log(
-  "AGMARKNET matched state counts:",
-  matchedStateCounts
-);
-  /*
-   * Never return a record belonging to
-   * another commodity.
-   */
-  if (
-    deduplicatedRecords
-      .length === 0
-  ) {
-    console.log(
-      "AGMARKNET rejected unrelated fallback for:",
-      requestedCommodity
-    );
-
-    return [];
-  }
-console.log(
-  "AGMARKNET selection input:",
-  {
-    state:
-      input.state || "Kerala",
-    district:
-      input.district ||
-      "not specified",
-    market:
-      input.market ||
-      "not specified"
-  }
-);
-  const selectedRecords =
-    selectBestRecords(
-      deduplicatedRecords,
-      {
-        state:
-          input.state ||
-          "Kerala",
-
-        district:
-          input.district,
-
-        market:
-          input.market
-      }
-    );
-
-  if (
-    selectedRecords.length ===
-    0
-  ) {
-    console.log(
-      "AGMARKNET no suitable records selected."
-    );
-
-    return [];
-  }
-
-  console.log(
-    "AGMARKNET selection scope:",
-    selectedRecords[0]
-      .searchScope
-  );
-
-  console.log(
-    "AGMARKNET records selected:",
-    selectedRecords.length
-  );
-
-  console.log(
-    "AGMARKNET first selected record:",
-    {
-      commodity:
-        selectedRecords[0]
-          .commodity,
-
-      variety:
-        selectedRecords[0]
-          .variety,
-
-      state:
-        selectedRecords[0]
-          .state,
-
-      district:
-        selectedRecords[0]
-          .district,
-
-      market:
-        selectedRecords[0]
-          .market,
-
-      price:
-        selectedRecords[0]
-          .price,
-
-      sourceDate:
-        selectedRecords[0]
-          .sourceDate,
-
-      isTodayPrice:
-        selectedRecords[0]
-          .isTodayPrice,
-
-      searchScope:
-        selectedRecords[0]
-          .searchScope,
-
-      needsStateChoice:
-        selectedRecords[0]
-          .needsStateChoice,
-
-      availableStates:
-        selectedRecords[0]
-          .availableStates
-    }
-  );
-
-  return selectedRecords;
 }
 
+/*
+=========================================================
+OUTSIDE KERALA REFERENCE
+=========================================================
+*/
+
+function getOutsideKeralaReference(records) {
+
+  if (!records.length) {
+
+    return null;
+
+  }
+
+  const best =
+    getHighestPriceRecord(records);
+
+  if (!best) {
+
+    return null;
+
+  }
+
+  return {
+
+    state:
+      best.state,
+
+    district:
+      best.district,
+
+    market:
+      best.market,
+
+    price:
+      best.price,
+
+    date:
+      best.sourceDate
+
+  };
+
+}
+
+/*
+=========================================================
+BUILD MARKET INTELLIGENCE
+=========================================================
+*/
+
+function buildMarketIntelligence(
+
+  allRecords,
+
+  requestedDistrict
+
+) {
+
+  const keralaRecords =
+    getKeralaRecords(allRecords);
+
+  const outsideRecords =
+    getOutsideKeralaRecords(allRecords);
+
+  const districtRecords =
+    findDistrictRecords(
+
+      keralaRecords,
+
+      requestedDistrict
+
+    );
+
+  const districtBest =
+    getHighestPriceRecord(
+
+      districtRecords
+
+    );
+
+  const nearbyBest =
+    getBestNearbyMarket(
+
+      keralaRecords,
+
+      requestedDistrict
+
+    );
+
+  const highest =
+    getHighestPriceRecord(
+
+      keralaRecords
+
+    );
+
+  const lowest =
+    getLowestPriceRecord(
+
+      keralaRecords
+
+    );
+
+  return {
+
+    districtBest,
+
+    nearbyBest,
+
+    highest,
+
+    lowest,
+
+    average:
+
+      getAveragePrice(
+
+        keralaRecords
+
+      ),
+
+    spread:
+
+      getPriceSpread(
+
+        keralaRecords
+
+      ),
+
+    outsideReference:
+
+      getOutsideKeralaReference(
+
+        outsideRecords
+
+      )
+
+  };
+
+}
+/*
+=========================================================
+REMOVE DUPLICATES
+=========================================================
+*/
+
+function removeDuplicateMarkets(records) {
+
+  const seen = new Set();
+
+  return records.filter(function(record) {
+
+    const key = [
+
+      normaliseText(record.state),
+
+      normaliseText(record.district),
+
+      normaliseText(record.market),
+
+      normaliseText(record.commodity),
+
+      normaliseText(record.variety),
+
+      record.sourceDate
+
+    ].join("|");
+
+    if (seen.has(key)) {
+
+      return false;
+
+    }
+
+    seen.add(key);
+
+    return true;
+
+  });
+
+}
+
+/*
+=========================================================
+MATCH COMMODITY
+=========================================================
+*/
+
+function filterCommodityRecords(
+
+  records,
+
+  commodityQuery
+
+) {
+
+  const resolved =
+    resolveCommodity(
+
+      commodityQuery
+
+    );
+
+  let aliases = [];
+
+  if (
+
+    resolved &&
+
+    resolved.canonical
+
+  ) {
+
+    aliases.push(
+
+      normaliseText(
+
+        resolved.canonical
+
+      )
+
+    );
+
+  }
+
+  aliases.push(
+
+    normaliseCommodityQuery(
+
+      commodityQuery
+
+    )
+
+  );
+
+  aliases =
+
+    aliases.concat(
+
+      COMMODITY_ALIASES[
+        normaliseCommodityQuery(
+          commodityQuery
+        )
+      ] || []
+
+    );
+
+  aliases =
+
+    Array.from(
+
+      new Set(
+
+        aliases.map(
+
+          normaliseText
+
+        )
+
+      )
+
+    );
+
+  return records.filter(function(record) {
+
+    return commodityMatchesAliases(
+
+      record.commodity,
+
+      aliases
+
+    );
+
+  });
+
+}
+
+/*
+=========================================================
+LATEST RECORDS ONLY
+=========================================================
+*/
+
+function getLatestCommodityRecords(
+
+  records,
+
+  commodity
+
+) {
+
+  const matched =
+
+    filterCommodityRecords(
+
+      records,
+
+      commodity
+
+    );
+
+  if (!matched.length) {
+
+    return [];
+
+  }
+
+  return latestDateRecords(
+
+    matched
+
+  );
+
+}
+
+/*
+=========================================================
+SMART RECORD SELECTION
+=========================================================
+*/
+
+function selectBestRecords(
+
+  allRecords,
+
+  commodity,
+
+  district
+
+) {
+
+  let records =
+
+    getLatestCommodityRecords(
+
+      allRecords,
+
+      commodity
+
+    );
+
+  records =
+
+    removeDuplicateMarkets(
+
+      records
+
+    );
+
+  const keralaRecords =
+
+    getKeralaRecords(
+
+      records
+
+    );
+
+  const districtRecords =
+
+    findDistrictRecords(
+
+      keralaRecords,
+
+      district
+
+    );
+
+  const intelligence =
+
+    buildMarketIntelligence(
+
+      records,
+
+      district
+
+    );
+
+  let selected = null;
+
+  /*
+  Priority 1
+  Requested District
+  */
+
+  if (
+
+    districtRecords.length
+
+  ) {
+
+    selected =
+
+      getHighestPriceRecord(
+
+        districtRecords
+
+      );
+
+  }
+
+  /*
+  Priority 2
+  Nearby District
+  */
+
+  if (
+
+    !selected &&
+
+    intelligence.nearbyBest
+
+  ) {
+
+    selected =
+
+      intelligence.nearbyBest;
+
+  }
+
+  /*
+  Priority 3
+  Highest Kerala Market
+  */
+
+  if (
+
+    !selected &&
+
+    intelligence.highest
+
+  ) {
+
+    selected =
+
+      intelligence.highest;
+
+  }
+
+  /*
+  Priority 4
+  Outside Kerala
+  */
+
+  if (
+
+    !selected &&
+
+    intelligence.outsideReference
+
+  ) {
+
+    selected =
+
+      intelligence.outsideReference;
+
+  }
+
+  if (
+
+    selected
+
+  ) {
+
+    selected.marketIntelligence =
+
+      intelligence;
+
+  }
+
+  console.log(
+
+    "AGMARKNET selection:",
+
+    {
+
+      commodity,
+
+      district,
+
+      selectedMarket:
+
+        selected
+
+          ? selected.market
+
+          : null,
+
+      selectedDistrict:
+
+        selected
+
+          ? selected.district
+
+          : null,
+
+      selectedState:
+
+        selected
+
+          ? selected.state
+
+          : null
+
+    }
+
+  );
+
+  return selected;
+
+}
+/*
+=========================================================
+AGMARKNET API FETCH ENGINE
+=========================================================
+*/
+
+async function fetchAgmarknet(params) {
+
+  params = params || {};
+
+  const commodity =
+    clean(params.commodity);
+
+  if (!commodity) {
+
+    return null;
+
+  }
+
+  const district =
+    clean(params.district);
+
+  const state =
+    clean(params.state || "Kerala");
+
+  const apiKey =
+    process.env.DATA_GOV_API_KEY ||
+    process.env.DATA_GOV_IN_API_KEY ||
+    process.env.AGMARKNET_API_KEY ||
+    "";
+
+  const requestParams = {
+
+    "api-key": apiKey,
+
+    format: "json",
+
+    limit: 500,
+
+    offset: 0,
+
+    commodity: commodity
+
+  };
+
+  if (state) {
+
+    requestParams.state = state;
+
+  }
+
+  try {
+
+    console.log(
+      "AGMARKNET Request:",
+      requestParams
+    );
+
+    const response =
+      await axios.get(
+
+        API_URL,
+
+        {
+
+          params: requestParams,
+
+          timeout: 30000
+
+        }
+
+      );
+
+    const records =
+
+      response.data &&
+      response.data.records
+
+        ? response.data.records
+
+        : [];
+
+    if (!records.length) {
+
+      console.log(
+        "AGMARKNET: No records returned."
+      );
+
+      return null;
+
+    }
+
+    const mappedRecords =
+
+      records.map(mapRecord);
+
+    console.log(
+
+      "AGMARKNET Total Records:",
+
+      mappedRecords.length
+
+    );
+
+    const selected =
+
+      selectBestRecords(
+
+        mappedRecords,
+
+        commodity,
+
+        district
+
+      );
+
+    if (!selected) {
+
+      console.log(
+        "AGMARKNET: No matching commodity found."
+      );
+
+      return null;
+
+    }
+
+    return selected;
+
+  } catch (error) {
+
+    console.error(
+
+      "AGMARKNET API Error:",
+
+      error.response
+
+        ? error.response.data
+
+        : error.message
+
+    );
+
+    return null;
+
+  }
+
+}
+/*
+=========================================================
+PUBLIC EXPORTS
+=========================================================
+*/
+
 module.exports = {
+
   fetchAgmarknet,
+
   mapRecord,
-  convertQuintalToKg,
+
   normaliseCommodityQuery,
+
   normaliseText,
-  parseSourceDate,
-  isSameCalendarDay,
-  COMMODITY_ALIASES
+
+  normalisePrice,
+
+  convertQuintalToKg,
+
+  latestDateRecords,
+
+  removeDuplicateMarkets,
+
+  filterCommodityRecords,
+
+  buildMarketIntelligence,
+
+  selectBestRecords
+
 };
