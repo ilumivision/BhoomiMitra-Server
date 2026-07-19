@@ -408,7 +408,7 @@ if (detectedIntent === "market") {
        const liveRecords =
   await fetchAllSources({
     state:
-      "Kerala",
+      " ",
 
     commodity:
       officialCommodity,
