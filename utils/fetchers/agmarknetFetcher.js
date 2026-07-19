@@ -1493,26 +1493,30 @@ async function fetchAgmarknet(params) {
     process.env.AGMARKNET_API_KEY ||
     "";
 
-  const requestParams = {
+ const requestParams = {
   "api-key": apiKey,
   format: "json",
   limit: 100,
-  offset: 0,
-  commodity: commodity
+  offset: 0
 };
 
-  if (state) {
+if (state) {
+  requestParams["filters[state]"] = state;
+}
 
-    requestParams.state = state;
-
-  }
+if (commodity) {
+  requestParams["filters[commodity]"] = commodity;
+}
 
   try {
 
     console.log(
-      "AGMARKNET Request:",
-      requestParams
-    );
+  "AGMARKNET Request:",
+  {
+    ...requestParams,
+    "api-key": "**hidden**"
+  }
+);
 
     const response =
   await axios.get(
