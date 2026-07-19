@@ -61,7 +61,15 @@ function normaliseCommodityQuery(value) {
 
   let query =
     normaliseText(value);
-
+ query = query
+    .replace(/\bmrket\b/g, "market")
+    .replace(/\bmaket\b/g, "market")
+    .replace(/\bprie\b/g, "price")
+    .replace(/\bprise\b/g, "price")
+    .replace(/\byesterday\b/g, "")
+    .replace(/\btoday\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
   const startWords = [
 
     "what is the",
