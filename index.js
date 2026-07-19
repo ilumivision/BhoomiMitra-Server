@@ -921,37 +921,168 @@ async function getLatestWeatherContext(userText) {
 
 async function getForecastContext(userText) {
   try {
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID,
-      range: SHEETS.weatherForecast + "!A2:M"
-    });
+    const response =
+      await sheets.spreadsheets.values.get({
+        spreadsheetId: GOOGLE_SHEET_ID,
+        range:
+          SHEETS.weatherForecast +
+          "!A2:M"
+      });
 
-    const rows = response.data.values || [];
-    if (rows.length === 0) return "No forecast data available.";
+    const rows =
+      response.data.values || [];
 
-    const district = detectKeralaDistrict(userText);
+    if (rows.length === 0) {
+      return "No forecast data available.";
+    }
+
+    const district =
+      detectKeralaDistrict(userText);
+
     let filtered = rows;
 
     if (district) {
-      filtered = rows.filter(function (r) {
-        return String(r[2] || "").toLowerCase() === district.toLowerCase();
-      });
+      filtered = rows.filter(
+        function (r) {
+          return (
+            String(r[2] || "")
+              .trim()
+              .toLowerCase() ===
+            district.toLowerCase()
+          );
+        }
+      );
     }
 
-    filtered = filtered.slice(0, 7);
+    function normaliseForecastDate(value) {
+      const text =
+        String(value || "").trim();
 
-    return filtered.map(function (r) {
-      return (
-        (r[3] || "") +
-        ": Max " + (r[4] || "") + " C, Min " + (r[5] || "") +
-        " C, Rain " + (r[6] || "") + " mm, Rain Chance " + (r[7] || "") +
-        "%, Wind " + (r[8] || "") + " km/h, Event " + (r[9] || "") +
-        ", Advisory: " + (r[10] || "")
+      if (!text) {
+        return "";
+      }
+
+      // YYYY-MM-DD
+      let match = text.match(
+        /^(\d{4})-(\d{1,2})-(\d{1,2})/
       );
-    }).join("\n");
+
+      if (match) {
+        return (
+          match[1] +
+          "-" +
+          String(match[2]).padStart(
+            2,
+            "0"
+          ) +
+          "-" +
+          String(match[3]).padStart(
+            2,
+            "0"
+          )
+        );
+      }
+
+      // DD/MM/YYYY or DD-MM-YYYY
+      match = text.match(
+        /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/
+      );
+
+      if (match) {
+        return (
+          match[3] +
+          "-" +
+          String(match[2]).padStart(
+            2,
+            "0"
+          ) +
+          "-" +
+          String(match[1]).padStart(
+            2,
+            "0"
+          )
+        );
+      }
+
+      return "";
+    }
+
+    const todayIndia =
+      new Intl.DateTimeFormat(
+        "en-CA",
+        {
+          timeZone: "Asia/Kolkata",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit"
+        }
+      ).format(new Date());
+
+    filtered = filtered
+      .filter(function (r) {
+        return Boolean(
+          normaliseForecastDate(r[3])
+        );
+      })
+      .sort(function (a, b) {
+        return normaliseForecastDate(
+          a[3]
+        ).localeCompare(
+          normaliseForecastDate(b[3])
+        );
+      });
+
+    const currentAndFutureRows =
+      filtered.filter(function (r) {
+        return (
+          normaliseForecastDate(
+            r[3]
+          ) >= todayIndia
+        );
+      });
+
+    const selectedRows =
+      (
+        currentAndFutureRows.length > 0
+          ? currentAndFutureRows
+          : filtered.slice(-3)
+      ).slice(0, 3);
+
+    if (selectedRows.length === 0) {
+      return "No current forecast data available.";
+    }
+
+    return selectedRows
+      .map(function (r) {
+        return (
+          (r[3] || "") +
+          ": Max " +
+          (r[4] || "") +
+          " C, Min " +
+          (r[5] || "") +
+          " C, Rain " +
+          (r[6] || "") +
+          " mm, Rain Chance " +
+          (r[7] || "") +
+          "%, Wind " +
+          (r[8] || "") +
+          " km/h, Event " +
+          (r[9] || "") +
+          ", Advisory: " +
+          (r[10] || "")
+        );
+      })
+      .join("\n");
 
   } catch (error) {
-    console.error("Forecast read error:", error.response && error.response.data ? error.response.data : error.message);
+    console.error(
+      "Forecast read error:",
+      error.response &&
+      error.response.data
+        ? error.response.data
+        : error.message
+    );
+
     return "Forecast data could not be read from BhoomiMitra database.";
   }
 }
