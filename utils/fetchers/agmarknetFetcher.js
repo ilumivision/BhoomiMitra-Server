@@ -637,19 +637,32 @@ function commodityMatchesAliases(
   aliases
 ) {
   const normalisedRecord =
-    normaliseText(
-      recordCommodity
-    );
+    normaliseText(recordCommodity);
 
   return aliases.some(
     function (alias) {
-      return (
+      if (
         normalisedRecord === alias
+      ) {
+        return true;
+      }
+
+      /*
+       * Accept AGMARKNET variants such as:
+       * Paddy(Common), Paddy(Fine),
+       * Copra(Milling), etc.
+       */
+      return (
+        normalisedRecord.startsWith(
+          alias + " "
+        ) ||
+        alias.startsWith(
+          normalisedRecord + " "
+        )
       );
     }
   );
 }
-
 function parseSourceDate(value) {
   const text = clean(value);
 
