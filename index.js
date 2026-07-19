@@ -504,31 +504,7 @@ if (detectedIntent === "market") {
           validRecords.length >
           0
         ) {
-          validRecords.sort(
-            function (
-              firstRecord,
-              secondRecord
-            ) {
-              const firstDate =
-                parseMarketDate(
-                  firstRecord
-                    .sourceDate
-                );
-
-              const secondDate =
-                parseMarketDate(
-                  secondRecord
-                    .sourceDate
-                );
-
-              return (
-                secondDate -
-                firstDate
-              );
-            }
-          );
-
-          finalReply =
+         finalReply =
   formatLiveMarketReply(
     validRecords[0]
   );
