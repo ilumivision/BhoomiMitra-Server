@@ -939,38 +939,37 @@ OUTSIDE KERALA REFERENCE
 
 function getOutsideKeralaReference(records) {
 
-  if (!records.length) {
-
+  if (!Array.isArray(records) || records.length === 0) {
     return null;
-
   }
 
   const best =
     getHighestPriceRecord(records);
 
   if (!best) {
-
     return null;
-
   }
 
   return {
+    ...best,
 
-    state:
+    outsideKeralaReference:
+      true,
+
+    referenceState:
       best.state,
 
-    district:
+    referenceDistrict:
       best.district,
 
-    market:
+    referenceMarket:
       best.market,
 
-    price:
+    referencePrice:
       best.price,
 
-    date:
+    referenceDate:
       best.sourceDate
-
   };
 
 }
@@ -1262,9 +1261,9 @@ function selectBestRecords(
 
 ) {
 
-  let records =
+  let matchedRecords =
 
-    getLatestCommodityRecords(
+    filterCommodityRecords(
 
       allRecords,
 
@@ -1272,19 +1271,52 @@ function selectBestRecords(
 
     );
 
-  records =
+  matchedRecords =
 
     removeDuplicateMarkets(
 
-      records
+      matchedRecords
+
+    );
+
+  /*
+   * Kerala and outside-Kerala records must be
+   * processed separately.
+   *
+   * This allows BhoomiMitra to use the latest
+   * available Kerala date even when another state
+   * has a newer record.
+   */
+
+  const allKeralaRecords =
+
+    getKeralaRecords(
+
+      matchedRecords
+
+    );
+
+  const allOutsideRecords =
+
+    getOutsideKeralaRecords(
+
+      matchedRecords
 
     );
 
   const keralaRecords =
 
-    getKeralaRecords(
+    latestDateRecords(
 
-      records
+      allKeralaRecords
+
+    );
+
+  const outsideRecords =
+
+    latestDateRecords(
+
+      allOutsideRecords
 
     );
 
@@ -1302,7 +1334,9 @@ function selectBestRecords(
 
     buildMarketIntelligence(
 
-      records,
+      keralaRecords.concat(
+        outsideRecords
+      ),
 
       district
 
@@ -1311,15 +1345,11 @@ function selectBestRecords(
   let selected = null;
 
   /*
-  Priority 1
-  Requested District
-  */
+   * Priority 1:
+   * Requested Kerala district
+   */
 
-  if (
-
-    districtRecords.length
-
-  ) {
+  if (districtRecords.length) {
 
     selected =
 
@@ -1332,70 +1362,54 @@ function selectBestRecords(
   }
 
   /*
-  Priority 2
-  Nearby District
-  */
+   * Priority 2:
+   * Best nearby Kerala district
+   */
 
   if (
-
     !selected &&
-
     intelligence.nearbyBest
-
   ) {
 
     selected =
-
       intelligence.nearbyBest;
 
   }
 
   /*
-  Priority 3
-  Highest Kerala Market
-  */
+   * Priority 3:
+   * Highest latest available Kerala market
+   */
 
   if (
-
     !selected &&
-
     intelligence.highest
-
   ) {
 
     selected =
-
       intelligence.highest;
 
   }
 
   /*
-  Priority 4
-  Outside Kerala
-  */
+   * Priority 4:
+   * Outside Kerala reference only when
+   * no Kerala record is available
+   */
 
   if (
-
     !selected &&
-
     intelligence.outsideReference
-
   ) {
 
     selected =
-
       intelligence.outsideReference;
 
   }
 
-  if (
-
-    selected
-
-  ) {
+  if (selected) {
 
     selected.marketIntelligence =
-
       intelligence;
 
   }
@@ -1410,35 +1424,42 @@ function selectBestRecords(
 
       district,
 
+      keralaMatchedRecords:
+        allKeralaRecords.length,
+
+      latestKeralaRecords:
+        keralaRecords.length,
+
+      outsideMatchedRecords:
+        allOutsideRecords.length,
+
       selectedMarket:
-
         selected
-
           ? selected.market
-
           : null,
 
       selectedDistrict:
-
         selected
-
           ? selected.district
-
           : null,
 
       selectedState:
-
         selected
-
           ? selected.state
+          : null,
 
+      selectedDate:
+        selected
+          ? selected.sourceDate
           : null
 
     }
 
   );
 
- return selected ? [selected] : [];
+  return selected
+    ? [selected]
+    : [];
 
 }
 /*
@@ -1511,15 +1532,14 @@ async function fetchAgmarknet(params) {
 
         : [];
 
-    if (!records.length) {
+   if (!records.length) {
 
-      console.log(
-        "AGMARKNET: No records returned."
-      );
+  console.log(
+    "AGMARKNET: No records returned."
+  );
 
-      return null;
-
-    }
+  return [];
+}
 
     const mappedRecords =
 
@@ -1542,15 +1562,14 @@ async function fetchAgmarknet(params) {
 
       );
 
-    if (!selected) {
+    if (!Array.isArray(selected) || selected.length === 0) {
 
-      console.log(
-        "AGMARKNET: No matching commodity found."
-      );
+  console.log(
+    "AGMARKNET: No matching commodity found."
+  );
 
-      return null;
-
-    }
+  return [];
+}
 
     return selected;
 
