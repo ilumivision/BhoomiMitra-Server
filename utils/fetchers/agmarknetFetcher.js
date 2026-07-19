@@ -1152,6 +1152,15 @@ function selectBestRecords(
    * Same commodity exists only outside
    * Kerala/requested state.
    */
+  console.log(
+  "Requested state =",
+  requestedState
+);
+
+console.log(
+  "Available states =",
+  uniqueStates(commodityRecords)
+);
   const otherStateRecords =
     commodityRecords.filter(
       function (record) {
@@ -1163,7 +1172,10 @@ function selectBestRecords(
         );
       }
     );
-
+console.log(
+  "Other state records =",
+  uniqueStates(otherStateRecords)
+);
   if (
     otherStateRecords.length === 0
   ) {
