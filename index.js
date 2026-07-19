@@ -461,16 +461,36 @@ if (detectedIntent === "market") {
                     )
                     .filter(Boolean);
 
-                  return acceptedNames.some(
-                    function (
-                      acceptedName
-                    ) {
-                      return (
-                        returnedCommodity ===
-                        acceptedName
-                      );
-                    }
-                  );
+                return acceptedNames.some(
+  function (
+    acceptedName
+  ) {
+    const normalisedReturned =
+      returnedCommodity
+        .replace(/&/g, " and ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const normalisedAccepted =
+      acceptedName
+        .replace(/&/g, " and ")
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    return (
+      normalisedReturned ===
+        normalisedAccepted ||
+      normalisedReturned.startsWith(
+        normalisedAccepted + " "
+      ) ||
+      normalisedAccepted.startsWith(
+        normalisedReturned + " "
+      )
+    );
+  }
+);
                 }
               )
             : [];
