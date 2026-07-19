@@ -1122,6 +1122,94 @@ function selectBestRecords(
    * another state and mark that a state
    * choice may be offered.
    */
+  [5:59 am, 19/7/2026] Dr C P Robert: if (selectedStateRecords) {
+    return selectedStateRecords;
+  }
+
+  /*
+   * Priority 4:
+   * Same commodity exists only outside
+   * Kerala/requested state.
+   */
+  const otherStateRecords =
+    commodityRecords.filter(
+      function (record) {
+        return (
+          normaliseText(
+            record.state
+          ) !==
+          requestedState
+        );
+      }
+    );
+
+  if (
+    otherStateRecords.length === 0
+  ) {
+    return [];
+  }
+
+  const availableStates =
+    uniqueStates(
+      otherStateRecords
+    );
+
+  /*
+   * If the farmer already requested a
+   * particular non-Kerala state, return
+   * that state's latest records.
+   */
+  if (
+    requestedState &&
+    requestedState !== "kerala"
+  ) {
+    const selected =
+      chooseFromScope(
+       …
+[6:06 am, 19/7/2026] Dr C P Robert: /*
+   * Priority 4:
+   * Prefer South Indian states when
+   * Kerala data is unavailable.
+   */
+  const southIndianStates = [
+    "tamil nadu",
+    "karnataka",
+    "andhra pradesh",
+    "telangana"
+  ];
+
+  const southIndiaRecords =
+    otherStateRecords.filter(
+      function (record) {
+        return southIndianStates.includes(
+          normaliseText(
+            record.state
+          )
+        );
+      }
+    );
+
+  if (
+    southIndiaRecords.length > 0
+  ) {
+    const selected =
+      chooseFromScope(
+        southIndiaRecords,
+        "South India"
+      );
+
+    if (selected) {
+      return selected;
+    }
+  }
+
+  /*
+   * Priority 5:
+   * If unavailable in Kerala and
+   * South India, return the latest
+   * available price from elsewhere
+   * in India.
+   */
   const latestOtherStateRecords =
     latestDateRecords(
       otherStateRecords
@@ -1143,7 +1231,7 @@ function selectBestRecords(
         ),
 
       searchScope:
-        "Other State",
+        "Other India",
 
       requestedMarket:
         clean(input.market),
