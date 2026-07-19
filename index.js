@@ -406,16 +406,11 @@ if (detectedIntent === "market") {
         );
 
        const liveRecords =
-  await fetchAllSources({
-    state:
-      " ",
-
-    commodity:
-      officialCommodity,
-
-    limit:
-      1000
-  });
+ await fetchAllSources({
+    state: "Kerala",
+    commodity: officialCommodity,
+    limit: 1000
+});
 
         /*
          * Final safety check:
