@@ -1116,54 +1116,7 @@ function selectBestRecords(
     }
   }
 
-  /*
-   * For a normal Kerala request, return
-   * latest same-commodity records from
-   * another state and mark that a state
-   * choice may be offered.
-   */
   
-
-  /*
-   * Priority 4:
-   * Same commodity exists only outside
-   * Kerala/requested state.
-   */
-  const otherStateRecords =
-    commodityRecords.filter(
-      function (record) {
-        return (
-          normaliseText(
-            record.state
-          ) !==
-          requestedState
-        );
-      }
-    );
-
-  if (
-    otherStateRecords.length === 0
-  ) {
-    return [];
-  }
-
-  const availableStates =
-    uniqueStates(
-      otherStateRecords
-    );
-
-  /*
-   * If the farmer already requested a
-   * particular non-Kerala state, return
-   * that state's latest records.
-   */
-  if (
-    requestedState &&
-    requestedState !== "kerala"
-  ) {
-    const selected =
-      chooseFromScope(
-       …
  /*
    * Priority 4:
    * Prefer South Indian states when
