@@ -1465,18 +1465,12 @@ async function fetchAgmarknet(params) {
     "";
 
   const requestParams = {
-
-    "api-key": apiKey,
-
-    format: "json",
-
-    limit: 500,
-
-    offset: 0,
-
-    commodity: commodity
-
-  };
+  "api-key": apiKey,
+  format: "json",
+  limit: 100,
+  offset: 0,
+  commodity: commodity
+};
 
   if (state) {
 
@@ -1492,19 +1486,13 @@ async function fetchAgmarknet(params) {
     );
 
     const response =
-      await axios.get(
-
-        API_URL,
-
-        {
-
-          params: requestParams,
-
-          timeout: 30000
-
-        }
-
-      );
+  await axios.get(
+    API_URL,
+    {
+      params: requestParams,
+      timeout: 60000
+    }
+  );
 
     const records =
 
