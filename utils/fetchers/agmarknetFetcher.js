@@ -1496,7 +1496,7 @@ async function fetchAgmarknet(params) {
  const requestParams = {
   "api-key": apiKey,
   format: "json",
-  limit: 100,
+  limit: 1000,
   offset: 0
 };
 
@@ -1504,9 +1504,7 @@ if (state) {
   requestParams["filters[state]"] = state;
 }
 
-if (commodity) {
-  requestParams["filters[commodity]"] = commodity;
-}
+Fix AGMARKNET official filter parameters and hide API key
 
   try {
 
