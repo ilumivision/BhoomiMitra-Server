@@ -1430,7 +1430,7 @@ function selectBestRecords(
 
   );
 
-  return selected;
+ return selected ? [selected] : [];
 
 }
 /*
@@ -1448,7 +1448,7 @@ async function fetchAgmarknet(params) {
 
   if (!commodity) {
 
-    return null;
+  return [];
 
   }
 
