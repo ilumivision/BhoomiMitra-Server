@@ -905,76 +905,155 @@ function selectBestRecords(
   const today =
     getTodayInIndia();
 
-  function chooseFromScope(
-    scopeRecords,
-    searchScope
+  unction chooseFromScope(
+  scopeRecords,
+  searchScope
+) {
+  if (
+    !Array.isArray(scopeRecords) ||
+    scopeRecords.length === 0
   ) {
-    if (
-      scopeRecords.length === 0
-    ) {
-      return null;
-    }
+    return null;
+  }
 
-    const todayRecords =
-      scopeRecords.filter(
-        function (record) {
-          return isSameCalendarDay(
-            parseSourceDate(
-              record.sourceDate
-            ),
-            today
+  /*
+   * Rank records from the same date.
+   * Prefer records with a valid and
+   * higher modal price.
+   */
+  function rankRecords(records) {
+    return records
+      .slice()
+      .sort(function (a, b) {
+        const firstPrice =
+          Number.isFinite(
+            Number(a.price)
+          )
+            ? Number(a.price)
+            : -1;
+
+        const secondPrice =
+          Number.isFinite(
+            Number(b.price)
+          )
+            ? Number(b.price)
+            : -1;
+
+        if (
+          secondPrice !==
+          firstPrice
+        ) {
+          return (
+            secondPrice -
+            firstPrice
           );
         }
-      );
 
-    if (
-      todayRecords.length > 0
-    ) {
-      return addResultMetadata(
-        todayRecords.slice(0, 5),
-        {
-          isTodayPrice: true,
-          searchScope,
-          requestedMarket:
-            clean(input.market),
-          requestedDistrict:
-            clean(input.district),
-          requestedState:
-            clean(
-              input.state ||
-              "Kerala"
-            ),
-          needsStateChoice: false,
-          availableStates: []
-        }
-      );
-    }
+        return normaliseText(
+          a.market
+        ).localeCompare(
+          normaliseText(
+            b.market
+          )
+        );
+      });
+  }
 
-    const latestRecords =
-      latestDateRecords(
-        scopeRecords
-      );
+  /*
+   * First preference:
+   * Today's official records.
+   */
+  const todayRecords =
+    scopeRecords.filter(
+      function (record) {
+        return isSameCalendarDay(
+          parseSourceDate(
+            record.sourceDate
+          ),
+          today
+        );
+      }
+    );
+
+  if (
+    todayRecords.length > 0
+  ) {
+    const rankedTodayRecords =
+      rankRecords(
+        todayRecords
+      ).slice(0, 5);
 
     return addResultMetadata(
-      latestRecords.slice(0, 5),
+      rankedTodayRecords,
       {
-        isTodayPrice: false,
+        isTodayPrice: true,
+
         searchScope,
+
         requestedMarket:
           clean(input.market),
+
         requestedDistrict:
           clean(input.district),
+
         requestedState:
           clean(
             input.state ||
             "Kerala"
           ),
+
         needsStateChoice: false,
+
         availableStates: []
       }
     );
   }
 
+  /*
+   * Second preference:
+   * Latest available official date.
+   */
+  const latestRecords =
+    latestDateRecords(
+      scopeRecords
+    );
+
+  if (
+    latestRecords.length === 0
+  ) {
+    return null;
+  }
+
+  const rankedLatestRecords =
+    rankRecords(
+      latestRecords
+    ).slice(0, 5);
+
+  return addResultMetadata(
+    rankedLatestRecords,
+    {
+      isTodayPrice: false,
+
+      searchScope,
+
+      requestedMarket:
+        clean(input.market),
+
+      requestedDistrict:
+        clean(input.district),
+
+      requestedState:
+        clean(
+          input.state ||
+          "Kerala"
+        ),
+
+      needsStateChoice: false,
+
+      availableStates: []
+    }
+  );
+}
   /*
    * Priority 1:
    * Requested market in requested state.
