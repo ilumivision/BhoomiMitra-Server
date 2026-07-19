@@ -25,7 +25,15 @@ function normaliseText(value) {
     .replace(/\s+/g, " ")
     .trim();
 }
+function normaliseStateName(value) {
+  const state = normaliseText(value);
 
+  if (state === "kerala" || state === "keralam") {
+    return "keralam";
+  }
+
+  return state;
+}
 function normaliseCommodityQuery(value) {
   let query =
     normaliseText(value);
@@ -898,9 +906,9 @@ function selectBestRecords(
     );
 
   const requestedState =
-    normaliseText(
-      input.state || "Kerala"
-    );
+  normaliseStateName(
+    input.state || "Keralam"
+  );
 
   const today =
     getTodayInIndia();
