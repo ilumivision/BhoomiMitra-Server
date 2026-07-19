@@ -1122,7 +1122,7 @@ function selectBestRecords(
    * another state and mark that a state
    * choice may be offered.
    */
-  [5:59 am, 19/7/2026] Dr C P Robert: if (selectedStateRecords) {
+  if (selectedStateRecords) {
     return selectedStateRecords;
   }
 
@@ -1166,7 +1166,7 @@ function selectBestRecords(
     const selected =
       chooseFromScope(
        …
-[6:06 am, 19/7/2026] Dr C P Robert: /*
+ /*
    * Priority 4:
    * Prefer South Indian states when
    * Kerala data is unavailable.
