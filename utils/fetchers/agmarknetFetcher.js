@@ -1518,12 +1518,9 @@ async function fetchAgmarknet(params) {
       records.map(mapRecord);
 
     console.log(
-
-      "AGMARKNET Total Records:",
-
-      mappedRecords.length
-
-    );
+  "AGMARKNET commodities:",
+  [...new Set(mappedRecords.map(r => r.commodity))].slice(0, 50)
+);
 
     const selected =
 
