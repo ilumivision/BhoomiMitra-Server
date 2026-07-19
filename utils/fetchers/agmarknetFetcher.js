@@ -1500,12 +1500,6 @@ async function fetchAgmarknet(params) {
   offset: 0
 };
 
-if (state) {
-  requestParams["filters[state]"] = state;
-}
-
-
-
   try {
 
     console.log(
@@ -1516,6 +1510,7 @@ if (state) {
   }
 );
 
+   
     const response =
   await axios.get(
     API_URL,
