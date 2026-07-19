@@ -1634,7 +1634,22 @@ console.log(
     deduplicatedRecords
       .length
   );
-
+const matchedStateCounts =
+  deduplicatedRecords.reduce(
+    function (counts, record) {
+      const state =
+        normaliseText(record.state) ||
+        "unknown";
+      counts[state] =
+        (counts[state] || 0) + 1;
+      return counts;
+    },
+    {}
+  );
+console.log(
+  "AGMARKNET matched state counts:",
+  matchedStateCounts
+);
   /*
    * Never return a record belonging to
    * another commodity.
@@ -1650,7 +1665,19 @@ console.log(
 
     return [];
   }
-
+console.log(
+  "AGMARKNET selection input:",
+  {
+    state:
+      input.state || "Kerala",
+    district:
+      input.district ||
+      "not specified",
+    market:
+      input.market ||
+      "not specified"
+  }
+);
   const selectedRecords =
     selectBestRecords(
       deduplicatedRecords,
