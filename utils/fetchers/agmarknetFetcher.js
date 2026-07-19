@@ -1122,9 +1122,7 @@ function selectBestRecords(
    * another state and mark that a state
    * choice may be offered.
    */
-  if (selectedStateRecords) {
-    return selectedStateRecords;
-  }
+  
 
   /*
    * Priority 4:
