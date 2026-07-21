@@ -59,6 +59,12 @@ const expertCaseManager = createExpertCaseManager({
 const sessions = {};
 const processedMessages = new Set();
 
+let sheetMetadataCache = null;
+let sheetMetadataCacheTime = 0;
+
+const SHEET_METADATA_CACHE_MS =
+  10 * 60 * 1000;
+
 const SHEETS = {
   farmers: "Farmers",
   expertRegistration: "Expert_Directory",
