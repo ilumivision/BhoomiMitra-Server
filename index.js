@@ -591,12 +591,6 @@ console.log(
 // =============== END MARKET MODULE ===============
 
 
-await appendSafe(SHEETS.conversation, [
-      new Date().toISOString(),
-      from,
-      userText,
-      "incoming"
-    ]);
 
     const regReply = await handleRegistration(from, userText);
     if (regReply) {
