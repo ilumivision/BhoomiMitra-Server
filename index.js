@@ -1431,32 +1431,35 @@ async function appendSafe(sheetName, row) {
     console.error(error.response && error.response.data ? error.response.data : error.message);
   }
 }
-const now = Date.now();
+async function readSheetRows(sheetName, range) {
+  try {
+    const requestedName = String(sheetName || "").trim();
+    const requestedRange = String(range || "A:Z").trim();
 
-if (
-  !sheetMetadataCache ||
-  now - sheetMetadataCacheTime >
-    SHEET_METADATA_CACHE_MS
-) {
-  const spreadsheetInfo =
-    await sheets.spreadsheets.get({
-      spreadsheetId: GOOGLE_SHEET_ID,
-      fields:
-        "sheets(properties(sheetId,title))"
-    });
+    const now = Date.now();
 
-  sheetMetadataCache =
-    spreadsheetInfo.data.sheets || [];
+    if (
+      !sheetMetadataCache ||
+      now - sheetMetadataCacheTime > SHEET_METADATA_CACHE_MS
+    ) {
+      const spreadsheetInfo =
+        await sheets.spreadsheets.get({
+          spreadsheetId: GOOGLE_SHEET_ID,
+          fields: "sheets(properties(sheetId,title))"
+        });
 
-  sheetMetadataCacheTime = now;
+      sheetMetadataCache =
+        spreadsheetInfo.data.sheets || [];
 
-  console.log(
-    "Google Sheet metadata cache refreshed."
-  );
-}
+      sheetMetadataCacheTime = now;
 
-const availableSheets =
-  sheetMetadataCache || [];
+      console.log(
+        "Google Sheet metadata cache refreshed."
+      );
+    }
+
+    const availableSheets =
+      sheetMetadataCache || [];
 
     console.log(
       "Tabs visible to server:",
@@ -1490,7 +1493,9 @@ const availableSheets =
       return [];
     }
 
-    const actualSheetTitle = targetSheet.properties.title;
+    const actualSheetTitle =
+      targetSheet.properties.title;
+
     const escapedSheetTitle =
       actualSheetTitle.replace(/'/g, "''");
 
@@ -1501,17 +1506,20 @@ const availableSheets =
       "Resolved actual sheet title:",
       JSON.stringify(actualSheetTitle)
     );
+
     console.log(
       "Reading exact Google Sheet range:",
       JSON.stringify(fullRange)
     );
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: GOOGLE_SHEET_ID,
-      range: fullRange
-    });
+    const response =
+      await sheets.spreadsheets.values.get({
+        spreadsheetId: GOOGLE_SHEET_ID,
+        range: fullRange
+      });
 
     return response.data.values || [];
+
   } catch (error) {
     console.error(
       "Google Sheet read error for sheet:",
