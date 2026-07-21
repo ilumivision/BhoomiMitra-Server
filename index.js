@@ -372,14 +372,14 @@ console.log(
        * correctly resolved commodity.
        */
       const savedResult =
-        await getMarketPrice({
-          readSheetRows,
+  await getMarketPrice({
+    readSheetRows,
 
-          query: {
-            commodity:
-              commodity
-          }
-        });
+    query: {
+      commodity: commodity,
+      district: detectedDistrict
+    }
+  });
 
       let savedReplyIsValid =
         false;
@@ -443,13 +443,13 @@ console.log(
         );
 
       const liveRecords =
-await fetchAllSources({
+  await fetchAllSources({
     state: "Keralam",
     district: detectedDistrict || "",
-    market: detectedMarket || "",
+    market: "",
     commodity: officialCommodity,
     limit: 1000
-});
+  });
 
         /*
          * Final safety check:
