@@ -405,9 +405,11 @@ if (detectedIntent === "market") {
           officialCommodity
         );
 
-       const liveRecords =
- await fetchAllSources({
-    state: "Kerala",
+      const liveRecords =
+await fetchAllSources({
+    state: "Keralam",
+    district: detectedDistrict || "",
+    market: detectedMarket || "",
     commodity: officialCommodity,
     limit: 1000
 });
