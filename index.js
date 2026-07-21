@@ -316,7 +316,44 @@ if (detectedIntent === "market") {
       const officialCommodity =
         resolvedCommodity
           .agmarknetName;
+const districtNames = [
+  "thiruvananthapuram",
+  "kollam",
+  "pathanamthitta",
+  "alappuzha",
+  "kottayam",
+  "idukki",
+  "ernakulam",
+  "thrissur",
+  "palakkad",
+  "malappuram",
+  "kozhikode",
+  "wayanad",
+  "kannur",
+  "kasaragod"
+];
 
+const normalisedUserText =
+  String(userText || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const detectedDistrict =
+  districtNames.find(
+    function (district) {
+      return normalisedUserText.includes(
+        district
+      );
+    }
+  ) || "";
+
+console.log(
+  "Market district detected:",
+  detectedDistrict ||
+    "not specified"
+);
       console.log(
         "Market commodity resolved:",
         {
