@@ -442,13 +442,13 @@ console.log(
           officialCommodity
         );
 
-      const liveRecords =
+   const liveRecords =
   await fetchAllSources({
     state: "Keralam",
     district: detectedDistrict || "",
     market: "",
     commodity: officialCommodity,
-    limit: 1000
+    limit: 200
   });
 
         /*
