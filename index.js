@@ -782,24 +782,42 @@ const needExpert =
 }
 
  // -------------- End Expert Escalation --------------
-   await sendWhatsAppMessage(
+   const responseText =
+  expertConfirmation || aiReply;
+
+await sendWhatsAppMessage(
   from,
-  expertConfirmation || aiReply
-);
-    await logAI(
-  from,
-  userText,
-  expertConfirmation || aiReply,
-  activeCase ? "case_followup" : "ai_reply"
+  responseText
 );
 
-    await appendSafe(SHEETS.farmerQueries, [
-  new Date().toISOString(),
-  from,
-  userText,
-  expertConfirmation || aiReply,
-  "Open"
-]);
+Promise.all([
+  logAI(
+    from,
+    userText,
+    responseText,
+    activeCase
+      ? "case_followup"
+      : "ai_reply"
+  ),
+
+  appendSafe(
+    SHEETS.farmerQueries,
+    [
+      new Date().toISOString(),
+      from,
+      userText,
+      responseText,
+      "Open"
+    ]
+  )
+]).catch(function (error) {
+  console.error(
+    "Background AI logging error:",
+    error && error.message
+      ? error.message
+      : error
+  );
+});
 
   } catch (error) {
     console.error("Webhook error:", error.response && error.response.data ? error.response.data : error.message);
