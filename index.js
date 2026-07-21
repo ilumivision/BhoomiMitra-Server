@@ -236,15 +236,22 @@ if (activeCase) {
 
 await sendWhatsAppMessage(
   from,
-  photoReply
+  finalReply
 );
 
-await logAI(
+logAI(
   from,
-  caption || "<image>",
-  photoReply,
-  "photo_diagnosis"
-);
+  userText,
+  finalReply,
+  "market"
+).catch(function (error) {
+  console.error(
+    "Background market logging error:",
+    error && error.message
+      ? error.message
+      : error
+  );
+});
 
 return;
 } else if (message.type === "document") {
