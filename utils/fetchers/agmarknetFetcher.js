@@ -1099,39 +1099,39 @@ function selectBestRecords(
    * Priority 2:
    * Requested district in requested state.
    */
-  if (requestedDistrict) {
-    const districtRecords =
-      commodityRecords.filter(
-        function (record) {
-          return (
-            normaliseText(
-              record.district
-            ) ===
-              requestedDistrict &&
-            normaliseText(
-              record.state
-            ) ===
-              requestedState
-          );
-        }
-      );
+ if (requestedDistrict) {
+  const districtRecords =
+    commodityRecords.filter(
+      function (record) {
+        return (
+          normaliseText(
+            record.district
+          ) === requestedDistrict &&
+          normaliseStateName(
+            record.state
+          ) === requestedState
+        );
+      }
+    );
 
-    const selected =
-      chooseFromScope(
-        districtRecords,
-        "Requested District"
-      );
+  const selected =
+    chooseFromScope(
+      districtRecords,
+      "Requested District"
+    );
 
-    if (selected) {
-      return selected;
-    }
+  if (selected) {
+    return selected;
   }
 
-  /*
-   * Priority 3:
-   * Any market in Kerala or other
-   * specifically requested state.
-   */
+  return [];
+}
+
+/*
+ * Priority 3:
+ * Any market in Keralam or other
+ * specifically requested state.
+ */
   const stateRecords =
     commodityRecords.filter(
       function (record) {
