@@ -1431,17 +1431,32 @@ async function appendSafe(sheetName, row) {
     console.error(error.response && error.response.data ? error.response.data : error.message);
   }
 }
-async function readSheetRows(sheetName, range) {
-  try {
-    const requestedName = String(sheetName || "").trim();
-    const requestedRange = String(range || "A:Z").trim();
+const now = Date.now();
 
-    const spreadsheetInfo = await sheets.spreadsheets.get({
+if (
+  !sheetMetadataCache ||
+  now - sheetMetadataCacheTime >
+    SHEET_METADATA_CACHE_MS
+) {
+  const spreadsheetInfo =
+    await sheets.spreadsheets.get({
       spreadsheetId: GOOGLE_SHEET_ID,
-      fields: "sheets(properties(sheetId,title))"
+      fields:
+        "sheets(properties(sheetId,title))"
     });
 
-    const availableSheets = spreadsheetInfo.data.sheets || [];
+  sheetMetadataCache =
+    spreadsheetInfo.data.sheets || [];
+
+  sheetMetadataCacheTime = now;
+
+  console.log(
+    "Google Sheet metadata cache refreshed."
+  );
+}
+
+const availableSheets =
+  sheetMetadataCache || [];
 
     console.log(
       "Tabs visible to server:",
