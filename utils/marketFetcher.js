@@ -27,7 +27,7 @@ async function fetchAllSources(options) {
     console.log("Checking source: AGMARKNET");
     const agmarknetRecords =
       await fetchAgmarknet({
-        state: input.state || "Kerala",
+       state: input.state || "Keralam",
         district: input.district || "",
         market: input.market || "",
         commodity: input.commodity || "",
