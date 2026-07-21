@@ -675,12 +675,13 @@ await appendSafe(SHEETS.conversation, [
         "\n\nUse this context when answering short follow-up replies such as 1, 2, 3, YES, control, symptoms, or crop-name corrections. Do not treat such replies as unrelated questions.";
     }
 
-    const weatherContext =
-      await getLatestWeatherContext(userText);
-
-    const forecastContext =
-      await getForecastContext(userText);
-
+    const [
+  weatherContext,
+  forecastContext
+] = await Promise.all([
+  getLatestWeatherContext(userText),
+  getForecastContext(userText)
+]);
     const aiReply = await getAIReply(
       userText + caseContext,
       weatherContext,
