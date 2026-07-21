@@ -579,14 +579,21 @@ console.log(
     finalReply
   );
 
-  await logAI(
-    from,
-    userText,
-    finalReply,
-    "market"
+ logAI(
+  from,
+  userText,
+  finalReply,
+  "market"
+).catch(function (error) {
+  console.error(
+    "Background market logging error:",
+    error && error.message
+      ? error.message
+      : error
   );
+});
 
-  return;
+return;
 }
 // =============== END MARKET MODULE ===============
 
