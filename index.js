@@ -973,16 +973,32 @@ async function getLatestWeatherContext(userText) {
 
 async function getForecastContext(userText) {
   try {
-    const response =
-      await sheets.spreadsheets.values.get({
-        spreadsheetId: GOOGLE_SHEET_ID,
-        range:
-          SHEETS.weatherForecast +
-          "!A2:M"
-      });
+    const now = Date.now();
+let rows = weatherCache.currentRows;
 
-    const rows =
-      response.data.values || [];
+if (
+  !rows ||
+  now - weatherCache.currentTime >
+    WEATHER_CACHE_MS
+) {
+  const response =
+    await sheets.spreadsheets.values.get({
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      range:
+        SHEETS.weatherData + "!A2:P"
+    });
+
+  rows =
+    response.data.values || [];
+
+  weatherCache.currentRows = rows;
+  weatherCache.currentTime = now;
+
+  console.log(
+    "Current weather cache refreshed."
+  );
+}
 
     if (rows.length === 0) {
       return "No forecast data available.";
