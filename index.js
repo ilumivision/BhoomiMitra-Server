@@ -242,17 +242,17 @@ if (activeCase) {
 
 await sendWhatsAppMessage(
   from,
-  finalReply
+  photoReply
 );
 
 logAI(
   from,
-  userText,
-  finalReply,
-  "market"
+  "<image>",
+  photoReply,
+  "photo_diagnosis"
 ).catch(function (error) {
   console.error(
-    "Background market logging error:",
+    "Background photo logging error:",
     error && error.message
       ? error.message
       : error
