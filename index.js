@@ -74,9 +74,14 @@ const SHEETS = {
   aiLog: "AI_Response_Log",
   farmerQueries: "Farmer_Queries",
   weatherData: "Weather_Data",
- weatherForecast: "Weather_Forecast",
+weatherForecast: "Weather_Forecast",
 aiMemory: "AI_Memory",
-expertCases: "Expert_Cases"
+expertCases: "Expert_Cases",
+
+soilLocationProfile: "Soil_Location_Profile",
+soilTestRepository: "Soil_Test_Repository",
+soilRecommendationRules: "Soil_Recommendation_Rules",
+soilDataLog: "Soil_Data_Log"
 };
 
 const SYSTEM_PROMPT = [
