@@ -46,11 +46,94 @@ function saveSoilDataToCache(
     data: soilData
   });
 }
+async function fetchSoilGridsData(latitude, longitude) {
+  const coordinates =
+    validateCoordinates(latitude, longitude);
+  const cached = getCachedSoilData(
+    coordinates.latitude,
+    coordinates.longitude
+  );
+  if (cached) {
+    return {
+      success: true,
+      source: "cache",
+      retrievedAt:
+        new Date(cached.savedAt).toISOString(),
+      data: cached.data
+    };
+  }
+  const params = {
+    lon: coordinates.longitude,
+    lat: coordinates.latitude,
+    property: [
+      "phh2o",
+      "soc",
+      "nitrogen",
+      "clay",
+      "sand",
+      "silt",
+      "cec",
+      "bdod",
+      "cfvo"
+    ],
+    depth: [
+      "0-5cm",
+      "5-15cm",
+      "15-30cm"
+    ],
+    value: [
+      "mean",
+      "Q0.05",
+      "Q0.5",
+      "Q0.95"
+    ]
+  };
+  try {
+    const response = await axios.get(
+      SOILGRIDS_API_URL,
+      {
+        params,
+        timeout: SOIL_REQUEST_TIMEOUT_MS,
+        paramsSerializer: {
+          indexes: null
+        }
+      }
+    );
+    const soilData = response.data;
+    saveSoilDataToCache(
+      coordinates.latitude,
+      coordinates.longitude,
+      soilData
+    );
+    return {
+      success: true,
+      source: "SoilGrids",
+      retrievedAt: new Date().toISOString(),
+      data: soilData
+    };
+  } catch (error) {
+    console.error(
+      "SoilGrids request failed:",
+      error.response?.status || error.message
+    );
+    return {
+      success: false,
+      source: "SoilGrids",
+      retrievedAt: new Date().toISOString(),
+      error:
+        error.response?.data?.detail ||
+        error.message ||
+        "SoilGrids service unavailable"
+    };
+  }
+}
+
 module.exports = {
   SOILGRIDS_API_URL,
   SOIL_REQUEST_TIMEOUT_MS,
   validateCoordinates,
   createCacheKey,
   getCachedSoilData,
-  saveSoilDataToCache
+  saveSoilDataToCache,
+  fetchSoilGridsData
 };
