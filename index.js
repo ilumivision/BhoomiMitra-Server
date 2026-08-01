@@ -307,18 +307,31 @@ return;
         return;
     }
 
+
+
 } else if (message.type === "location") {
+  const latitude =
+    message.location &&
+    message.location.latitude;
 
-    const latitude = message.location.latitude;
-    const longitude = message.location.longitude;
+  const longitude =
+    message.location &&
+    message.location.longitude;
 
-    const response = await axios.get(
-        https://bhoomimitra-server.onrender.com/soil-test?lat=${latitude}&lon=${longitude}
-    );
+  const soilResult =
+    await soilModule({
+      latitude,
+      longitude,
+      from
+    });
 
-    await sendWhatsAppMessage(from, response.data.formattedText);
-    return;
+  await sendWhatsAppMessage(
+    from,
+    soilResult.reply ||
+      "ക്ഷമിക്കണം, മണ്ണ് വിവരങ്ങൾ ലഭ്യമല്ല."
+  );
 
+  return;
 } else {
     userText = "User sent a non-text message.";
 }
