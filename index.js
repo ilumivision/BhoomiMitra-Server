@@ -751,21 +751,21 @@ return;
       forecastContext
     );
     // ---------------- Expert Escalation ----------------
+const lowerUserText =
+  String(userText || "")
+    .trim()
+    .toLowerCase();
+
 const needExpert =
   detectedIntent === "expert" ||
-  userText.toLowerCase().includes("expert") ||
-  userText.toLowerCase().includes("expert advice") ||
-  userText.toLowerCase().includes("field visit") ||
-  userText.toLowerCase().includes("visit my farm") ||
-  userText.toLowerCase().includes("krishi bhavan") ||
-  userText.toLowerCase().includes("consultant") ||
-  userText.toLowerCase().includes("വിദഗ്ധ") ||
-  userText.toLowerCase().includes("വിദഗ്ധന്റെ") ||
-  userText.toLowerCase().includes("സഹായം") ||
-  userText.toLowerCase().includes("ഫീൽഡ് വിസിറ്റ്") ||
-  aiReply.toLowerCase().includes("expert") ||
-  aiReply.toLowerCase().includes("krishi bhavan") ||
-  aiReply.toLowerCase().includes("field visit");
+  lowerUserText.includes("expert advice") ||
+  lowerUserText.includes("talk to expert") ||
+  lowerUserText.includes("connect expert") ||
+  lowerUserText.includes("visit my farm") ||
+  lowerUserText.includes("field visit") ||
+  lowerUserText.includes("വിദഗ്ധനെ വേണം") ||
+  lowerUserText.includes("വിദഗ്ധ സഹായം വേണം") ||
+  lowerUserText.includes("ഫീൽഡ് വിസിറ്റ് വേണം");
   let expertConfirmation = "";  
  if (needExpert) {
   const assignmentResult = await assignExpertCase({
