@@ -856,213 +856,10 @@ Promise.all([
   }
 });
 
-async function handleRegistration(from, text) {
-  const lower = String(text || "").toLowerCase();
-
-  if (!sessions[from]) {
-    if (
-      lower.includes("register") ||
-      lower.includes("registration") ||
-      lower.includes("രജിസ്റ്റർ") ||
-      lower.includes("രജിസ്ട്രേഷൻ")
-    ) {
-      sessions[from] = {
-        step: "category",
-        data: { whatsapp: from }
-      };
-
-      return "രജിസ്ട്രേഷൻ തുടങ്ങാം. വിഭാഗം അയക്കൂ:\n1 Farmer\n2 Expert\n3 Skilled Worker\n4 Service Provider";
-    }
-
-    return null;
-  }
-
-  const s = sessions[from];
-if (s.step === "crop") {
-  s.data.crop = text;
-
-  const result =
-    await saveRegistration(
-      s.data
-    );
-
-  delete sessions[from];
-
-  if (
-    result &&
-    result.alreadyRegistered
-  ) {
-    return (
-      "✅ നിങ്ങൾ ഇതിനകം BhoomiMitraയിൽ കർഷകനായി രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്.\n\n" +
-      "Farmer ID: " +
-      (result.farmerId || "-") +
-      "\n" +
-      "Name: " +
-      (result.name || "-") +
-      "\n" +
-      "Mobile/WhatsApp: " +
-      (
-        result.whatsapp ||
-        result.mobile ||
-        from
-      ) +
-      "\n" +
-      "District: " +
-      (result.district || "-") +
-      "\n" +
-      "Panchayath: " +
-      (result.panchayath || "-") +
-      "\n\n" +
-      "വീണ്ടും കർഷക രജിസ്ട്രേഷൻ ചെയ്യേണ്ടതില്ല."
-    );
-  }
-
-  if (
-    result &&
-    result.success
-  ) {
-    return (
-      "✅ കർഷക രജിസ്ട്രേഷൻ വിജയകരമായി പൂർത്തിയായി.\n\n" +
-      "Farmer ID: " +
-      (result.farmerId || "-") +
-      "\n" +
-      "Name: " +
-      (result.name || "-") +
-      "\n" +
-      "Main Crop: " +
-      (s.data.crop || "-") +
-      "\n" +
-      "Mobile/WhatsApp: " +
-      (
-        result.whatsapp ||
-        result.mobile ||
-        from
-      )
-    );
-  }
-
-  return (
-    "ക്ഷമിക്കണം, കർഷക രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാൻ കഴിഞ്ഞില്ല. " +
-    "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
-  );
-}
-  if (s.step === "category") {
-    s.data.category = detectCategory(text);
-    s.step = "name";
-    return "പേര് മാത്രം അയക്കൂ.";
-  }
-
-  if (s.step === "name") {
-    s.data.name = text;
-    s.step = "district";
-    return "ജില്ല ഏതാണ്?";
-  }
-
-  if (s.step === "district") {
-    s.data.district = text;
-    s.step = "panchayath";
-    return "പഞ്ചായത്ത് ഏതാണ്?";
-  }
-
-  if (s.step === "panchayath") {
-    s.data.panchayath = text;
-
-    if (s.data.category === "farmer") {
-      s.step = "crop";
-      return "പ്രധാന കൃഷി / വിള ഏതാണ്?";
-    }
-
-    s.step = "service";
-    return "നിങ്ങളുടെ expertise / skill / service എന്താണ്?";
-  }
-
- if (s.step === "service") {
-  s.data.service = text;
-
-  const result =
-    await saveRegistration(
-      s.data
-    );
-
-  delete sessions[from];
-
-  if (
-    result &&
-    result.alreadyRegistered
-  ) {
-    return (
-      "✅ നിങ്ങൾ ഇതിനകം BhoomiMitraയിൽ " +
-      (result.categoryLabel || "Member") +
-      " ആയി രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്.\n\n" +
-      "ID: " +
-      (result.memberId || "-") +
-      "\n" +
-      "Name: " +
-      (result.name || "-") +
-      "\n" +
-      "Mobile/WhatsApp: " +
-      (
-        result.whatsapp ||
-        result.mobile ||
-        from
-      ) +
-      "\n" +
-      "District: " +
-      (result.district || "-") +
-      "\n" +
-      "Panchayath: " +
-      (result.panchayath || "-") +
-      "\n" +
-      "Expertise/Service: " +
-      (result.service || "-") +
-      "\n" +
-      "Status: " +
-      (result.status || "-") +
-      "\n\nവീണ്ടും അതേ വിഭാഗത്തിൽ രജിസ്റ്റർ ചെയ്യേണ്ടതില്ല."
-    );
-  }
-
-  if (
-    result &&
-    result.success
-  ) {
-    return (
-      "✅ " +
-      (result.categoryLabel || "Member") +
-      " രജിസ്ട്രേഷൻ വിജയകരമായി സേവ് ചെയ്തു.\n\n" +
-      "ID: " +
-      (result.memberId || "-") +
-      "\n" +
-      "Name: " +
-      (result.name || "-") +
-      "\n" +
-      "Mobile/WhatsApp: " +
-      (
-        result.whatsapp ||
-        result.mobile ||
-        from
-      ) +
-      "\n" +
-      "Status: " +
-      (result.status || "Pending") +
-      "\n\nപരിശോധനയ്ക്ക് ശേഷം അംഗീകാരം നൽകും."
-    );
-  }
-
-  return (
-    "ക്ഷമിക്കണം, രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാൻ കഴിഞ്ഞില്ല. " +
-    "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
-  );
-}
-  return null;
-}
-function normalizeRegistrationHeader(value) {
-  return String(value || "")
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "")
-    .trim()
-    .toLowerCase();
-}
+// =====================================================
+// BHOOMIMITRA REGISTRATION SYSTEM
+// Farmer | Expert | Skilled Worker | Service Provider
+// =====================================================
 
 function registrationPhoneKey(value) {
   const digits =
@@ -1076,59 +873,42 @@ function registrationPhoneKey(value) {
   return digits;
 }
 
-async function readRegistrationSheet(sheetName) {
-  const rows =
-    await readSheetRows(
-      sheetName,
-      "A:ZZ"
-    );
+function normalizeRegistrationHeader(value) {
+  return String(value || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
 
-  if (!rows || rows.length === 0) {
-    return {
-      headers: [],
-      headerMap: {},
-      rows: []
-    };
-  }
-
-  const headers = rows[0] || {};
-  const headerMap = {};
+function makeRegistrationHeaderMap(headers) {
+  const map = {};
 
   headers.forEach(function (header, index) {
     const key =
-      normalizeRegistrationHeader(
-        header
-      );
+      normalizeRegistrationHeader(header);
 
-    if (key) {
-      headerMap[key] = index;
+    if (key && map[key] === undefined) {
+      map[key] = index;
     }
   });
 
-  return {
-    headers,
-    headerMap,
-    rows: rows.slice(1)
-  };
+  return map;
 }
 
 function findRegistrationColumn(
   headerMap,
-  possibleHeaders
+  aliases
 ) {
-  for (
-    const possibleHeader
-    of possibleHeaders
-  ) {
+  for (const alias of aliases) {
     const key =
-      normalizeRegistrationHeader(
-        possibleHeader
-      );
+      normalizeRegistrationHeader(alias);
 
     if (
-      Object.prototype
-        .hasOwnProperty
-        .call(headerMap, key)
+      Object.prototype.hasOwnProperty.call(
+        headerMap,
+        key
+      )
     ) {
       return headerMap[key];
     }
@@ -1140,144 +920,846 @@ function findRegistrationColumn(
 function getRegistrationValue(
   row,
   headerMap,
-  possibleHeaders
+  aliases
 ) {
-  const column =
+  const index =
     findRegistrationColumn(
       headerMap,
-      possibleHeaders
+      aliases
     );
 
-  if (column < 0) {
+  if (index < 0) {
     return "";
   }
 
-  return row[column] || "";
+  return row[index] || "";
 }
 
-async function appendRegistrationRecord(
-  sheetName,
-  record
+function setRegistrationValue(
+  row,
+  headerMap,
+  aliases,
+  value
 ) {
-  const sheetData =
-    await readRegistrationSheet(
-      sheetName
+  const index =
+    findRegistrationColumn(
+      headerMap,
+      aliases
     );
 
-  if (
-    !sheetData.headers ||
-    sheetData.headers.length === 0
-  ) {
-    throw new Error(
-      "Header row not found in sheet: " +
-      sheetName
-    );
+  if (index < 0) {
+    return false;
   }
 
-  const row =
-    new Array(
-      sheetData.headers.length
-    ).fill("");
+  while (row.length <= index) {
+    row.push("");
+  }
 
-  Object.keys(record).forEach(
-    function (recordKey) {
-      const possibleHeaders =
-        record[recordKey].headers;
+  row[index] =
+    value == null
+      ? ""
+      : value;
 
-      const value =
-        record[recordKey].value;
-
-      const column =
-        findRegistrationColumn(
-          sheetData.headerMap,
-          possibleHeaders
-        );
-
-      if (column >= 0) {
-        row[column] =
-          value == null
-            ? ""
-            : value;
-      }
-    }
-  );
-
-  const escapedSheetName =
-    String(sheetName || "")
-      .replace(/'/g, "''");
-
-  await sheets.spreadsheets.values.append({
-    spreadsheetId:
-      GOOGLE_SHEET_ID,
-
-    range:
-      "'" +
-      escapedSheetName +
-      "'!A:ZZ",
-
-    valueInputOption:
-      "USER_ENTERED",
-
-    insertDataOption:
-      "INSERT_ROWS",
-
-    requestBody: {
-      values: [row]
-    }
-  });
-
-  return row;
+  return true;
 }
 
-function findRegistrationByPhone(
-  sheetData,
-  incomingPhone,
-  mobileHeaders,
-  whatsappHeaders
+function getRegistrationConfig(category) {
+  if (category === "farmer") {
+    return {
+      category: "farmer",
+      categoryLabel: "Farmer",
+      malayalamLabel: "കർഷകൻ",
+      idLabel: "Farmer ID",
+      idPrefix: "BM-",
+      sheetName: SHEETS.farmers,
+
+      idHeaders: [
+        "Farmer_ID",
+        "Farmer ID"
+      ],
+
+      nameHeaders: [
+        "Name",
+        "Farmer Name"
+      ],
+
+      mobileHeaders: [
+        "Mobile",
+        "Mobile No",
+        "Mob No"
+      ],
+
+      whatsappHeaders: [
+        "WhatsApp",
+        "WhatsApp No",
+        "WhatsApp_No"
+      ],
+
+      districtHeaders: [
+        "District"
+      ],
+
+      panchayathHeaders: [
+        "Panchayath",
+        "Panchayat"
+      ],
+
+      serviceHeaders: [
+        "Main Crop",
+        "Main_Crop",
+        "Crop"
+      ],
+
+      statusHeaders: [
+        "Status",
+        "Verification_Status"
+      ]
+    };
+  }
+
+  if (category === "expert") {
+    return {
+      category: "expert",
+      categoryLabel: "Expert",
+      malayalamLabel: "വിദഗ്ധൻ",
+      idLabel: "Expert ID",
+      idPrefix: "BM-EX-",
+      sheetName:
+        SHEETS.expertRegistration,
+
+      idHeaders: [
+        "Expert_ID",
+        "Expert ID"
+      ],
+
+      nameHeaders: [
+        "Name",
+        "Expert Name"
+      ],
+
+      mobileHeaders: [
+        "Mobile_No",
+        "Mobile No",
+        "Mobile",
+        "Mob No"
+      ],
+
+      whatsappHeaders: [
+        "WhatsApp_No",
+        "WhatsApp No",
+        "WhatsApp"
+      ],
+
+      districtHeaders: [
+        "District"
+      ],
+
+      panchayathHeaders: [
+        "Panchayath",
+        "Panchayat"
+      ],
+
+      serviceHeaders: [
+        "Specialization",
+        "Expert_Group",
+        "Expert Group",
+        "Expertise"
+      ],
+
+      statusHeaders: [
+        "Status",
+        "Verification_Status",
+        "Verification Status"
+      ]
+    };
+  }
+
+  if (category === "skilled_worker") {
+    return {
+      category: "skilled_worker",
+      categoryLabel: "Skilled Worker",
+      malayalamLabel: "വിദഗ്ധ തൊഴിലാളി",
+      idLabel: "Worker ID",
+      idPrefix: "BM-SW-",
+      sheetName:
+        SHEETS.skilledWorkerRegistration,
+
+      idHeaders: [
+        "Worker_ID",
+        "Worker ID"
+      ],
+
+      nameHeaders: [
+        "Name",
+        "Worker Name"
+      ],
+
+      mobileHeaders: [
+        "Mobile",
+        "Mobile No",
+        "Mob No"
+      ],
+
+      whatsappHeaders: [
+        "WhatsApp",
+        "WhatsApp No",
+        "WhatsApp_No"
+      ],
+
+      districtHeaders: [
+        "District",
+        "Working District"
+      ],
+
+      panchayathHeaders: [
+        "Panchayath",
+        "Panchayat"
+      ],
+
+      serviceHeaders: [
+        "Skill Category",
+        "Skill_Category",
+        "Sub Skill",
+        "Worker Type"
+      ],
+
+      statusHeaders: [
+        "Status",
+        "Live Status",
+        "Verification_Status",
+        "Verification Status"
+      ]
+    };
+  }
+
+  if (category === "service_provider") {
+    return {
+      category: "service_provider",
+      categoryLabel: "Service Provider",
+      malayalamLabel: "സേവനദാതാവ്",
+      idLabel: "Provider ID",
+      idPrefix: "BM-SP-",
+      sheetName:
+        SHEETS.serviceProviderRegistration,
+
+      idHeaders: [
+        "Provider_ID",
+        "Provider ID",
+        "ID"
+      ],
+
+      nameHeaders: [
+        "Provider Name",
+        "Contact Person",
+        "Name"
+      ],
+
+      mobileHeaders: [
+        "Mob No",
+        "Mobile No",
+        "Mobile"
+      ],
+
+      whatsappHeaders: [
+        "WhatsApp No",
+        "WhatsApp_No",
+        "WhatsApp"
+      ],
+
+      districtHeaders: [
+        "District",
+        "Districts Served"
+      ],
+
+      panchayathHeaders: [
+        "Panchayath",
+        "Panchayat"
+      ],
+
+      serviceHeaders: [
+        "Service Category",
+        "Service name",
+        "Service Name",
+        "Specialization",
+        "Provider Type"
+      ],
+
+      statusHeaders: [
+        "Status",
+        "Verification_Status",
+        "Verification Status"
+      ]
+    };
+  }
+
+  return null;
+}
+
+async function loadRegistrationSheet(
+  category
 ) {
+  const config =
+    getRegistrationConfig(category);
+
+  if (!config) {
+    return null;
+  }
+
+  const rows =
+    await readSheetRows(
+      config.sheetName,
+      "A:BK"
+    );
+
+  if (!rows || rows.length === 0) {
+    console.error(
+      "No header row found in registration sheet:",
+      config.sheetName
+    );
+
+    return null;
+  }
+
+  const headers = rows[0];
+  const headerMap =
+    makeRegistrationHeaderMap(
+      headers
+    );
+
+  return {
+    config,
+    rows,
+    headers,
+    headerMap
+  };
+}
+
+async function findRegistrationByPhone(
+  category,
+  phone
+) {
+  const sheetData =
+    await loadRegistrationSheet(
+      category
+    );
+
+  if (!sheetData) {
+    return null;
+  }
+
+  const incomingPhone =
+    registrationPhoneKey(phone);
+
   if (!incomingPhone) {
     return null;
   }
 
-  return (
-    sheetData.rows.find(
-      function (row) {
-        const savedMobile =
-          registrationPhoneKey(
-            getRegistrationValue(
-              row,
-              sheetData.headerMap,
-              mobileHeaders
-            )
-          );
+  const {
+    config,
+    rows,
+    headerMap
+  } = sheetData;
 
-        const savedWhatsApp =
-          registrationPhoneKey(
-            getRegistrationValue(
-              row,
-              sheetData.headerMap,
-              whatsappHeaders
-            )
-          );
-
-        return (
-          savedMobile ===
-            incomingPhone ||
-          savedWhatsApp ===
-            incomingPhone
+  const matchedRow =
+    rows.slice(1).find(function (row) {
+      const savedMobile =
+        registrationPhoneKey(
+          getRegistrationValue(
+            row,
+            headerMap,
+            config.mobileHeaders
+          )
         );
-      }
-    ) || null
+
+      const savedWhatsApp =
+        registrationPhoneKey(
+          getRegistrationValue(
+            row,
+            headerMap,
+            config.whatsappHeaders
+          )
+        );
+
+      return (
+        savedMobile === incomingPhone ||
+        savedWhatsApp === incomingPhone
+      );
+    });
+
+  if (!matchedRow) {
+    return null;
+  }
+
+  return {
+    success: true,
+    alreadyRegistered: true,
+
+    category:
+      config.category,
+
+    categoryLabel:
+      config.categoryLabel,
+
+    malayalamLabel:
+      config.malayalamLabel,
+
+    idLabel:
+      config.idLabel,
+
+    memberId:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.idHeaders
+      ),
+
+    name:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.nameHeaders
+      ),
+
+    mobile:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.mobileHeaders
+      ),
+
+    whatsapp:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.whatsappHeaders
+      ),
+
+    district:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.districtHeaders
+      ),
+
+    panchayath:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.panchayathHeaders
+      ),
+
+    service:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.serviceHeaders
+      ),
+
+    status:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.statusHeaders
+      ) || "Pending"
+  };
+}
+
+function formatExistingRegistration(
+  result,
+  fallbackPhone
+) {
+  return (
+    "✅ നിങ്ങൾ ഇതിനകം BhoomiMitraയിൽ " +
+    (result.malayalamLabel ||
+      result.categoryLabel ||
+      "അംഗം") +
+    " ആയി രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്.\n\n" +
+
+    (result.idLabel || "ID") +
+    ": " +
+    (result.memberId || "-") +
+
+    "\nName: " +
+    (result.name || "-") +
+
+    "\nMobile/WhatsApp: " +
+    (
+      result.whatsapp ||
+      result.mobile ||
+      fallbackPhone ||
+      "-"
+    ) +
+
+    "\nDistrict: " +
+    (result.district || "-") +
+
+    "\nPanchayath: " +
+    (result.panchayath || "-") +
+
+    (
+      result.service
+        ? "\nExpertise/Skill/Service: " +
+          result.service
+        : ""
+    ) +
+
+    "\nStatus: " +
+    (result.status || "Pending") +
+
+    "\n\nവീണ്ടും അതേ വിഭാഗത്തിൽ രജിസ്റ്റർ ചെയ്യേണ്ടതില്ല."
   );
 }
+
+function formatNewRegistration(
+  result,
+  fallbackPhone
+) {
+  return (
+    "✅ " +
+    (result.categoryLabel || "Member") +
+    " രജിസ്ട്രേഷൻ വിജയകരമായി സേവ് ചെയ്തു.\n\n" +
+
+    (result.idLabel || "ID") +
+    ": " +
+    (result.memberId || "-") +
+
+    "\nName: " +
+    (result.name || "-") +
+
+    "\nMobile/WhatsApp: " +
+    (
+      result.whatsapp ||
+      result.mobile ||
+      fallbackPhone ||
+      "-"
+    ) +
+
+    "\nDistrict: " +
+    (result.district || "-") +
+
+    "\nPanchayath: " +
+    (result.panchayath || "-") +
+
+    (
+      result.service
+        ? "\nExpertise/Skill/Service: " +
+          result.service
+        : ""
+    ) +
+
+    "\nStatus: " +
+    (result.status || "Pending") +
+
+    (
+      result.category === "farmer"
+        ? ""
+        : "\n\nപരിശോധനയ്ക്ക് ശേഷം അംഗീകാരം നൽകും."
+    )
+  );
+}
+
 function detectCategory(text) {
-  const t = String(text || "").toLowerCase();
+  const t =
+    String(text || "")
+      .trim()
+      .toLowerCase();
 
-  if (t.includes("2") || t.includes("expert")) return "expert";
-  if (t.includes("3") || t.includes("worker") || t.includes("skilled")) return "skilled_worker";
-  if (t.includes("4") || t.includes("service")) return "service_provider";
+  if (
+    t === "1" ||
+    t.includes("farmer") ||
+    t.includes("കർഷ")
+  ) {
+    return "farmer";
+  }
 
-  return "farmer";
+  if (
+    t === "2" ||
+    t.includes("expert") ||
+    t.includes("വിദഗ്ധ")
+  ) {
+    return "expert";
+  }
+
+  if (
+    t === "3" ||
+    t.includes("skilled worker") ||
+    t.includes("skilled") ||
+    t.includes("worker") ||
+    t.includes("തൊഴിലാള")
+  ) {
+    return "skilled_worker";
+  }
+
+  if (
+    t === "4" ||
+    t.includes("service provider") ||
+    t.includes("service") ||
+    t.includes("provider") ||
+    t.includes("സേവനദാത")
+  ) {
+    return "service_provider";
+  }
+
+  return "";
+}
+
+async function handleRegistration(
+  from,
+  text
+) {
+  const lower =
+    String(text || "")
+      .trim()
+      .toLowerCase();
+
+  /*
+   * Start registration only when the
+   * user asks for registration.
+   */
+  if (!sessions[from]) {
+    const isRegistrationRequest =
+      lower.includes("register") ||
+      lower.includes("registration") ||
+      lower.includes("രജിസ്റ്റർ") ||
+      lower.includes("രജിസ്ട്രേഷൻ");
+
+    if (!isRegistrationRequest) {
+      return null;
+    }
+
+    sessions[from] = {
+      step: "category",
+
+      data: {
+        whatsapp: from,
+        mobile: from
+      }
+    };
+
+    return (
+      "രജിസ്ട്രേഷൻ തുടങ്ങാം. വിഭാഗം അയക്കൂ:\n\n" +
+      "1 Farmer\n" +
+      "2 Expert\n" +
+      "3 Skilled Worker\n" +
+      "4 Service Provider"
+    );
+  }
+
+  const s = sessions[from];
+
+  /*
+   * Allow user to cancel an active
+   * registration session.
+   */
+  if (
+    lower === "cancel" ||
+    lower === "stop" ||
+    lower === "റദ്ദാക്കുക"
+  ) {
+    delete sessions[from];
+
+    return (
+      "രജിസ്ട്രേഷൻ റദ്ദാക്കി. " +
+      "വീണ്ടും തുടങ്ങാൻ Registration എന്ന് അയക്കുക."
+    );
+  }
+
+  /*
+   * CATEGORY
+   */
+  if (s.step === "category") {
+    const category =
+      detectCategory(text);
+
+    if (!category) {
+      return (
+        "ശരിയായ വിഭാഗം തിരഞ്ഞെടുക്കുക:\n\n" +
+        "1 Farmer\n" +
+        "2 Expert\n" +
+        "3 Skilled Worker\n" +
+        "4 Service Provider"
+      );
+    }
+
+    s.data.category = category;
+
+    /*
+     * Check duplicate immediately,
+     * before asking the person's name.
+     */
+    const existing =
+      await findRegistrationByPhone(
+        category,
+        from
+      );
+
+    if (existing) {
+      delete sessions[from];
+
+      return formatExistingRegistration(
+        existing,
+        from
+      );
+    }
+
+    s.step = "name";
+
+    return "പേര് മാത്രം അയക്കൂ.";
+  }
+
+  /*
+   * NAME
+   */
+  if (s.step === "name") {
+    const name =
+      String(text || "").trim();
+
+    if (!name || name.length < 2) {
+      return "ശരിയായ പേര് അയക്കൂ.";
+    }
+
+    s.data.name = name;
+    s.step = "district";
+
+    return "ജില്ല ഏതാണ്?";
+  }
+
+  /*
+   * DISTRICT
+   */
+  if (s.step === "district") {
+    s.data.district =
+      String(text || "").trim();
+
+    s.step = "panchayath";
+
+    return "പഞ്ചായത്ത് ഏതാണ്?";
+  }
+
+  /*
+   * PANCHAYATH
+   */
+  if (s.step === "panchayath") {
+    s.data.panchayath =
+      String(text || "").trim();
+
+    if (
+      s.data.category === "farmer"
+    ) {
+      s.step = "crop";
+
+      return "പ്രധാന കൃഷി / വിള ഏതാണ്?";
+    }
+
+    if (
+      s.data.category === "expert"
+    ) {
+      s.step = "service";
+
+      return (
+        "നിങ്ങളുടെ പ്രധാന expertise / " +
+        "specialization എന്താണ്?"
+      );
+    }
+
+    if (
+      s.data.category ===
+      "skilled_worker"
+    ) {
+      s.step = "service";
+
+      return (
+        "നിങ്ങളുടെ പ്രധാന skill എന്താണ്?\n" +
+        "ഉദാ: Coconut climber, Machine operator, " +
+        "Electrician"
+      );
+    }
+
+    s.step = "service";
+
+    return (
+      "നിങ്ങൾ നൽകുന്ന പ്രധാന agricultural " +
+      "service എന്താണ്?"
+    );
+  }
+
+  /*
+   * FARMER CROP
+   */
+  if (s.step === "crop") {
+    s.data.crop =
+      String(text || "").trim();
+
+    const registrationData = {
+      ...s.data,
+      service: s.data.crop
+    };
+
+    const result =
+      await saveRegistration(
+        registrationData
+      );
+
+    delete sessions[from];
+
+    if (!result || !result.success) {
+      return (
+        "ക്ഷമിക്കണം, കർഷക രജിസ്ട്രേഷൻ " +
+        "പൂർത്തിയാക്കാൻ കഴിഞ്ഞില്ല. " +
+        "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
+      );
+    }
+
+    if (result.alreadyRegistered) {
+      return formatExistingRegistration(
+        result,
+        from
+      );
+    }
+
+    return formatNewRegistration(
+      result,
+      from
+    );
+  }
+
+  /*
+   * EXPERT / SKILLED WORKER /
+   * SERVICE PROVIDER FINAL FIELD
+   */
+  if (s.step === "service") {
+    s.data.service =
+      String(text || "").trim();
+
+    const result =
+      await saveRegistration(
+        s.data
+      );
+
+    delete sessions[from];
+
+    if (!result || !result.success) {
+      return (
+        "ക്ഷമിക്കണം, രജിസ്ട്രേഷൻ " +
+        "പൂർത്തിയാക്കാൻ കഴിഞ്ഞില്ല. " +
+        "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
+      );
+    }
+
+    if (result.alreadyRegistered) {
+      return formatExistingRegistration(
+        result,
+        from
+      );
+    }
+
+    return formatNewRegistration(
+      result,
+      from
+    );
+  }
+
+  return null;
 }
 
 async function saveRegistration(data) {
@@ -1285,188 +1767,522 @@ async function saveRegistration(data) {
     data.category || "farmer";
 
   /*
-   * Convert mobile numbers into the
-   * same 10-digit format.
-   *
-   * Example:
-   * 919847298918 → 9847298918
-   * 9847298918   → 9847298918
+   * Final duplicate check immediately
+   * before saving.
    */
-  function phoneKey(value) {
-    const digits =
-      String(value || "")
-        .replace(/\D/g, "");
-
-    if (digits.length > 10) {
-      return digits.slice(-10);
-    }
-
-    return digits;
-  }
-
-  const incomingPhone =
-    phoneKey(
+  const existing =
+    await findRegistrationByPhone(
+      category,
       data.whatsapp ||
       data.mobile ||
       ""
     );
 
-  /*
-   * FARMER REGISTRATION
-   */
-  if (category === "farmer") {
-    const rows =
-      await readSheetRows(
-        SHEETS.farmers,
-        "A:Z"
-      );
+  if (existing) {
+    return existing;
+  }
 
-    /*
-     * Farmers sheet columns:
-     *
-     * A = Farmer_ID       row[0]
-     * B = Name            row[1]
-     * D = Mobile          row[3]
-     * E = WhatsApp        row[4]
-     * G = District        row[6]
-     * I = Panchayath      row[8]
-     */
-    const existingRow =
-      rows.slice(1).find(
-        function (row) {
-          const existingMobile =
-            phoneKey(row[3]);
-
-          const existingWhatsApp =
-            phoneKey(row[4]);
-
-          return (
-            incomingPhone &&
-            (
-              existingMobile === incomingPhone ||
-              existingWhatsApp === incomingPhone
-            )
-          );
-        }
-      );
-
-    /*
-     * Existing farmer found:
-     * return the old Farmer ID.
-     * Do not create another row.
-     */
-    if (existingRow) {
-      return {
-        success: true,
-        alreadyRegistered: true,
-
-        farmerId:
-          existingRow[0] || "",
-
-        name:
-          existingRow[1] || "",
-
-        mobile:
-          existingRow[3] ||
-          existingRow[4] ||
-          data.whatsapp ||
-          "",
-
-        whatsapp:
-          existingRow[4] ||
-          data.whatsapp ||
-          "",
-
-        district:
-          existingRow[6] || "",
-
-        panchayath:
-          existingRow[8] || ""
-      };
-    }
-
-    /*
-     * New farmer:
-     * create a Farmer ID only once.
-     */
-    const id =
-      "BM-" + Date.now();
-
-    await appendSafe(
-      SHEETS.farmers,
-      [
-        id,                         // A Farmer_ID
-        data.name || "",            // B Name
-        "",                         // C Gender
-        data.mobile || "",          // D Mobile
-        data.whatsapp || "",        // E WhatsApp
-        data.email || "",           // F Email
-        data.district || "",        // G District
-        data.block || "",           // H Block
-        data.panchayath || "",      // I Panchayath
-        data.village || "",         // J Village
-        "",                         // K
-        "",                         // L
-        data.crop || "",            // M Main crop
-        "WhatsApp Registration",    // N Source
-        "Approved",                 // O Status
-        new Date().toISOString()    // P Created date
-      ]
+  const sheetData =
+    await loadRegistrationSheet(
+      category
     );
 
+  if (!sheetData) {
     return {
-      success: true,
-      alreadyRegistered: false,
-      farmerId: id,
-      name: data.name || "",
-      mobile:
-        data.mobile ||
-        data.whatsapp ||
-        "",
-      whatsapp:
-        data.whatsapp || ""
+      success: false,
+      error:
+        "Registration sheet or header row not found."
     };
   }
 
-  /*
-   * OTHER CATEGORIES
-   */
+  const {
+    config,
+    headers,
+    headerMap
+  } = sheetData;
+
+  const timestamp =
+    new Date().toISOString();
+
   const id =
-    "BM-" + Date.now();
+    config.idPrefix +
+    Date.now();
 
-  let sheetName =
-    SHEETS.expertRegistration;
+  /*
+   * Create a row having the same number
+   * of columns as the Google Sheet.
+   */
+  const row =
+    new Array(headers.length)
+      .fill("");
 
-  if (category === "skilled_worker") {
-    sheetName =
-      SHEETS.skilledWorkerRegistration;
-  }
-
-  if (category === "service_provider") {
-    sheetName =
-      SHEETS.serviceProviderRegistration;
-  }
-
-  await appendSafe(
-    sheetName,
-    [
-      id,
-      data.name || "",
-      data.whatsapp || "",
-      data.district || "",
-      data.panchayath || "",
-      data.service || "",
-      category,
-      "Pending",
-      "WhatsApp Registration",
-      new Date().toISOString()
-    ]
+  /*
+   * COMMON FIELDS
+   */
+  setRegistrationValue(
+    row,
+    headerMap,
+    config.idHeaders,
+    id
   );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    config.nameHeaders,
+    data.name || ""
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    config.mobileHeaders,
+    data.mobile ||
+      data.whatsapp ||
+      ""
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    config.whatsappHeaders,
+    data.whatsapp || ""
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    ["Email"],
+    data.email || ""
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    ["Country"],
+    "India"
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    ["State"],
+    "Kerala"
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    config.districtHeaders,
+    data.district || ""
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    ["Block"],
+    data.block || ""
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    config.panchayathHeaders,
+    data.panchayath || ""
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    config.serviceHeaders,
+    data.service ||
+      data.crop ||
+      ""
+  );
+
+  /*
+   * COMMON REGISTRATION METADATA
+   */
+  setRegistrationValue(
+    row,
+    headerMap,
+    [
+      "Registration date",
+      "Registration Date",
+      "Registration_Date",
+      "Created date"
+    ],
+    timestamp
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    [
+      "AI_Registration",
+      "AI Registration"
+    ],
+    "WhatsApp"
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    [
+      "Verification_Status",
+      "Verification Status",
+      "Verification Level"
+    ],
+    category === "farmer"
+      ? "Approved"
+      : "Pending"
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    ["Last_Updated", "Last Updated"],
+    timestamp
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    ["Active_Status", "Active Status"],
+    "Active"
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    ["Expert_Assigned", "Expert Assigned"],
+    "Not Assigned"
+  );
+
+  setRegistrationValue(
+    row,
+    headerMap,
+    ["Remarks"],
+    "WhatsApp Registration"
+  );
+
+  /*
+   * FARMER-SPECIFIC FIELDS
+   */
+  if (category === "farmer") {
+    setRegistrationValue(
+      row,
+      headerMap,
+      [
+        "Main Crop",
+        "Main_Crop",
+        "Crop"
+      ],
+      data.crop ||
+        data.service ||
+        ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Source"],
+      "WhatsApp Registration"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Status"],
+      "Approved"
+    );
+  }
+
+  /*
+   * EXPERT-SPECIFIC FIELDS
+   */
+  if (category === "expert") {
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Organization"],
+      data.organization ||
+        "BhoomiMitra External Expert"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Designation"],
+      data.designation ||
+        "External Expert"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      [
+        "Expert_Source",
+        "Expert Source"
+      ],
+      "WhatsApp Registration"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      [
+        "Expert_Type",
+        "Expert Type"
+      ],
+      "External Expert"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      [
+        "Expert_Group",
+        "Expert Group"
+      ],
+      data.service || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Specialization"],
+      data.service || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      [
+        "Consultation_Type",
+        "Consultation Type"
+      ],
+      "Phone; WhatsApp"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Consultation_Mode"],
+      "Phone; WhatsApp"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Availability"],
+      "Available"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Auto_Route", "Auto Route"],
+      "No"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Status"],
+      "Pending"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["AI_Priority", "AI Priority"],
+      "Normal"
+    );
+  }
+
+  /*
+   * SKILLED-WORKER-SPECIFIC FIELDS
+   */
+  if (
+    category === "skilled_worker"
+  ) {
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Worker Type"],
+      "Skilled Worker"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      [
+        "Skill Category",
+        "Skill_Category"
+      ],
+      data.service || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Sub Skill"],
+      data.service || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Availability"],
+      "Available"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Working District"],
+      data.district || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Live Status", "Status"],
+      "Pending"
+    );
+  }
+
+  /*
+   * SERVICE-PROVIDER-SPECIFIC FIELDS
+   */
+  if (
+    category === "service_provider"
+  ) {
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Provider Name"],
+      data.name || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Contact Person"],
+      data.name || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Provider Type"],
+      "Service Provider"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      [
+        "Service Category",
+        "Service name",
+        "Service Name"
+      ],
+      data.service || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Specialization"],
+      data.service || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Districts Served"],
+      data.district || ""
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Availability"],
+      "Available"
+    );
+
+    setRegistrationValue(
+      row,
+      headerMap,
+      ["Status"],
+      "Pending"
+    );
+  }
+
+  const saved =
+    await appendSafe(
+      config.sheetName,
+      row
+    );
+
+  if (!saved) {
+    return {
+      success: false,
+      error:
+        "Google Sheet append failed."
+    };
+  }
 
   return {
     success: true,
     alreadyRegistered: false,
-    memberId: id
+
+    category:
+      config.category,
+
+    categoryLabel:
+      config.categoryLabel,
+
+    malayalamLabel:
+      config.malayalamLabel,
+
+    idLabel:
+      config.idLabel,
+
+    memberId: id,
+
+    farmerId:
+      category === "farmer"
+        ? id
+        : "",
+
+    name:
+      data.name || "",
+
+    mobile:
+      data.mobile ||
+      data.whatsapp ||
+      "",
+
+    whatsapp:
+      data.whatsapp || "",
+
+    district:
+      data.district || "",
+
+    panchayath:
+      data.panchayath || "",
+
+    service:
+      data.service ||
+      data.crop ||
+      "",
+
+    status:
+      category === "farmer"
+        ? "Approved"
+        : "Pending"
   };
 }
 async function getLatestWeatherContext(userText) {
