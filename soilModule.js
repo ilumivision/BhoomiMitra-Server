@@ -1,66 +1,136 @@
 "use strict";
+
 const axios = require("axios");
+
 const SOILGRIDS_API_URL =
   "https://rest.isric.org/soilgrids/v2.0/properties/query";
+
 const SOIL_REQUEST_TIMEOUT_MS = 60000;
+
 const soilCache = new Map();
-function validateCoordinates(latitude, longitude) {
+
+/*
+ * Validate GPS coordinates.
+ */
+function validateCoordinates(
+  latitude,
+  longitude
+) {
   const lat = Number(latitude);
   const lon = Number(longitude);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    throw new Error("Invalid latitude or longitude");
+
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lon)
+  ) {
+    throw new Error(
+      "Invalid latitude or longitude"
+    );
   }
+
   if (lat < -90 || lat > 90) {
-    throw new Error("Latitude must be between -90 and 90");
+    throw new Error(
+      "Latitude must be between -90 and 90"
+    );
   }
+
   if (lon < -180 || lon > 180) {
-    throw new Error("Longitude must be between -180 and 180");
+    throw new Error(
+      "Longitude must be between -180 and 180"
+    );
   }
+
   return {
     latitude: lat,
     longitude: lon
   };
 }
-function createCacheKey(latitude, longitude) {
+
+/*
+ * Create a stable cache key.
+ */
+function createCacheKey(
+  latitude,
+  longitude
+) {
   return [
     Number(latitude).toFixed(4),
     Number(longitude).toFixed(4)
   ].join(",");
 }
-function getCachedSoilData(latitude, longitude) {
-  const key = createCacheKey(latitude, longitude);
+
+/*
+ * Return cached SoilGrids response.
+ */
+function getCachedSoilData(
+  latitude,
+  longitude
+) {
+  const key =
+    createCacheKey(
+      latitude,
+      longitude
+    );
+
   return soilCache.get(key) || null;
 }
+
+/*
+ * Save successful SoilGrids response.
+ */
 function saveSoilDataToCache(
   latitude,
   longitude,
   soilData
 ) {
-  const key = createCacheKey(latitude, longitude);
+  const key =
+    createCacheKey(
+      latitude,
+      longitude
+    );
+
   soilCache.set(key, {
     savedAt: Date.now(),
     data: soilData
   });
 }
-async function fetchSoilGridsData(latitude, longitude) {
+
+/*
+ * Fetch location-based soil estimates
+ * from SoilGrids.
+ */
+async function fetchSoilGridsData(
+  latitude,
+  longitude
+) {
   const coordinates =
-    validateCoordinates(latitude, longitude);
-  const cached = getCachedSoilData(
-    coordinates.latitude,
-    coordinates.longitude
-  );
+    validateCoordinates(
+      latitude,
+      longitude
+    );
+
+  const cached =
+    getCachedSoilData(
+      coordinates.latitude,
+      coordinates.longitude
+    );
+
   if (cached) {
     return {
       success: true,
       source: "cache",
       retrievedAt:
-        new Date(cached.savedAt).toISOString(),
+        new Date(
+          cached.savedAt
+        ).toISOString(),
       data: cached.data
     };
   }
+
   const params = {
     lon: coordinates.longitude,
     lat: coordinates.latitude,
+
     property: [
       "phh2o",
       "soc",
@@ -72,11 +142,13 @@ async function fetchSoilGridsData(latitude, longitude) {
       "bdod",
       "cfvo"
     ],
+
     depth: [
       "0-5cm",
       "5-15cm",
       "15-30cm"
     ],
+
     value: [
       "mean",
       "Q0.05",
@@ -84,45 +156,76 @@ async function fetchSoilGridsData(latitude, longitude) {
       "Q0.95"
     ]
   };
+
   try {
-    const response = await axios.get(
-      SOILGRIDS_API_URL,
-      {
-        params,
-        timeout: SOIL_REQUEST_TIMEOUT_MS,
-        paramsSerializer: {
-          indexes: null
+    const response =
+      await axios.get(
+        SOILGRIDS_API_URL,
+        {
+          params,
+          timeout:
+            SOIL_REQUEST_TIMEOUT_MS,
+
+          paramsSerializer: {
+            indexes: null
+          }
         }
-      }
-    );
-    const soilData = response.data;
+      );
+
+    const soilData =
+      response.data;
+
     saveSoilDataToCache(
       coordinates.latitude,
       coordinates.longitude,
       soilData
     );
+
     return {
       success: true,
       source: "SoilGrids",
-      retrievedAt: new Date().toISOString(),
+      retrievedAt:
+        new Date().toISOString(),
       data: soilData
     };
   } catch (error) {
     console.error(
       "SoilGrids request failed:",
-      error.response?.status || error.message
+      error &&
+      error.response &&
+      error.response.status
+        ? error.response.status
+        : error.message
     );
+
     return {
       success: false,
       source: "SoilGrids",
-      retrievedAt: new Date().toISOString(),
+      retrievedAt:
+        new Date().toISOString(),
+
       error:
-        error.response?.data?.detail ||
-        error.message ||
-        "SoilGrids service unavailable"
+        error &&
+        error.response &&
+        error.response.data &&
+        error.response.data.detail
+          ? error.response.data.detail
+          : (
+              error.message ||
+              "SoilGrids service unavailable"
+            )
     };
   }
 }
+
+/*
+ * Find one property layer.
+ *
+ * Examples:
+ * phh2o, soc, nitrogen,
+ * clay, sand, silt, cec,
+ * bdod or cfvo.
+ */
 function getSoilLayer(
   soilGridsData,
   propertyName
@@ -138,23 +241,23 @@ function getSoilLayer(
 
   return (
     layers.find(function (layer) {
-      return layer.name === propertyName;
+      return (
+        layer &&
+        layer.name === propertyName
+      );
     }) || null
   );
 }
 
+/*
+ * Read one value from one layer
+ * for the selected depth.
+ */
 function getSoilDepthValue(
-  soilGridsData,
-  propertyName,
+  layer,
   depthLabel,
-  valueName = "mean"
+  valueName
 ) {
-  const layer =
-    getSoilLayer(
-      soilGridsData,
-      propertyName
-    );
-
   if (
     !layer ||
     !Array.isArray(layer.depths)
@@ -162,40 +265,87 @@ function getSoilDepthValue(
     return null;
   }
 
-  const depth =
-    layer.depths.find(function (item) {
-      return item.label === depthLabel;
-    });
+  const selectedDepth =
+    layer.depths.find(
+      function (depth) {
+        return (
+          depth &&
+          depth.label === depthLabel
+        );
+      }
+    );
 
   if (
-    !depth ||
-    !depth.values
+    !selectedDepth ||
+    !selectedDepth.values
   ) {
     return null;
   }
 
+  const requestedValue =
+    valueName || "mean";
+
   const value =
-    depth.values[valueName];
+    selectedDepth.values[
+      requestedValue
+    ];
+
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
 
   const numericValue =
     Number(value);
 
-  return Number.isFinite(numericValue)
+  return Number.isFinite(
+    numericValue
+  )
     ? numericValue
     : null;
 }
 
+/*
+ * Convert SoilGrids mapped units
+ * into farmer-readable units.
+ */
 function convertSoilGridsValue(
   propertyName,
   rawValue
 ) {
   if (
     rawValue === null ||
-    rawValue === undefined
+    rawValue === undefined ||
+    rawValue === ""
   ) {
     return null;
   }
 
+  const numericValue =
+    Number(rawValue);
+
+  if (
+    !Number.isFinite(
+      numericValue
+    )
+  ) {
+    return null;
+  }
+
+  /*
+   * SoilGrids conversion factors:
+   *
+   * phh2o: pH × 10
+   * soc: dg/kg
+   * nitrogen: cg/kg
+   * clay/sand/silt: g/kg
+   * cec: mmol(c)/kg
+   * bdod: cg/cm³
+   * cfvo: cm³/dm³
+   */
   const conversionFactors = {
     phh2o: 10,
     soc: 10,
@@ -209,14 +359,20 @@ function convertSoilGridsValue(
   };
 
   const factor =
-    conversionFactors[propertyName] || 1;
+    conversionFactors[
+      propertyName
+    ] || 1;
 
   return Number(
-    (Number(rawValue) / factor)
-      .toFixed(2)
+    (
+      numericValue / factor
+    ).toFixed(2)
   );
 }
 
+/*
+ * Simple soil-texture interpretation.
+ */
 function determineSoilTexture(
   sand,
   silt,
@@ -227,7 +383,7 @@ function determineSoilTexture(
     !Number.isFinite(silt) ||
     !Number.isFinite(clay)
   ) {
-    return "Not determined";
+    return "Not available";
   }
 
   if (clay >= 40) {
@@ -281,11 +437,15 @@ function determineSoilTexture(
   return "Loam";
 }
 
+/*
+ * Extract all soil-property values
+ * for one selected depth.
+ */
 function extractSoilProfile(
   soilGridsData,
   depthLabel = "0-5cm"
 ) {
-  const properties = [
+  const propertyNames = [
     "phh2o",
     "soc",
     "nitrogen",
@@ -297,82 +457,114 @@ function extractSoilProfile(
     "cfvo"
   ];
 
-  const profile = {};
+  const profile = {
+    depth: depthLabel
+  };
 
-  properties.forEach(function (
-    propertyName
-  ) {
-    const rawMean =
-      getSoilDepthValue(
-        soilGridsData,
-        propertyName,
-        depthLabel,
-        "mean"
-      );
+  propertyNames.forEach(
+    function (propertyName) {
+      /*
+       * Important correction:
+       * first find the individual
+       * property layer.
+       */
+      const layer =
+        getSoilLayer(
+          soilGridsData,
+          propertyName
+        );
 
-    const rawLow =
-      getSoilDepthValue(
-        soilGridsData,
-        propertyName,
-        depthLabel,
-        "Q0.05"
-      );
+      const rawMean =
+        getSoilDepthValue(
+          layer,
+          depthLabel,
+          "mean"
+        );
 
-    const rawMedian =
-      getSoilDepthValue(
-        soilGridsData,
-        propertyName,
-        depthLabel,
-        "Q0.5"
-      );
+      const rawLow =
+        getSoilDepthValue(
+          layer,
+          depthLabel,
+          "Q0.05"
+        );
 
-    const rawHigh =
-      getSoilDepthValue(
-        soilGridsData,
-        propertyName,
-        depthLabel,
-        "Q0.95"
-      );
+      const rawMedian =
+        getSoilDepthValue(
+          layer,
+          depthLabel,
+          "Q0.5"
+        );
 
-    profile[propertyName] = {
-      mean:
-        convertSoilGridsValue(
-          propertyName,
-          rawMean
-        ),
+      const rawHigh =
+        getSoilDepthValue(
+          layer,
+          depthLabel,
+          "Q0.95"
+        );
 
-      low:
-        convertSoilGridsValue(
-          propertyName,
-          rawLow
-        ),
+      profile[propertyName] = {
+        mean:
+          convertSoilGridsValue(
+            propertyName,
+            rawMean
+          ),
 
-      median:
-        convertSoilGridsValue(
-          propertyName,
-          rawMedian
-        ),
+        low:
+          convertSoilGridsValue(
+            propertyName,
+            rawLow
+          ),
 
-      high:
-        convertSoilGridsValue(
-          propertyName,
-          rawHigh
-        )
-    };
-  });
+        median:
+          convertSoilGridsValue(
+            propertyName,
+            rawMedian
+          ),
 
-  profile.depth = depthLabel;
+        high:
+          convertSoilGridsValue(
+            propertyName,
+            rawHigh
+          )
+      };
+    }
+  );
+
+  const textureValuesAvailable =
+    profile.sand &&
+    profile.silt &&
+    profile.clay &&
+    profile.sand.mean !== null &&
+    profile.silt.mean !== null &&
+    profile.clay.mean !== null;
 
   profile.texture =
-    determineSoilTexture(
-      profile.sand.mean,
-      profile.silt.mean,
-      profile.clay.mean
+    textureValuesAvailable
+      ? determineSoilTexture(
+          profile.sand.mean,
+          profile.silt.mean,
+          profile.clay.mean
+        )
+      : "Not available";
+
+  profile.dataAvailable =
+    propertyNames.some(
+      function (propertyName) {
+        return (
+          profile[propertyName] &&
+          profile[propertyName]
+            .mean !== null
+        );
+      }
     );
 
   return profile;
 }
 
+/*
+ * Format soil values for testing
+ * and later WhatsApp use.
+ */
 function formatEstimatedSoilProfile(
   profile
 ) {
@@ -383,83 +575,117 @@ function formatEstimatedSoilProfile(
     );
   }
 
-  return (
-    "🌱 Estimated Soil Profile\n\n" +
+  if (!profile.dataAvailable) {
+    return [
+      "🌱 Estimated Soil Profile",
+      "",
+      "Depth: " +
+        (
+          profile.depth ||
+          "0-5cm"
+        ),
+      "",
+      "SoilGrids did not provide soil-property values for this location.",
+      "Please try again later or use a laboratory soil-test result.",
+      "",
+      "Source: SoilGrids 250 m prediction",
+      "⚠️ This is a location-based estimate, not a laboratory soil-test result."
+    ].join("\n");
+  }
 
+  function displayValue(
+    property,
+    unit
+  ) {
+    if (
+      !property ||
+      property.mean === null ||
+      property.mean === undefined
+    ) {
+      return "Not available";
+    }
+
+    return (
+      property.mean +
+      (unit ? " " + unit : "")
+    );
+  }
+
+  return [
+    "🌱 Estimated Soil Profile",
+    "",
     "Depth: " +
-    profile.depth +
+      (
+        profile.depth ||
+        "0-5cm"
+      ),
 
-    "\npH: " +
-    (
-      profile.phh2o.mean ??
-      "Not available"
-    ) +
+    "pH: " +
+      displayValue(
+        profile.phh2o,
+        ""
+      ),
 
-    "\nOrganic carbon: " +
-    (
-      profile.soc.mean ??
-      "Not available"
-    ) +
-    " g/kg" +
+    "Organic carbon: " +
+      displayValue(
+        profile.soc,
+        "g/kg"
+      ),
 
-    "\nTotal nitrogen: " +
-    (
-      profile.nitrogen.mean ??
-      "Not available"
-    ) +
-    " g/kg" +
+    "Total nitrogen: " +
+      displayValue(
+        profile.nitrogen,
+        "g/kg"
+      ),
 
-    "\nSand: " +
-    (
-      profile.sand.mean ??
-      "Not available"
-    ) +
-    "%" +
+    "Sand: " +
+      displayValue(
+        profile.sand,
+        "%"
+      ),
 
-    "\nSilt: " +
-    (
-      profile.silt.mean ??
-      "Not available"
-    ) +
-    "%" +
+    "Silt: " +
+      displayValue(
+        profile.silt,
+        "%"
+      ),
 
-    "\nClay: " +
-    (
-      profile.clay.mean ??
-      "Not available"
-    ) +
-    "%" +
+    "Clay: " +
+      displayValue(
+        profile.clay,
+        "%"
+      ),
 
-    "\nTexture: " +
-    profile.texture +
+    "Texture: " +
+      (
+        profile.texture ||
+        "Not available"
+      ),
 
-    "\nCEC: " +
-    (
-      profile.cec.mean ??
-      "Not available"
-    ) +
-    " cmol(c)/kg" +
+    "CEC: " +
+      displayValue(
+        profile.cec,
+        "cmol(c)/kg"
+      ),
 
-    "\nBulk density: " +
-    (
-      profile.bdod.mean ??
-      "Not available"
-    ) +
-    " kg/dm³" +
+    "Bulk density: " +
+      displayValue(
+        profile.bdod,
+        "kg/dm³"
+      ),
 
-    "\nCoarse fragments: " +
-    (
-      profile.cfvo.mean ??
-      "Not available"
-    ) +
-    "%" +
+    "Coarse fragments: " +
+      displayValue(
+        profile.cfvo,
+        "%"
+      ),
 
-    "\n\nSource: SoilGrids 250 m prediction" +
-
-    "\n⚠️ This is a location-based estimate, " +
-    "not a laboratory soil-test result."
-  );
+    "",
+    "Source: SoilGrids 250 m prediction",
+    "⚠️ This is a location-based estimate, not a laboratory soil-test result."
+  ].join("\n");
 }
+
 module.exports = {
   SOILGRIDS_API_URL,
   SOIL_REQUEST_TIMEOUT_MS,
@@ -469,9 +695,9 @@ module.exports = {
   saveSoilDataToCache,
   fetchSoilGridsData,
   getSoilLayer,
-getSoilDepthValue,
-convertSoilGridsValue,
-determineSoilTexture,
-extractSoilProfile,
-formatEstimatedSoilProfile
+  getSoilDepthValue,
+  convertSoilGridsValue,
+  determineSoilTexture,
+  extractSoilProfile,
+  formatEstimatedSoilProfile
 };
