@@ -2784,23 +2784,45 @@ async function sendWhatsAppMessage(to, text) {
 
 async function appendSafe(sheetName, row) {
   try {
-    if (!GOOGLE_SHEET_ID || !GOOGLE_CLIENT_EMAIL || !GOOGLE_PRIVATE_KEY) {
+    if (
+      !GOOGLE_SHEET_ID ||
+      !GOOGLE_CLIENT_EMAIL ||
+      !GOOGLE_PRIVATE_KEY
+    ) {
       console.log("Google Sheets credentials missing.");
-      return;
+      return false;
     }
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: GOOGLE_SHEET_ID,
-      range: sheetName + "!A:Z",
+      range: "'" + String(sheetName).replace(/'/g, "''") + "'!A:BK",
       valueInputOption: "USER_ENTERED",
+      insertDataOption: "INSERT_ROWS",
       requestBody: {
         values: [row]
       }
     });
 
+    console.log(
+      "Row successfully appended to:",
+      sheetName
+    );
+
+    return true;
+
   } catch (error) {
-    console.error("Google Sheet append error for sheet:", sheetName);
-    console.error(error.response && error.response.data ? error.response.data : error.message);
+    console.error(
+      "Google Sheet append error for sheet:",
+      sheetName
+    );
+
+    console.error(
+      error.response && error.response.data
+        ? error.response.data
+        : error.message
+    );
+
+    return false;
   }
 }
 async function readSheetRows(sheetName, range) {
