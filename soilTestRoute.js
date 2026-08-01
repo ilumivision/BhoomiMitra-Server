@@ -46,8 +46,7 @@ router.get("/soil-test", async function (req, res) {
   retrievedAt: result.retrievedAt,
   latitude: Number(latitude),
   longitude: Number(longitude),
-  rawData: result.data,
-  profile,
+    profile,
   formattedText:
     formatEstimatedSoilProfile(profile)
 });
