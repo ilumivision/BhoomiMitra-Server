@@ -911,49 +911,194 @@ function detectCategory(text) {
 }
 
 async function saveRegistration(data) {
-  const id = "BM-" + Date.now();
-  const category = data.category || "farmer";
+  const category =
+    data.category || "farmer";
 
-  if (category === "farmer") {
-    await appendSafe(SHEETS.farmers, [
-      id,
-      data.name || "",
-      "",
-      "",
-      data.whatsapp || "",
-      "",
-      data.district || "",
-      "",
-      data.panchayath || "",
-      "",
-      "",
-      "",
-      data.crop || "",
-      "WhatsApp Registration",
-      "Approved",
-      new Date().toISOString()
-    ]);
-    return;
+  /*
+   * Convert mobile numbers into the
+   * same 10-digit format.
+   *
+   * Example:
+   * 919847298918 → 9847298918
+   * 9847298918   → 9847298918
+   */
+  function phoneKey(value) {
+    const digits =
+      String(value || "")
+        .replace(/\D/g, "");
+
+    if (digits.length > 10) {
+      return digits.slice(-10);
+    }
+
+    return digits;
   }
 
-  let sheetName = SHEETS.expertRegistration;
-  if (category === "skilled_worker") sheetName = SHEETS.skilledWorkerRegistration;
-  if (category === "service_provider") sheetName = SHEETS.serviceProviderRegistration;
+  const incomingPhone =
+    phoneKey(
+      data.whatsapp ||
+      data.mobile ||
+      ""
+    );
 
-  await appendSafe(sheetName, [
-    id,
-    data.name || "",
-    data.whatsapp || "",
-    data.district || "",
-    data.panchayath || "",
-    data.service || "",
-    category,
-    "Pending",
-    "WhatsApp Registration",
-    new Date().toISOString()
-  ]);
+  /*
+   * FARMER REGISTRATION
+   */
+  if (category === "farmer") {
+    const rows =
+      await readSheetRows(
+        SHEETS.farmers,
+        "A:Z"
+      );
+
+    /*
+     * Farmers sheet columns:
+     *
+     * A = Farmer_ID       row[0]
+     * B = Name            row[1]
+     * D = Mobile          row[3]
+     * E = WhatsApp        row[4]
+     * G = District        row[6]
+     * I = Panchayath      row[8]
+     */
+    const existingRow =
+      rows.slice(1).find(
+        function (row) {
+          const existingMobile =
+            phoneKey(row[3]);
+
+          const existingWhatsApp =
+            phoneKey(row[4]);
+
+          return (
+            incomingPhone &&
+            (
+              existingMobile === incomingPhone ||
+              existingWhatsApp === incomingPhone
+            )
+          );
+        }
+      );
+
+    /*
+     * Existing farmer found:
+     * return the old Farmer ID.
+     * Do not create another row.
+     */
+    if (existingRow) {
+      return {
+        success: true,
+        alreadyRegistered: true,
+
+        farmerId:
+          existingRow[0] || "",
+
+        name:
+          existingRow[1] || "",
+
+        mobile:
+          existingRow[3] ||
+          existingRow[4] ||
+          data.whatsapp ||
+          "",
+
+        whatsapp:
+          existingRow[4] ||
+          data.whatsapp ||
+          "",
+
+        district:
+          existingRow[6] || "",
+
+        panchayath:
+          existingRow[8] || ""
+      };
+    }
+
+    /*
+     * New farmer:
+     * create a Farmer ID only once.
+     */
+    const id =
+      "BM-" + Date.now();
+
+    await appendSafe(
+      SHEETS.farmers,
+      [
+        id,                         // A Farmer_ID
+        data.name || "",            // B Name
+        "",                         // C Gender
+        data.mobile || "",          // D Mobile
+        data.whatsapp || "",        // E WhatsApp
+        data.email || "",           // F Email
+        data.district || "",        // G District
+        data.block || "",           // H Block
+        data.panchayath || "",      // I Panchayath
+        data.village || "",         // J Village
+        "",                         // K
+        "",                         // L
+        data.crop || "",            // M Main crop
+        "WhatsApp Registration",    // N Source
+        "Approved",                 // O Status
+        new Date().toISOString()    // P Created date
+      ]
+    );
+
+    return {
+      success: true,
+      alreadyRegistered: false,
+      farmerId: id,
+      name: data.name || "",
+      mobile:
+        data.mobile ||
+        data.whatsapp ||
+        "",
+      whatsapp:
+        data.whatsapp || ""
+    };
+  }
+
+  /*
+   * OTHER CATEGORIES
+   */
+  const id =
+    "BM-" + Date.now();
+
+  let sheetName =
+    SHEETS.expertRegistration;
+
+  if (category === "skilled_worker") {
+    sheetName =
+      SHEETS.skilledWorkerRegistration;
+  }
+
+  if (category === "service_provider") {
+    sheetName =
+      SHEETS.serviceProviderRegistration;
+  }
+
+  await appendSafe(
+    sheetName,
+    [
+      id,
+      data.name || "",
+      data.whatsapp || "",
+      data.district || "",
+      data.panchayath || "",
+      data.service || "",
+      category,
+      "Pending",
+      "WhatsApp Registration",
+      new Date().toISOString()
+    ]
+  );
+
+  return {
+    success: true,
+    alreadyRegistered: false,
+    memberId: id
+  };
 }
-
 async function getLatestWeatherContext(userText) {
   try {
     const response = await sheets.spreadsheets.values.get({
