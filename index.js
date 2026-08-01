@@ -304,6 +304,39 @@ return;
 } else {
     userText = "User sent a non-text message.";
 }
+/*
+ * Registration must be processed before
+ * market, weather, case handling or AI.
+ */
+const regReply =
+  await handleRegistration(
+    from,
+    userText
+  );
+
+if (regReply) {
+  await sendWhatsAppMessage(
+    from,
+    regReply
+  );
+
+  logAI(
+    from,
+    userText,
+    regReply,
+    "registration"
+  ).catch(function (error) {
+    console.error(
+      "Background registration logging error:",
+      error &&
+      error.message
+        ? error.message
+        : error
+    );
+  });
+
+  return;
+}    
 const detectedIntent = detectIntent(userText);
 console.log("Detected Intent:", detectedIntent);
 
@@ -604,14 +637,7 @@ return;
 
 
 
-    const regReply = await handleRegistration(from, userText);
-    if (regReply) {
-      await sendWhatsAppMessage(from, regReply);
-      await logAI(from, userText, regReply, "registration");
-      return;
-    }
-
-    let activeCase = caseManager.getActiveCase(from);
+        let activeCase = caseManager.getActiveCase(from);
     const textCrop = caseManager.extractRecognisedCrop(userText);
     const startsNewCase = caseManager.messageStartsNewCase(userText);
     const refersToCurrentCase =
@@ -852,7 +878,74 @@ async function handleRegistration(from, text) {
   }
 
   const s = sessions[from];
+if (s.step === "crop") {
+  s.data.crop = text;
 
+  const result =
+    await saveRegistration(
+      s.data
+    );
+
+  delete sessions[from];
+
+  if (
+    result &&
+    result.alreadyRegistered
+  ) {
+    return (
+      "✅ നിങ്ങൾ ഇതിനകം BhoomiMitraയിൽ കർഷകനായി രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്.\n\n" +
+      "Farmer ID: " +
+      (result.farmerId || "-") +
+      "\n" +
+      "Name: " +
+      (result.name || "-") +
+      "\n" +
+      "Mobile/WhatsApp: " +
+      (
+        result.whatsapp ||
+        result.mobile ||
+        from
+      ) +
+      "\n" +
+      "District: " +
+      (result.district || "-") +
+      "\n" +
+      "Panchayath: " +
+      (result.panchayath || "-") +
+      "\n\n" +
+      "വീണ്ടും കർഷക രജിസ്ട്രേഷൻ ചെയ്യേണ്ടതില്ല."
+    );
+  }
+
+  if (
+    result &&
+    result.success
+  ) {
+    return (
+      "✅ കർഷക രജിസ്ട്രേഷൻ വിജയകരമായി പൂർത്തിയായി.\n\n" +
+      "Farmer ID: " +
+      (result.farmerId || "-") +
+      "\n" +
+      "Name: " +
+      (result.name || "-") +
+      "\n" +
+      "Main Crop: " +
+      (s.data.crop || "-") +
+      "\n" +
+      "Mobile/WhatsApp: " +
+      (
+        result.whatsapp ||
+        result.mobile ||
+        from
+      )
+    );
+  }
+
+  return (
+    "ക്ഷമിക്കണം, കർഷക രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാൻ കഴിഞ്ഞില്ല. " +
+    "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
+  );
+}
   if (s.step === "category") {
     s.data.category = detectCategory(text);
     s.step = "name";
