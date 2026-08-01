@@ -8,6 +8,7 @@ const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
 const caseManager = require("./utils/caseManager");
+const soilTestRoute = require("./soilTestRoute");
 const {
   createExpertCaseManager
 } = require("./utils/expertCaseManager");
@@ -25,7 +26,10 @@ const {
 } = require("./utils/market");
 
 const app = express();
+
 app.use(express.json());
+app.use(soilTestRoute);
+
 const PORT = process.env.PORT || 10000;
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
