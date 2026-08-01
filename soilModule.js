@@ -1,8 +1,4 @@
 "use strict";
-
-Paste this complete code:
-
-"use strict";
 const axios = require("axios");
 const SOILGRIDS_API_URL =
   "https://rest.isric.org/soilgrids/v2.0/properties/query";
