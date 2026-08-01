@@ -7,6 +7,7 @@ const { google } = require("googleapis");
 const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
+const soilModule = require("./utils/soil");
 const caseManager = require("./utils/caseManager");
 const soilTestRoute = require("./soilTestRoute");
 const {
@@ -305,6 +306,19 @@ return;
         await logAI(from, "<image>", photoReply, "photo_diagnosis");
         return;
     }
+
+} else if (message.type === "location") {
+
+    const latitude = message.location.latitude;
+    const longitude = message.location.longitude;
+
+    const response = await axios.get(
+        https://bhoomimitra-server.onrender.com/soil-test?lat=${latitude}&lon=${longitude}
+    );
+
+    await sendWhatsAppMessage(from, response.data.formattedText);
+    return;
+
 } else {
     userText = "User sent a non-text message.";
 }
