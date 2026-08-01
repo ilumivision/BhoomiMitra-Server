@@ -883,48 +883,84 @@ async function handleRegistration(from, text) {
     return "നിങ്ങളുടെ expertise / skill / service എന്താണ്?";
   }
 
-  if (s.step === "crop") {
-  s.data.crop = text;
+ if (s.step === "service") {
+  s.data.service = text;
 
-  const result = await saveRegistration(s.data);
+  const result =
+    await saveRegistration(
+      s.data
+    );
 
   delete sessions[from];
 
-  if (result && result.alreadyRegistered) {
+  if (
+    result &&
+    result.alreadyRegistered
+  ) {
     return (
-      "✅ നിങ്ങൾ ഇതിനകം BhoomiMitraയിൽ കർഷകനായി രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്.\n\n" +
-      "Farmer ID: " + (result.farmerId || "-") + "\n" +
-      "Name: " + (result.name || "-") + "\n" +
+      "✅ നിങ്ങൾ ഇതിനകം BhoomiMitraയിൽ " +
+      (result.categoryLabel || "Member") +
+      " ആയി രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്.\n\n" +
+      "ID: " +
+      (result.memberId || "-") +
+      "\n" +
+      "Name: " +
+      (result.name || "-") +
+      "\n" +
       "Mobile/WhatsApp: " +
-      (result.whatsapp || result.mobile || from) + "\n" +
-      "District: " + (result.district || "-") + "\n" +
-      "Panchayath: " + (result.panchayath || "-") + "\n\n" +
-      "വീണ്ടും കർഷക രജിസ്ട്രേഷൻ ചെയ്യേണ്ടതില്ല."
+      (
+        result.whatsapp ||
+        result.mobile ||
+        from
+      ) +
+      "\n" +
+      "District: " +
+      (result.district || "-") +
+      "\n" +
+      "Panchayath: " +
+      (result.panchayath || "-") +
+      "\n" +
+      "Expertise/Service: " +
+      (result.service || "-") +
+      "\n" +
+      "Status: " +
+      (result.status || "-") +
+      "\n\nവീണ്ടും അതേ വിഭാഗത്തിൽ രജിസ്റ്റർ ചെയ്യേണ്ടതില്ല."
     );
   }
 
-  if (result && result.success) {
+  if (
+    result &&
+    result.success
+  ) {
     return (
-      "✅ കർഷക രജിസ്ട്രേഷൻ വിജയകരമായി പൂർത്തിയായി.\n\n" +
-      "Farmer ID: " + (result.farmerId || "-") + "\n" +
-      "Name: " + (result.name || "-") + "\n" +
+      "✅ " +
+      (result.categoryLabel || "Member") +
+      " രജിസ്ട്രേഷൻ വിജയകരമായി സേവ് ചെയ്തു.\n\n" +
+      "ID: " +
+      (result.memberId || "-") +
+      "\n" +
+      "Name: " +
+      (result.name || "-") +
+      "\n" +
       "Mobile/WhatsApp: " +
-      (result.whatsapp || result.mobile || from)
+      (
+        result.whatsapp ||
+        result.mobile ||
+        from
+      ) +
+      "\n" +
+      "Status: " +
+      (result.status || "Pending") +
+      "\n\nപരിശോധനയ്ക്ക് ശേഷം അംഗീകാരം നൽകും."
     );
   }
 
   return (
-    "ക്ഷമിക്കണം, കർഷക രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാൻ കഴിഞ്ഞില്ല. " +
+    "ക്ഷമിക്കണം, രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാൻ കഴിഞ്ഞില്ല. " +
     "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
   );
 }
-  if (s.step === "service") {
-    s.data.service = text;
-    await saveRegistration(s.data);
-    delete sessions[from];
-    return "നന്ദി. രജിസ്ട്രേഷൻ സേവ് ചെയ്തു. പരിശോധനയ്ക്ക് ശേഷം approval നൽകും.";
-  }
-
   return null;
 }
 
