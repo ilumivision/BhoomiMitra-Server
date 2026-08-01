@@ -884,12 +884,40 @@ async function handleRegistration(from, text) {
   }
 
   if (s.step === "crop") {
-    s.data.crop = text;
-    await saveRegistration(s.data);
-    delete sessions[from];
-    return "നന്ദി. കർഷക രജിസ്ട്രേഷൻ BhoomiMitra ഡാറ്റാബേസിൽ സേവ് ചെയ്തു.";
+  s.data.crop = text;
+
+  const result = await saveRegistration(s.data);
+
+  delete sessions[from];
+
+  if (result && result.alreadyRegistered) {
+    return (
+      "✅ നിങ്ങൾ ഇതിനകം BhoomiMitraയിൽ കർഷകനായി രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്.\n\n" +
+      "Farmer ID: " + (result.farmerId || "-") + "\n" +
+      "Name: " + (result.name || "-") + "\n" +
+      "Mobile/WhatsApp: " +
+      (result.whatsapp || result.mobile || from) + "\n" +
+      "District: " + (result.district || "-") + "\n" +
+      "Panchayath: " + (result.panchayath || "-") + "\n\n" +
+      "വീണ്ടും കർഷക രജിസ്ട്രേഷൻ ചെയ്യേണ്ടതില്ല."
+    );
   }
 
+  if (result && result.success) {
+    return (
+      "✅ കർഷക രജിസ്ട്രേഷൻ വിജയകരമായി പൂർത്തിയായി.\n\n" +
+      "Farmer ID: " + (result.farmerId || "-") + "\n" +
+      "Name: " + (result.name || "-") + "\n" +
+      "Mobile/WhatsApp: " +
+      (result.whatsapp || result.mobile || from)
+    );
+  }
+
+  return (
+    "ക്ഷമിക്കണം, കർഷക രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാൻ കഴിഞ്ഞില്ല. " +
+    "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
+  );
+}
   if (s.step === "service") {
     s.data.service = text;
     await saveRegistration(s.data);
