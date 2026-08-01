@@ -2,7 +2,7 @@
 const axios = require("axios");
 const SOILGRIDS_API_URL =
   "https://rest.isric.org/soilgrids/v2.0/properties/query";
-const SOIL_REQUEST_TIMEOUT_MS = 15000;
+const SOIL_REQUEST_TIMEOUT_MS = 60000;
 const soilCache = new Map();
 function validateCoordinates(latitude, longitude) {
   const lat = Number(latitude);
