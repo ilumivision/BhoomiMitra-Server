@@ -1056,7 +1056,220 @@ if (s.step === "crop") {
 }
   return null;
 }
+function normalizeRegistrationHeader(value) {
+  return String(value || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "")
+    .trim()
+    .toLowerCase();
+}
 
+function registrationPhoneKey(value) {
+  const digits =
+    String(value || "")
+      .replace(/\D/g, "");
+
+  if (digits.length > 10) {
+    return digits.slice(-10);
+  }
+
+  return digits;
+}
+
+async function readRegistrationSheet(sheetName) {
+  const rows =
+    await readSheetRows(
+      sheetName,
+      "A:ZZ"
+    );
+
+  if (!rows || rows.length === 0) {
+    return {
+      headers: [],
+      headerMap: {},
+      rows: []
+    };
+  }
+
+  const headers = rows[0] || {};
+  const headerMap = {};
+
+  headers.forEach(function (header, index) {
+    const key =
+      normalizeRegistrationHeader(
+        header
+      );
+
+    if (key) {
+      headerMap[key] = index;
+    }
+  });
+
+  return {
+    headers,
+    headerMap,
+    rows: rows.slice(1)
+  };
+}
+
+function findRegistrationColumn(
+  headerMap,
+  possibleHeaders
+) {
+  for (
+    const possibleHeader
+    of possibleHeaders
+  ) {
+    const key =
+      normalizeRegistrationHeader(
+        possibleHeader
+      );
+
+    if (
+      Object.prototype
+        .hasOwnProperty
+        .call(headerMap, key)
+    ) {
+      return headerMap[key];
+    }
+  }
+
+  return -1;
+}
+
+function getRegistrationValue(
+  row,
+  headerMap,
+  possibleHeaders
+) {
+  const column =
+    findRegistrationColumn(
+      headerMap,
+      possibleHeaders
+    );
+
+  if (column < 0) {
+    return "";
+  }
+
+  return row[column] || "";
+}
+
+async function appendRegistrationRecord(
+  sheetName,
+  record
+) {
+  const sheetData =
+    await readRegistrationSheet(
+      sheetName
+    );
+
+  if (
+    !sheetData.headers ||
+    sheetData.headers.length === 0
+  ) {
+    throw new Error(
+      "Header row not found in sheet: " +
+      sheetName
+    );
+  }
+
+  const row =
+    new Array(
+      sheetData.headers.length
+    ).fill("");
+
+  Object.keys(record).forEach(
+    function (recordKey) {
+      const possibleHeaders =
+        record[recordKey].headers;
+
+      const value =
+        record[recordKey].value;
+
+      const column =
+        findRegistrationColumn(
+          sheetData.headerMap,
+          possibleHeaders
+        );
+
+      if (column >= 0) {
+        row[column] =
+          value == null
+            ? ""
+            : value;
+      }
+    }
+  );
+
+  const escapedSheetName =
+    String(sheetName || "")
+      .replace(/'/g, "''");
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+
+    range:
+      "'" +
+      escapedSheetName +
+      "'!A:ZZ",
+
+    valueInputOption:
+      "USER_ENTERED",
+
+    insertDataOption:
+      "INSERT_ROWS",
+
+    requestBody: {
+      values: [row]
+    }
+  });
+
+  return row;
+}
+
+function findRegistrationByPhone(
+  sheetData,
+  incomingPhone,
+  mobileHeaders,
+  whatsappHeaders
+) {
+  if (!incomingPhone) {
+    return null;
+  }
+
+  return (
+    sheetData.rows.find(
+      function (row) {
+        const savedMobile =
+          registrationPhoneKey(
+            getRegistrationValue(
+              row,
+              sheetData.headerMap,
+              mobileHeaders
+            )
+          );
+
+        const savedWhatsApp =
+          registrationPhoneKey(
+            getRegistrationValue(
+              row,
+              sheetData.headerMap,
+              whatsappHeaders
+            )
+          );
+
+        return (
+          savedMobile ===
+            incomingPhone ||
+          savedWhatsApp ===
+            incomingPhone
+        );
+      }
+    ) || null
+  );
+}
 function detectCategory(text) {
   const t = String(text || "").toLowerCase();
 
