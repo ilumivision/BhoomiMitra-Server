@@ -40,16 +40,17 @@ router.get("/soil-test", async function (req, res) {
     "0-5cm"
   );
 
-  return res.json({
-    success: true,
-    source: result.source,
-    retrievedAt: result.retrievedAt,
-    latitude: Number(latitude),
-    longitude: Number(longitude),
-    profile,
-    formattedText:
-      formatEstimatedSoilProfile(profile)
-  });
+ return res.json({
+  success: true,
+  source: result.source,
+  retrievedAt: result.retrievedAt,
+  latitude: Number(latitude),
+  longitude: Number(longitude),
+  rawData: result.data,
+  profile,
+  formattedText:
+    formatEstimatedSoilProfile(profile)
+});
 });
 
 module.exports = router;
