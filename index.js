@@ -82,6 +82,7 @@ const expertCaseManager = createExpertCaseManager({
   sendWhatsAppMessage
 });
 const sessions = {};
+const pendingServiceSearches = {};
 const processedMessages = new Set();
 
 let sheetMetadataCache = null;
@@ -379,6 +380,184 @@ if (regReply) {
   ).catch(function (error) {
     console.error(
       "Background registration logging error:",
+      error &&
+      error.message
+        ? error.message
+        : error
+    );
+  });
+
+  return;
+}    
+// =====================================================
+// VERIFIED SERVICE / WORKER / EXPERT SEARCH
+// =====================================================
+
+/*
+ * Continue a service search when BhoomiMitra
+ * previously asked the farmer for location.
+ */
+if (pendingServiceSearches[from]) {
+  const pending =
+    pendingServiceSearches[from];
+
+  const districtFromReply =
+    detectKeralaDistrict(userText) || "";
+
+  const locationQuery = {
+    service: pending.service,
+    district:
+      districtFromReply ||
+      pending.district ||
+      "",
+    localBody:
+      String(userText || "").trim()
+  };
+
+  const serviceResults =
+    await serviceFinder.searchServices(
+      locationQuery
+    );
+
+  const serviceReply =
+    serviceFinder.formatServiceResults(
+      serviceResults,
+      locationQuery
+    );
+
+  delete pendingServiceSearches[from];
+
+  await sendWhatsAppMessage(
+    from,
+    serviceReply
+  );
+
+  logAI(
+    from,
+    userText,
+    serviceReply,
+    "service_search"
+  ).catch(function (error) {
+    console.error(
+      "Service search logging error:",
+      error &&
+      error.message
+        ? error.message
+        : error
+    );
+  });
+
+  return;
+}
+
+/*
+ * Detect a new request such as:
+ * Coconut climber
+ * Need tractor service
+ * Find a service provider
+ */
+if (isServiceRequest(userText)) {
+  const requestedService =
+    resolveRequestedService(
+      userText
+    );
+
+  /*
+   * First use the registered farmer's
+   * saved district and local body.
+   */
+  const farmerProfile =
+    await findRegistrationByPhone(
+      "farmer",
+      from
+    );
+
+  const districtFromMessage =
+    detectKeralaDistrict(
+      userText
+    ) || "";
+
+  const serviceQuery = {
+    service:
+      requestedService,
+
+    district:
+      districtFromMessage ||
+      (
+        farmerProfile &&
+        farmerProfile.district
+          ? farmerProfile.district
+          : ""
+      ),
+
+    localBody:
+      farmerProfile &&
+      farmerProfile.panchayath
+        ? farmerProfile.panchayath
+        : ""
+  };
+
+  /*
+   * Ask location only when it cannot
+   * be obtained from the farmer profile
+   * or the current message.
+   */
+  if (
+    !serviceQuery.district &&
+    !serviceQuery.localBody
+  ) {
+    pendingServiceSearches[from] = {
+      service:
+        requestedService,
+      district: ""
+    };
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "🔎 " +
+          requestedService +
+          " സേവനം തിരയാം.",
+        "",
+        "നിങ്ങളുടെ District + Local Body അയയ്ക്കുക.",
+        "",
+        "Local Body എന്നത്:",
+        "• Grama Panchayat",
+        "• Municipality",
+        "• Municipal Corporation",
+        "",
+        "ഉദാഹരണം:",
+        "Pathanamthitta, Thiruvalla Municipality"
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  const serviceResults =
+    await serviceFinder.searchServices(
+      serviceQuery
+    );
+
+  const serviceReply =
+    serviceFinder.formatServiceResults(
+      serviceResults,
+      serviceQuery
+    );
+
+  await sendWhatsAppMessage(
+    from,
+    serviceReply
+  );
+
+  logAI(
+    from,
+    userText,
+    serviceReply,
+    "service_search"
+  ).catch(function (error) {
+    console.error(
+      "Service search logging error:",
       error &&
       error.message
         ? error.message
