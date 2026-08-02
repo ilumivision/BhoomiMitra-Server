@@ -559,7 +559,61 @@ if (isMenuCommand(userText)) {
 
   return;
 }
+const activeFarmMenu =
+  userMenus[from];
 
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.currentService ===
+    "farm" &&
+  /^[1-9]$/.test(
+    String(userText || "").trim()
+  )
+) {
+  const farmMenuChoice =
+    String(userText || "").trim();
+
+  if (farmMenuChoice === "1") {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "🌱 Register a New Land Parcel",
+        "",
+        "Land registration will now begin.",
+        "",
+        "Please enter a short name for this land.",
+        "",
+        "Examples:",
+        "Home Farm",
+        "Elanthoor Farm",
+        "Rambutan Plot"
+      ].join("\n")
+    );
+
+    activeFarmMenu.step =
+      "land_registration_name";
+
+    activeFarmMenu.landRegistration = {};
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    return;
+  }
+
+  await sendWhatsAppMessage(
+    from,
+    "This Farm & Land Management option will be connected shortly."
+  );
+
+  return;
+}
 if (
   isPureMenuSelection(
     userText
