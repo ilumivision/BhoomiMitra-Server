@@ -730,6 +730,59 @@ if (
   !isMenuSessionExpired(
     activeFarmMenu
   ) &&
+  activeFarmMenu.step ===
+    "land_registration_local_body"
+) {
+  const localBody =
+    String(userText || "").trim();
+
+  if (localBody.length < 2) {
+    await sendWhatsAppMessage(
+      from,
+      "Please enter a valid local body name."
+    );
+
+    return;
+  }
+
+  activeFarmMenu.landRegistration =
+    activeFarmMenu.landRegistration || {};
+
+  activeFarmMenu.landRegistration.localBody =
+    localBody;
+
+  activeFarmMenu.step =
+    "land_registration_area";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ Local body saved: " + localBody,
+      "",
+      "Please enter the approximate area of this land.",
+      "",
+      "Enter only the number.",
+      "",
+      "Examples:",
+      "50",
+      "1.5",
+      "3"
+    ].join("\n")
+  );
+
+  return;
+}    
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
   activeFarmMenu.currentService ===
     "farm" &&
   /^[1-9]$/.test(
