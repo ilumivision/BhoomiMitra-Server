@@ -435,10 +435,15 @@ if (pendingLanguageSelections[from]) {
     return;
   }
 
-  userLanguagePreferences[from] =
-    selectedLanguage;
+ userLanguagePreferences[from] =
+  selectedLanguage;
 
-  delete pendingLanguageSelections[from];
+await updateFarmerPreferredLanguage(
+  from,
+  selectedLanguage
+);
+
+delete pendingLanguageSelections[from];
 
   let languageConfirmation = "";
 
@@ -466,20 +471,38 @@ if (pendingLanguageSelections[from]) {
 
   return;
 }
-
 if (!userLanguagePreferences[from]) {
-  pendingLanguageSelections[from] = true;
+  const existingFarmerForLanguage =
+    await findRegistrationByPhone(
+      "farmer",
+      from
+    );
 
-  await sendWhatsAppMessage(
-    from,
-    getLanguageSelectionMessage(
-      "Bilingual"
-    )
-  );
+  const savedPreferredLanguage =
+    existingFarmerForLanguage &&
+    existingFarmerForLanguage.preferredLanguage
+      ? normalizePreferredLanguage(
+          existingFarmerForLanguage
+            .preferredLanguage
+        )
+      : "";
 
-  return;
+  if (savedPreferredLanguage) {
+    userLanguagePreferences[from] =
+      savedPreferredLanguage;
+  } else {
+    pendingLanguageSelections[from] = true;
+
+    await sendWhatsAppMessage(
+      from,
+      getLanguageSelectionMessage(
+        "Bilingual"
+      )
+    );
+
+    return;
+  }
 }
-
 const regReply =
   await handleRegistration(
     from,
@@ -1490,16 +1513,21 @@ function getRegistrationConfig(category) {
         "Panchayat"
       ],
 
-      serviceHeaders: [
-        "Main Crop",
-        "Main_Crop",
-        "Crop"
-      ],
+serviceHeaders: [
+  "Main Crop",
+  "Main_Crop",
+  "Crop"
+],
 
-      statusHeaders: [
-        "Status",
-        "Verification_Status"
-      ]
+languageHeaders: [
+  "Preferred_Language",
+  "Preferred Language"
+],
+
+statusHeaders: [
+  "Status",
+  "Verification_Status"
+]
     };
   }
 
@@ -1840,7 +1868,12 @@ async function findRegistrationByPhone(
         headerMap,
         config.serviceHeaders
       ),
-
+preferredLanguage:
+  getRegistrationValue(
+    matchedRow,
+    headerMap,
+    config.languageHeaders || []
+  ),
     status:
       getRegistrationValue(
         matchedRow,
@@ -1849,7 +1882,158 @@ async function findRegistrationByPhone(
       ) || "Pending"
   };
 }
+async function updateFarmerPreferredLanguage(
+  phone,
+  preferredLanguage
+) {
+  try {
+    const sheetData =
+      await loadRegistrationSheet(
+        "farmer"
+      );
 
+    if (!sheetData) {
+      return false;
+    }
+
+    const {
+      rows,
+      headers,
+      headerMap,
+      config
+    } = sheetData;
+
+    const incomingPhone =
+      registrationPhoneKey(phone);
+
+    const rowIndex =
+      rows.findIndex(function (row) {
+        const savedMobile =
+          registrationPhoneKey(
+            getRegistrationValue(
+              row,
+              headerMap,
+              config.mobileHeaders
+            )
+          );
+
+        const savedWhatsApp =
+          registrationPhoneKey(
+            getRegistrationValue(
+              row,
+              headerMap,
+              config.whatsappHeaders
+            )
+          );
+
+        return (
+          savedMobile === incomingPhone ||
+          savedWhatsApp === incomingPhone
+        );
+      });
+
+    if (rowIndex === -1) {
+      return false;
+    }
+
+    const languageHeaders =
+      config.languageHeaders || [
+        "Preferred_Language",
+        "Preferred Language"
+      ];
+
+    let languageColumnIndex = -1;
+
+    languageHeaders.some(function (header) {
+      const normalizedHeader =
+        normalizeHeader(header);
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          headerMap,
+          normalizedHeader
+        )
+      ) {
+        languageColumnIndex =
+          headerMap[normalizedHeader];
+
+        return true;
+      }
+
+      return false;
+    });
+
+    if (languageColumnIndex === -1) {
+      console.error(
+        "Preferred language column not found."
+      );
+
+      return false;
+    }
+
+    function columnNumberToLetter(
+      columnNumber
+    ) {
+      let number = columnNumber + 1;
+      let letters = "";
+
+      while (number > 0) {
+        const remainder =
+          (number - 1) % 26;
+
+        letters =
+          String.fromCharCode(
+            65 + remainder
+          ) + letters;
+
+        number =
+          Math.floor(
+            (number - 1) / 26
+          );
+      }
+
+      return letters;
+    }
+
+    const sheetRowNumber =
+      rowIndex + 2;
+
+    const columnLetter =
+      columnNumberToLetter(
+        languageColumnIndex
+      );
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+
+      range:
+        config.sheetName +
+        "!" +
+        columnLetter +
+        sheetRowNumber,
+
+      valueInputOption: "RAW",
+
+      requestBody: {
+        values: [
+          [preferredLanguage]
+        ]
+      }
+    });
+
+    return true;
+  } catch (error) {
+    console.error(
+      "Preferred language update error:",
+      error && error.message
+        ? error.message
+        : error
+    );
+
+    return false;
+  }
+}
 function formatExistingRegistration(
   result,
   fallbackPhone
