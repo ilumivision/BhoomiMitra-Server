@@ -14,6 +14,16 @@ const {
   resolveRequestedService,
   isServiceRequest
 } = require("./utils/services");
+const {
+  isMenuCommand,
+  getWelcomeMessage,
+  parseServiceSelections,
+  isPureMenuSelection,
+  createMenuSession,
+  isMenuSessionExpired,
+  startSelectedServices,
+  formatSelectionResponse
+} = require("./utils/menu");
 
 const caseManager = require("./utils/caseManager");
 const soilTestRoute = require("./soilTestRoute");
@@ -82,6 +92,7 @@ const expertCaseManager = createExpertCaseManager({
   sendWhatsAppMessage
 });
 const sessions = {};
+const userMenus = {};
 const pendingServiceSearches = {};
 const processedMessages = new Set();
 
@@ -389,6 +400,90 @@ if (regReply) {
 
   return;
 }    
+ // =====================================================
+// WELCOME AND SERVICE MENU
+// =====================================================
+
+const existingMenuSession =
+  userMenus[from];
+
+if (
+  existingMenuSession &&
+  isMenuSessionExpired(
+    existingMenuSession
+  )
+) {
+  delete userMenus[from];
+}
+
+if (isMenuCommand(userText)) {
+  userMenus[from] =
+    createMenuSession();
+
+  await sendWhatsAppMessage(
+    from,
+    getWelcomeMessage()
+  );
+
+  return;
+}
+
+if (
+  isPureMenuSelection(
+    userText
+  )
+) {
+  const selections =
+    parseServiceSelections(
+      userText
+    );
+
+  if (
+    selections.length === 0
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      getWelcomeMessage()
+    );
+
+    return;
+  }
+
+  let menuSession =
+    userMenus[from];
+
+  if (
+    !menuSession ||
+    isMenuSessionExpired(
+      menuSession
+    )
+  ) {
+    menuSession =
+      createMenuSession();
+  }
+
+  menuSession =
+    startSelectedServices(
+      menuSession,
+      selections
+    );
+
+  userMenus[from] =
+    menuSession;
+
+  const menuReply =
+    formatSelectionResponse(
+      selections,
+      menuSession
+    );
+
+  await sendWhatsAppMessage(
+    from,
+    menuReply
+  );
+
+  return;
+}   
 // =====================================================
 // VERIFIED SERVICE / WORKER / EXPERT SEARCH
 // =====================================================
