@@ -66,7 +66,7 @@ const SERVICE_OPTIONS = {
   "9": {
     key: "farm",
     label:
-      "Register or update farm and land details"
+     "Manage farm/land, activities and advisory history"
   }
 };
 
@@ -121,7 +121,7 @@ function getWelcomeMessage() {
     "6️⃣ Request agricultural expert advice",
     "7️⃣ Find skilled farm workers",
     "8️⃣ Find service providers or machinery operators",
-    "9️⃣ Register or update farm/land details",
+    "9️⃣ Manage farm/land, activities and advisory history",
     "",
     "Reply with one number or multiple numbers.",
     "",
@@ -325,17 +325,25 @@ function getServicePrompt(serviceKey) {
     ].join("\n");
   }
 
-  if (serviceKey === "farm") {
-    return [
-      "🗺️ Farm and land registration will support:",
-      "• Multiple land parcels",
-      "• Panchayat, Municipality or Corporation",
-      "• Main crop and intercrops",
-      "• Separate soil, weather and crop history",
-      "",
-      "Please send REGISTER FARM to begin."
-    ].join("\n");
-  }
+if (serviceKey === "farm") {
+  return [
+    "🌾 Farm & Land Management",
+    "",
+    "Please select an option:",
+    "",
+    "1️⃣ Register a new land parcel",
+    "2️⃣ View my registered lands",
+    "3️⃣ Update land details",
+    "4️⃣ Record a farm activity",
+    "5️⃣ View farm activity history",
+    "6️⃣ View BhoomiMitra advisory history",
+    "7️⃣ View land summary",
+    "8️⃣ Add or update soil-test details",
+    "9️⃣ View satellite and GPS observations",
+    "",
+    "Reply with one number."
+  ].join("\n");
+}
 
   return getWelcomeMessage();
 }
