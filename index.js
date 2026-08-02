@@ -1173,8 +1173,11 @@ if (
     activeFarmMenu
   ) &&
 
- activeFarmMenu.step ===
-  "land_registration_confirm" 
+ if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
   activeFarmMenu.currentService ===
     "farm" &&
   /^[1-9]$/.test(
