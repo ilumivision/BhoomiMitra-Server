@@ -909,12 +909,7 @@ if (
     activeFarmMenu;
 
   return;
-}   
-if (
-  activeFarmMenu &&
-  !isMenuSessionExpired(
-    activeFarmMenu
-  ) &&
+}
   if (
   activeFarmMenu &&
   !isMenuSessionExpired(
@@ -984,7 +979,14 @@ if (
   );
 
   return;
-}
+}  
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+
+  
   activeFarmMenu.currentService ===
     "farm" &&
   /^[1-9]$/.test(
