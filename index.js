@@ -610,6 +610,58 @@ if (
 
   return;
 }
+ if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_registration_district"
+) {
+  const district =
+    String(userText || "").trim();
+
+  if (district.length < 3) {
+    await sendWhatsAppMessage(
+      from,
+      "Please enter a valid district name."
+    );
+
+    return;
+  }
+
+  activeFarmMenu.landRegistration =
+    activeFarmMenu.landRegistration || {};
+
+  activeFarmMenu.landRegistration.district =
+    district;
+
+  activeFarmMenu.step =
+    "land_registration_local_body_type";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ District saved: " + district,
+      "",
+      "Please select the local body type:",
+      "",
+      "1️⃣ Grama Panchayat",
+      "2️⃣ Municipality",
+      "3️⃣ Municipal Corporation",
+      "",
+      "Reply with 1, 2 or 3."
+    ].join("\n")
+  );
+
+  return;
+}   
 if (
   activeFarmMenu &&
   !isMenuSessionExpired(
