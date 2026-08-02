@@ -561,7 +561,55 @@ if (isMenuCommand(userText)) {
 }
 const activeFarmMenu =
   userMenus[from];
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_registration_name"
+) {
+  const farmName =
+    String(userText || "").trim();
 
+  if (farmName.length < 2) {
+    await sendWhatsAppMessage(
+      from,
+      "Please enter a valid short name for the land."
+    );
+
+    return;
+  }
+
+  activeFarmMenu.landRegistration =
+    activeFarmMenu.landRegistration || {};
+
+  activeFarmMenu.landRegistration.farmName =
+    farmName;
+
+  activeFarmMenu.step =
+    "land_registration_district";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ Land name saved: " + farmName,
+      "",
+      "Please enter the district where this land is located.",
+      "",
+      "Example:",
+      "Pathanamthitta"
+    ].join("\n")
+  );
+
+  return;
+}
 if (
   activeFarmMenu &&
   !isMenuSessionExpired(
