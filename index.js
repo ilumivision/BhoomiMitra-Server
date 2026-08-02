@@ -915,6 +915,76 @@ if (
   !isMenuSessionExpired(
     activeFarmMenu
   ) &&
+  if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_registration_area_unit"
+) {
+  const unitChoice =
+    String(userText || "").trim();
+
+  const areaUnits = {
+    "1": "Cent",
+    "2": "Acre",
+    "3": "Hectare",
+    "4": "Square metre",
+    "5": "Square feet"
+  };
+
+  const areaUnit =
+    areaUnits[unitChoice];
+
+  if (!areaUnit) {
+    await sendWhatsAppMessage(
+      from,
+      "Please reply with 1, 2, 3, 4 or 5."
+    );
+
+    return;
+  }
+
+  activeFarmMenu.landRegistration =
+    activeFarmMenu.landRegistration || {};
+
+  activeFarmMenu.landRegistration.areaUnit =
+    areaUnit;
+
+  activeFarmMenu.step =
+    "land_registration_main_crop";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  const savedArea =
+    activeFarmMenu.landRegistration.area ||
+    "";
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ Area saved: " +
+        savedArea +
+        " " +
+        areaUnit,
+      "",
+      "Please enter the main crop grown or planned in this land.",
+      "",
+      "Examples:",
+      "Rubber",
+      "Rambutan",
+      "Banana",
+      "Mixed crops"
+    ].join("\n")
+  );
+
+  return;
+}
   activeFarmMenu.currentService ===
     "farm" &&
   /^[1-9]$/.test(
