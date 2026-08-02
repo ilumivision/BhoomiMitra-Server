@@ -1167,11 +1167,6 @@ if (
 
   return;
 }  
-if (
-  activeFarmMenu &&
-  !isMenuSessionExpired(
-    activeFarmMenu
-  ) &&
 
  if (
   activeFarmMenu &&
