@@ -8,6 +8,13 @@ const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
 const soilModule = require("./utils/soil");
+
+const {
+  createServiceFinder,
+  resolveRequestedService,
+  isServiceRequest
+} = require("./utils/services");
+
 const caseManager = require("./utils/caseManager");
 const soilTestRoute = require("./soilTestRoute");
 const {
@@ -56,6 +63,19 @@ const googleAuth = new google.auth.JWT({
 });
 
 const sheets = google.sheets({ version: "v4", auth: googleAuth });
+const serviceFinder = createServiceFinder({
+  readSheetRows,
+  sheets: {
+    serviceProviderRegistration:
+      "Workforce Providers",
+
+    skilledWorkerRegistration:
+      "Skilled Workers",
+
+    expertRegistration:
+      "Expert_Directory"
+  }
+});
 const expertCaseManager = createExpertCaseManager({
   appendSafe,
   readSheetRows,
