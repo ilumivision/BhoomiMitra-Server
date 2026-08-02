@@ -380,7 +380,7 @@ return;
 /*
  * Registration must be processed before
  * market, weather, case handling or AI.
- */
+ */    
 const regReply =
   await handleRegistration(
     from,
