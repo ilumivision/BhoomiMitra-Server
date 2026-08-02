@@ -1051,12 +1051,43 @@ function createServiceFinder(options) {
       )
     ]);
 
-    const combined = [
-      ...providerRecords,
-      ...workerRecords,
-      ...expertRecords
-    ];
+    const requestedCategory =
+  normalizeText(
+    query.category || ""
+  );
 
+let combined = [];
+
+if (
+  requestedCategory ===
+    "skilled worker" ||
+  requestedCategory ===
+    "worker"
+) {
+  combined = workerRecords;
+
+} else if (
+  requestedCategory ===
+    "service provider" ||
+  requestedCategory ===
+    "provider" ||
+  requestedCategory ===
+    "machinery"
+) {
+  combined = providerRecords;
+
+} else if (
+  requestedCategory ===
+    "expert"
+) {
+  combined = expertRecords;
+
+} else {
+    combined = [
+    ...workerRecords,
+    ...providerRecords
+  ];
+}
     const uniqueRecords =
       new Map();
 
