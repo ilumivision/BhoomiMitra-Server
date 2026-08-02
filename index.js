@@ -979,7 +979,58 @@ if (
   );
 
   return;
-}  
+} 
+ if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_registration_main_crop"
+) {
+  const cropText =
+    String(userText || "").trim();
+
+  if (cropText.length < 2) {
+    await sendWhatsAppMessage(
+      from,
+      "Please enter the main crop grown or planned in this land."
+    );
+
+    return;
+  }
+
+  activeFarmMenu.landRegistration =
+    activeFarmMenu.landRegistration || {};
+
+  activeFarmMenu.landRegistration.mainCrop =
+    cropText;
+
+  activeFarmMenu.step =
+    "land_registration_gps";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ Crop details saved: " +
+        cropText,
+      "",
+      "Please share the WhatsApp location of this land.",
+      "",
+      "Open Attach → Location → Send current location.",
+      "",
+      "You may also type SKIP to add GPS later."
+    ].join("\n")
+  );
+
+  return;
+}   
 if (
   activeFarmMenu &&
   !isMenuSessionExpired(
