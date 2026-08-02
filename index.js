@@ -618,11 +618,10 @@ if (isServiceRequest(userText)) {
   };
 
   const serviceReplyLanguage =
-    detectLanguage(
-      userText,
-      savedPreferredLanguage ||
-        "Malayalam"
-    );
+  detectLanguage(
+    userText,
+    "Malayalam"
+  );
 
   let locationRequestMessage = "";
 
