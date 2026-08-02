@@ -777,7 +777,139 @@ if (
   );
 
   return;
-}    
+}  
+ if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_registration_area"
+) {
+  const areaText =
+    String(userText || "").trim();
+
+  const areaMatch =
+    areaText.match(
+      /^(\d+(?:\.\d+)?)\s*(acre|acres|cent|cents|hectare|hectares|sqm|square metre|square metres|sqft|square feet)?$/i
+    );
+
+  if (!areaMatch) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "Please enter a valid land area.",
+        "",
+        "Examples:",
+        "3",
+        "3 acre",
+        "50 cent",
+        "1.5 hectare"
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  const areaValue =
+    areaMatch[1];
+
+  const enteredUnit =
+    String(areaMatch[2] || "")
+      .trim()
+      .toLowerCase();
+
+  let areaUnit = "";
+
+  if (
+    enteredUnit === "acre" ||
+    enteredUnit === "acres"
+  ) {
+    areaUnit = "Acre";
+  } else if (
+    enteredUnit === "cent" ||
+    enteredUnit === "cents"
+  ) {
+    areaUnit = "Cent";
+  } else if (
+    enteredUnit === "hectare" ||
+    enteredUnit === "hectares"
+  ) {
+    areaUnit = "Hectare";
+  } else if (
+    enteredUnit === "sqm" ||
+    enteredUnit === "square metre" ||
+    enteredUnit === "square metres"
+  ) {
+    areaUnit = "Square metre";
+  } else if (
+    enteredUnit === "sqft" ||
+    enteredUnit === "square feet"
+  ) {
+    areaUnit = "Square feet";
+  }
+
+  activeFarmMenu.landRegistration =
+    activeFarmMenu.landRegistration || {};
+
+  activeFarmMenu.landRegistration.area =
+    areaValue;
+
+  if (areaUnit) {
+    activeFarmMenu.landRegistration.areaUnit =
+      areaUnit;
+
+    activeFarmMenu.step =
+      "land_registration_main_crop";
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "✅ Land area saved: " +
+          areaValue +
+          " " +
+          areaUnit,
+        "",
+        "Please enter the main crop grown or planned in this land.",
+        "",
+        "Examples:",
+        "Rubber",
+        "Rambutan",
+        "Banana",
+        "Mixed crops"
+      ].join("\n")
+    );
+  } else {
+    activeFarmMenu.step =
+      "land_registration_area_unit";
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "✅ Area value saved: " +
+          areaValue,
+        "",
+        "Please select the area unit:",
+        "",
+        "1️⃣ Cent",
+        "2️⃣ Acre",
+        "3️⃣ Hectare",
+        "4️⃣ Square metre",
+        "5️⃣ Square feet",
+        "",
+        "Reply with 1, 2, 3, 4 or 5."
+      ].join("\n")
+    );
+  }
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  return;
+}   
 if (
   activeFarmMenu &&
   !isMenuSessionExpired(
