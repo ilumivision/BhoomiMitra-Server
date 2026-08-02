@@ -25,7 +25,16 @@ const {
   formatSelectionResponse
 } = require("./utils/menu");
 
+const {
+  detectLanguage,
+  getLanguageInstruction,
+  parseLanguageSelection,
+  getLanguageSelectionMessage,
+  normalizePreferredLanguage
+} = require("./utils/language");
+
 const caseManager = require("./utils/caseManager");
+ 
 const soilTestRoute = require("./soilTestRoute");
 const {
   createExpertCaseManager
@@ -93,6 +102,7 @@ const expertCaseManager = createExpertCaseManager({
 });
 const sessions = {};
 const userMenus = {};
+const pendingLanguageSelections = {};
 const pendingServiceSearches = {};
 const processedMessages = new Set();
 
