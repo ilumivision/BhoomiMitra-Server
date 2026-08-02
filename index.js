@@ -359,7 +359,70 @@ return;
   const longitude =
     message.location &&
     message.location.longitude;
+const activeFarmMenu =
+  userMenus[from];
 
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_registration_gps"
+) {
+  activeFarmMenu.landRegistration =
+    activeFarmMenu.landRegistration || {};
+
+  activeFarmMenu.landRegistration.latitude =
+    latitude;
+
+  activeFarmMenu.landRegistration.longitude =
+    longitude;
+
+  activeFarmMenu.step =
+    "land_registration_confirm";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  const land =
+    activeFarmMenu.landRegistration;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ GPS location saved.",
+      "",
+      "Please confirm the land details:",
+      "",
+      "Land name: " +
+        (land.farmName || "-"),
+      "District: " +
+        (land.district || "-"),
+      "Local body: " +
+        (land.localBody || "-") +
+        " " +
+        (land.localBodyType || ""),
+      "Area: " +
+        (land.area || "-") +
+        " " +
+        (land.areaUnit || ""),
+      "Crop details: " +
+        (land.mainCrop || "-"),
+      "",
+      "1️⃣ Confirm and register",
+      "2️⃣ Edit details",
+      "3️⃣ Cancel",
+      "",
+      "Reply with 1, 2 or 3."
+    ].join("\n")
+  );
+
+  return;
+}
   const soilResult =
     await soilModule({
       latitude,
