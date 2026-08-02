@@ -610,6 +610,69 @@ if (
 
   return;
 }
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_registration_local_body_type"
+) {
+  const localBodyTypeChoice =
+    String(userText || "").trim();
+
+  const localBodyTypes = {
+    "1": "Grama Panchayat",
+    "2": "Municipality",
+    "3": "Municipal Corporation"
+  };
+
+  const localBodyType =
+    localBodyTypes[
+      localBodyTypeChoice
+    ];
+
+  if (!localBodyType) {
+    await sendWhatsAppMessage(
+      from,
+      "Please reply with 1, 2 or 3."
+    );
+
+    return;
+  }
+
+  activeFarmMenu.landRegistration =
+    activeFarmMenu.landRegistration || {};
+
+  activeFarmMenu.landRegistration.localBodyType =
+    localBodyType;
+
+  activeFarmMenu.step =
+    "land_registration_local_body";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ Local body type saved: " +
+        localBodyType,
+      "",
+      "Please enter the name of the " +
+        localBodyType +
+        ".",
+      "",
+      "Example:",
+      "Chenneerkara"
+    ].join("\n")
+  );
+
+  return;
+}    
  if (
   activeFarmMenu &&
   !isMenuSessionExpired(
