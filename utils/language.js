@@ -8,11 +8,11 @@
  * 2. English
  * 3. Manglish — Malayalam typed using English letters
  *
- * Reply behaviour:
- * - Malayalam message → Malayalam reply
- * - Manglish message → Malayalam reply
- * - Clear English message → English reply
- * - Unclear message → use saved preferred language
+ * Behaviour:
+ * - Malayalam input → Malayalam reply
+ * - Manglish input → Malayalam reply
+ * - Clear English input → English reply
+ * - Unclear input, numbers or symbols → saved preference
  *
  * Cost: Zero
  * No AI call is used for language detection.
@@ -25,43 +25,92 @@ const SUPPORTED_LANGUAGES = [
 ];
 
 /*
- * Common Malayalam words written in English letters.
+ * Strong Manglish indicators.
  *
- * Keep adding common farmer expressions here later
- * without changing the rest of the code.
+ * These are mainly Malayalam grammar words,
+ * conversational expressions and transliterated
+ * agricultural terms.
+ *
+ * Avoid ordinary English words such as:
+ * banana, coconut, pepper, worker, expert,
+ * tractor, service, operator, etc.
+ *
+ * Otherwise an English message such as
+ * "Need coconut climber" may be wrongly
+ * classified as Manglish.
  */
 const MANGLISH_WORDS = [
+  // Questions and conversation
   "enthu",
   "entha",
   "enthanu",
+  "enthina",
   "engane",
   "evide",
+  "evido",
   "eppo",
   "epol",
+  "eppol",
+  "aaru",
+  "ethra",
+  "ethu",
+
+  // Requests and responses
   "venam",
   "venda",
   "venamo",
+  "mathi",
+  "kittumo",
+  "kittilla",
+  "undo",
+  "illa",
+  "aanu",
+  "anu",
+  "alle",
+  "allallo",
+  "aakumo",
+  "patumo",
+  "pattumo",
+
+  // Pronouns and common words
   "njan",
   "njangal",
   "ningal",
   "ningalkku",
+  "ningalk",
   "ente",
+  "enikku",
+  "enik",
   "nammal",
+  "namukku",
   "ithu",
+  "ithil",
   "athu",
-  "aanu",
-  "alle",
-  "undo",
-  "illa",
+  "athil",
+  "ivide",
+  "avide",
+
+  // Actions
   "kodukkanam",
   "kodukkamo",
+  "koduthu",
+  "idamo",
+  "idanam",
   "cheyyanam",
   "cheyyamo",
+  "cheyyuka",
   "parayamo",
   "parayu",
   "ariyanam",
-  "kittumo",
+  "nokkanam",
+  "nokku",
+  "varumo",
+  "varunnu",
+  "ayi",
+  "aayi",
+  "akunnu",
 
+  // Agriculture-related Manglish
   "krishi",
   "karshakan",
   "karshika",
@@ -81,9 +130,9 @@ const MANGLISH_WORDS = [
   "rogam",
   "keedam",
   "marunnu",
-  "spray",
   "ila",
   "kay",
+  "kaay",
   "poovu",
   "chedi",
   "maram",
@@ -91,27 +140,19 @@ const MANGLISH_WORDS = [
   "thandu",
   "kuru",
 
+  // Crop names commonly written in Manglish
   "vazha",
   "vazhaykku",
   "vazhayil",
-  "banana",
   "thengu",
   "thenginu",
   "thengil",
   "theng",
-  "coconut",
   "kurumulak",
-  "pepper",
   "nellu",
-  "paddy",
-  "ari",
-  "rambutan",
   "chakka",
-  "jackfruit",
   "manga",
-  "mango",
   "kappa",
-  "cassava",
   "chembu",
   "chena",
   "payar",
@@ -122,12 +163,9 @@ const MANGLISH_WORDS = [
   "kavungu",
   "adakka",
   "jaathi",
-  "nutmeg",
-  "cocoa",
   "kappi",
-  "coffee",
-  "rubber",
 
+  // Livestock
   "pashu",
   "aadu",
   "kozhi",
@@ -135,19 +173,17 @@ const MANGLISH_WORDS = [
   "paal",
   "motta",
 
+  // Labour-related Manglish
   "thozhilali",
   "panikkaran",
-  "climber",
-  "operator",
-  "tractor",
-  "tiller",
-  "nursery",
-  "expert"
+  "kayattakkaran",
+  "thengu kayaran",
+  "thengu kayattam"
 ];
 
 /*
- * English words that strongly indicate a genuine
- * English sentence rather than Manglish.
+ * Words that strongly indicate a genuine
+ * English sentence.
  */
 const ENGLISH_SIGNAL_WORDS = [
   "what",
@@ -161,11 +197,14 @@ const ENGLISH_SIGNAL_WORDS = [
   "could",
   "would",
   "can",
+  "may",
   "please",
   "need",
   "want",
+  "give",
   "apply",
   "control",
+  "treat",
   "treatment",
   "fertilizer",
   "fertiliser",
@@ -179,7 +218,22 @@ const ENGLISH_SIGNAL_WORDS = [
   "market",
   "expert",
   "worker",
-  "service"
+  "service",
+  "provider",
+  "operator",
+  "climber",
+  "tractor",
+  "tiller",
+  "spraying",
+  "irrigation",
+  "nursery",
+  "available",
+  "today",
+  "tomorrow",
+  "help",
+  "find",
+  "show",
+  "tell"
 ];
 
 function normalizeText(value) {
@@ -199,7 +253,9 @@ function normalizeLatinText(value) {
 function normalizePreferredLanguage(value) {
   const normalized =
     normalizeText(value)
-      .toLowerCase();
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
 
   if (
     normalized === "english" ||
@@ -220,8 +276,8 @@ function normalizePreferredLanguage(value) {
     normalized === "bilingual" ||
     normalized === "both" ||
     normalized === "english malayalam" ||
-    normalized ===
-      "english + malayalam" ||
+    normalized === "english + malayalam" ||
+    normalized === "malayalam + english" ||
     normalized === "3"
   ) {
     return "Bilingual";
@@ -240,6 +296,19 @@ function containsEnglish(text) {
   return /[A-Za-z]/.test(
     normalizeText(text)
   );
+}
+
+function tokenizeLatinText(text) {
+  const normalized =
+    normalizeLatinText(text);
+
+  if (!normalized) {
+    return [];
+  }
+
+  return normalized
+    .split(" ")
+    .filter(Boolean);
 }
 
 function countMatchedWords(
@@ -302,6 +371,12 @@ function detectManglish(text) {
     return false;
   }
 
+  const words =
+    tokenizeLatinText(text);
+
+  const wordCount =
+    words.length;
+
   const manglishScore =
     countMatchedWords(
       normalized,
@@ -315,30 +390,26 @@ function detectManglish(text) {
     );
 
   /*
-   * Two or more Manglish indicators normally
-   * provide a reliable result.
+   * Strong Manglish sentence:
+   * Example:
+   * "vazhaykku enthu valam kodukkanam"
    */
-  if (manglishScore >= 2) {
+  if (
+    manglishScore >= 2 &&
+    manglishScore >
+      englishScore
+  ) {
     return true;
   }
 
   /*
-   * A short farmer-style message may contain
-   * only one distinctive Manglish word.
-   *
-   * Examples:
-   * "valam venam"
+   * Very short Manglish expression:
    * "mazha undo"
-   * "thengu rogam"
+   * "valam venam"
+   * "rogam aanu"
    */
-  const wordCount =
-    normalized
-      .split(" ")
-      .filter(Boolean)
-      .length;
-
   if (
-    manglishScore === 1 &&
+    manglishScore >= 1 &&
     wordCount <= 4 &&
     englishScore === 0
   ) {
@@ -368,11 +439,13 @@ function detectEnglish(text) {
 }
 
 /*
- * Returns the language that should be used
- * for the current reply.
+ * Decides the reply language for the
+ * current message.
  *
- * The current message overrides the saved
- * preference when its language is clear.
+ * A clearly detected message language
+ * temporarily overrides the saved preference.
+ *
+ * The saved preference itself is not changed.
  */
 function detectLanguage(
   text,
@@ -404,27 +477,31 @@ function getLanguageInstruction(language) {
       language
     ) || "Malayalam";
 
-  switch (normalizedLanguage) {
-    case "English":
-      return (
-        "Reply only in clear, simple English " +
-        "suitable for farmers."
-      );
-
-    case "Bilingual":
-      return (
-        "Reply first in clear English and then " +
-        "provide the same answer in proper " +
-        "Malayalam script."
-      );
-
-    case "Malayalam":
-    default:
-      return (
-        "Reply only in proper Malayalam script. " +
-        "Do not use Manglish."
-      );
+  if (
+    normalizedLanguage ===
+    "English"
+  ) {
+    return (
+      "Reply only in clear, simple English " +
+      "suitable for farmers."
+    );
   }
+
+  if (
+    normalizedLanguage ===
+    "Bilingual"
+  ) {
+    return (
+      "Reply first in clear English and then " +
+      "provide the same answer in proper " +
+      "Malayalam script."
+    );
+  }
+
+  return (
+    "Reply only in proper Malayalam script. " +
+    "Do not use Manglish."
+  );
 }
 
 function shouldAskLanguagePreference(
@@ -438,7 +515,9 @@ function shouldAskLanguagePreference(
 function parseLanguageSelection(text) {
   const normalized =
     normalizeText(text)
-      .toLowerCase();
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
 
   if (
     normalized === "1" ||
@@ -459,10 +538,9 @@ function parseLanguageSelection(text) {
     normalized === "3" ||
     normalized === "bilingual" ||
     normalized === "both" ||
-    normalized ===
-      "english + malayalam" ||
-    normalized ===
-      "english malayalam"
+    normalized === "english + malayalam" ||
+    normalized === "english malayalam" ||
+    normalized === "malayalam + english"
   ) {
     return "Bilingual";
   }
@@ -473,12 +551,19 @@ function parseLanguageSelection(text) {
 function getLanguageSelectionMessage(
   interfaceLanguage
 ) {
-  if (
+  const interfacePreference =
     normalizePreferredLanguage(
       interfaceLanguage
-    ) === "English"
+    );
+
+  if (
+    interfacePreference ===
+    "English"
   ) {
     return [
+      "🙏 Welcome to BhoomiMitra",
+      "ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം",
+      "",
       "Please choose your preferred reply language:",
       "",
       "1️⃣ English",
@@ -490,34 +575,43 @@ function getLanguageSelectionMessage(
   }
 
   return [
-    "മറുപടി ലഭിക്കേണ്ട ഭാഷ തിരഞ്ഞെടുക്കുക:",
+    "🙏 Welcome to BhoomiMitra",
+    "ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം",
+    "",
+    "Please choose your preferred reply language.",
+    "മറുപടി ലഭിക്കേണ്ട ഭാഷ തിരഞ്ഞെടുക്കുക.",
     "",
     "1️⃣ English",
     "2️⃣ മലയാളം",
     "3️⃣ English + മലയാളം",
     "",
+    "Reply with 1, 2 or 3.",
     "1, 2 അല്ലെങ്കിൽ 3 അയയ്ക്കുക."
   ].join("\n");
 }
 
-function isSupportedLanguage(
-  language
-) {
-  return SUPPORTED_LANGUAGES.includes(
+function isSupportedLanguage(language) {
+  const normalized =
     normalizePreferredLanguage(
       language
-    )
+    );
+
+  return SUPPORTED_LANGUAGES.includes(
+    normalized
   );
 }
 
 module.exports = {
   SUPPORTED_LANGUAGES,
   MANGLISH_WORDS,
+  ENGLISH_SIGNAL_WORDS,
   normalizeText,
   normalizeLatinText,
   normalizePreferredLanguage,
   containsMalayalam,
   containsEnglish,
+  tokenizeLatinText,
+  countMatchedWords,
   detectManglish,
   detectEnglish,
   detectLanguage,
