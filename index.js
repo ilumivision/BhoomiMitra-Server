@@ -103,9 +103,9 @@ const expertCaseManager = createExpertCaseManager({
 const sessions = {};
 const userMenus = {};
 const pendingLanguageSelections = {};
+const userLanguagePreferences = {};
 const pendingServiceSearches = {};
 const processedMessages = new Set();
-
 let sheetMetadataCache = null;
 let sheetMetadataCacheTime = 0;
 
@@ -377,10 +377,109 @@ return;
 } else {
     userText = "User sent a non-text message.";
 }
-/*
+ /*
  * Registration must be processed before
  * market, weather, case handling or AI.
- */    
+ */
+// =====================================================
+// FIRST-CONTACT LANGUAGE PREFERENCE
+// =====================================================
+
+const languageChangeCommands = [
+  "language",
+  "change language",
+  "preferred language",
+  "ഭാഷ",
+  "ഭാഷ മാറ്റണം",
+  "bhasha",
+  "bhasha mattanam"
+];
+
+const normalizedLanguageText =
+  String(userText || "")
+    .trim()
+    .toLowerCase();
+
+const languageChangeRequested =
+  languageChangeCommands.includes(
+    normalizedLanguageText
+  );
+
+if (languageChangeRequested) {
+  pendingLanguageSelections[from] = true;
+
+  await sendWhatsAppMessage(
+    from,
+    getLanguageSelectionMessage(
+      "Bilingual"
+    )
+  );
+
+  return;
+}
+
+if (pendingLanguageSelections[from]) {
+  const selectedLanguage =
+    parseLanguageSelection(
+      userText
+    );
+
+  if (!selectedLanguage) {
+    await sendWhatsAppMessage(
+      from,
+      getLanguageSelectionMessage(
+        "Bilingual"
+      )
+    );
+
+    return;
+  }
+
+  userLanguagePreferences[from] =
+    selectedLanguage;
+
+  delete pendingLanguageSelections[from];
+
+  let languageConfirmation = "";
+
+  if (selectedLanguage === "English") {
+    languageConfirmation =
+      "✅ Preferred language saved as English.";
+  } else if (
+    selectedLanguage === "Malayalam"
+  ) {
+    languageConfirmation =
+      "✅ ഇഷ്ടഭാഷ മലയാളമായി സേവ് ചെയ്തു.";
+  } else {
+    languageConfirmation = [
+      "✅ Preferred language saved as English + Malayalam.",
+      "✅ ഇഷ്ടഭാഷ English + മലയാളം ആയി സേവ് ചെയ്തു."
+    ].join("\n");
+  }
+
+  await sendWhatsAppMessage(
+    from,
+    languageConfirmation +
+      "\n\n" +
+      getWelcomeMessage()
+  );
+
+  return;
+}
+
+if (!userLanguagePreferences[from]) {
+  pendingLanguageSelections[from] = true;
+
+  await sendWhatsAppMessage(
+    from,
+    getLanguageSelectionMessage(
+      "Bilingual"
+    )
+  );
+
+  return;
+}
+
 const regReply =
   await handleRegistration(
     from,
