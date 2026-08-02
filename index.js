@@ -608,37 +608,90 @@ if (isServiceRequest(userText)) {
    * or the current message.
    */
   if (
-    !serviceQuery.district &&
-    !serviceQuery.localBody
-  ) {
-    pendingServiceSearches[from] = {
-      service:
-        requestedService,
-      district: ""
-    };
+  !serviceQuery.district &&
+  !serviceQuery.localBody
+) {
+  pendingServiceSearches[from] = {
+    service:
+      requestedService,
+    district: ""
+  };
 
-    await sendWhatsAppMessage(
-      from,
-      [
-        "🔎 " +
-          requestedService +
-          " സേവനം തിരയാം.",
-        "",
-        "നിങ്ങളുടെ District + Local Body അയയ്ക്കുക.",
-        "",
-        "Local Body എന്നത്:",
-        "• Grama Panchayat",
-        "• Municipality",
-        "• Municipal Corporation",
-        "",
-        "ഉദാഹരണം:",
-        "Pathanamthitta, Thiruvalla Municipality"
-      ].join("\n")
+  const serviceReplyLanguage =
+    detectLanguage(
+      userText,
+      savedPreferredLanguage ||
+        "Malayalam"
     );
 
-    return;
+  let locationRequestMessage = "";
+
+  if (
+    serviceReplyLanguage ===
+    "English"
+  ) {
+    locationRequestMessage = [
+      "🔎 Searching for " +
+        requestedService +
+        " service.",
+      "",
+      "Please send your District and Local Body.",
+      "",
+      "Local Body can be:",
+      "• Grama Panchayat",
+      "• Municipality",
+      "• Municipal Corporation",
+      "",
+      "Example:",
+      "Pathanamthitta, Thiruvalla Municipality"
+    ].join("\n");
+
+  } else if (
+    serviceReplyLanguage ===
+    "Bilingual"
+  ) {
+    locationRequestMessage = [
+      "🔎 Searching for " +
+        requestedService +
+        " service.",
+      "",
+      "Please send your District and Local Body.",
+      "ജില്ലയും തദ്ദേശസ്വയംഭരണ സ്ഥാപനവും അയയ്ക്കുക.",
+      "",
+      "Local Body can be:",
+      "• Grama Panchayat",
+      "• Municipality",
+      "• Municipal Corporation",
+      "",
+      "ഉദാഹരണം / Example:",
+      "Pathanamthitta, Thiruvalla Municipality"
+    ].join("\n");
+
+  } else {
+    locationRequestMessage = [
+      "🔎 " +
+        requestedService +
+        " സേവനം തിരയുന്നു.",
+      "",
+      "നിങ്ങളുടെ ജില്ലയും തദ്ദേശസ്വയംഭരണ സ്ഥാപനവും അയയ്ക്കുക.",
+      "",
+      "തദ്ദേശസ്വയംഭരണ സ്ഥാപനം:",
+      "• ഗ്രാമ പഞ്ചായത്ത്",
+      "• മുനിസിപ്പാലിറ്റി",
+      "• മുനിസിപ്പൽ കോർപ്പറേഷൻ",
+      "",
+      "ഉദാഹരണം:",
+      "Pathanamthitta, Thiruvalla Municipality"
+    ].join("\n");
   }
 
+  await sendWhatsAppMessage(
+    from,
+    locationRequestMessage
+  );
+
+  return;
+}
   const serviceResults =
     await serviceFinder.searchServices(
       serviceQuery
