@@ -1094,13 +1094,87 @@ if (
 
   return;
 }   
+  if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_registration_confirm"
+) {
+  const confirmationChoice =
+    String(userText || "").trim();
+
+  if (confirmationChoice === "1") {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "✅ Land details confirmed.",
+        "",
+        "The land will now be saved and a unique Land ID will be generated."
+      ].join("\n")
+    );
+
+    activeFarmMenu.step =
+      "land_registration_save";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    return;
+  }
+
+  if (confirmationChoice === "2") {
+    activeFarmMenu.step =
+      "land_registration_name";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "✏️ Edit land details",
+        "",
+        "Please enter the land name again."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  if (confirmationChoice === "3") {
+    delete userMenus[from];
+
+    await sendWhatsAppMessage(
+      from,
+      "❌ Land registration cancelled."
+    );
+
+    return;
+  }
+
+  await sendWhatsAppMessage(
+    from,
+    "Please reply with 1, 2 or 3."
+  );
+
+  return;
+}  
 if (
   activeFarmMenu &&
   !isMenuSessionExpired(
     activeFarmMenu
   ) &&
 
-  
+ activeFarmMenu.step ===
+  "land_registration_confirm" 
   activeFarmMenu.currentService ===
     "farm" &&
   /^[1-9]$/.test(
