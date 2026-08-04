@@ -234,12 +234,17 @@ async function getFarmerLands(data) {
       rows[0].map(normalizeHeader);
 
     const phoneIndexes = [
-      headers.indexOf("phone"),
-      headers.indexOf("mobile_number"),
-      headers.indexOf("whatsapp_number")
-    ].filter(function (index) {
-      return index >= 0;
-    });
+  headers.indexOf("phone"),
+  headers.indexOf("mobile"),
+  headers.indexOf("mobile_number"),
+  headers.indexOf("whatsapp"),
+  headers.indexOf("whatsapp_number"),
+  headers.indexOf("registered_mobile"),
+  headers.indexOf("farmer_mobile"),
+  headers.indexOf("farmer_reported")
+].filter(function (index) {
+  return index >= 0;
+});
 
     const landIdIndex =
       headers.indexOf("land_id");
