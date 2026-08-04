@@ -1358,6 +1358,74 @@ if (farmMenuChoice === "2") {
   return;
 }
 if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.currentService ===
+    "personal_records" &&
+  /^[1-5]$/.test(
+    String(userText || "").trim()
+  )
+) {
+  const personalChoice =
+    String(userText || "").trim();
+
+  if (personalChoice === "5") {
+    userMenus[from] =
+      createMenuSession();
+
+    await sendWhatsAppMessage(
+      from,
+      getWelcomeMessage()
+    );
+
+    return;
+  }
+
+  const personalCommands = {
+    "1": "my details",
+    "2": "my farmer id",
+    "3": "my land",
+    "4": "my animals"
+  };
+
+  const personalCommand =
+    personalCommands[
+      personalChoice
+    ];
+
+  const personalResult =
+    await handlePersonalRecords({
+      from,
+      phone: from,
+      userText:
+        personalCommand,
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID
+    });
+
+  if (
+    personalResult &&
+    personalResult.handled
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      personalResult.reply
+    );
+
+    return;
+  }
+
+  await sendWhatsAppMessage(
+    from,
+    "Sorry, your personal records could not be retrieved."
+  );
+
+  return;
+}    
+if (
   isPureMenuSelection(
     userText
   )
