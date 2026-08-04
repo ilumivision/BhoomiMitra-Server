@@ -64,14 +64,15 @@ const SERVICE_OPTIONS = {
   },
 
   "9": {
-    key: "farm",
-    label:
-     "Manage farm/land, activities and advisory history"
-  }
- "10": {
+  key: "farm",
+  label:
+    "Manage farm/land, activities and advisory history"
+},
+
+"10": {
   key: "personal_records",
   label: "My Personal Records"
-} 
+}
 };
 
 function normalizeMenuText(value) {
