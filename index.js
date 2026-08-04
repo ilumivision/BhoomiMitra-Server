@@ -9,7 +9,8 @@ const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
 const soilModule = require("./utils/soil");
 const {
-  registerLand
+  registerLand,
+  getFarmerLands
 } = require("./utils/landRegistration");
 const {
   createServiceFinder,
@@ -1233,7 +1234,98 @@ if (
 
     return;
   }
+if (farmMenuChoice === "2") {
+  const landResult =
+    await getFarmerLands({
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      phone: from
+    });
 
+  if (
+    !landResult ||
+    !landResult.success
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      "Sorry, your registered lands could not be retrieved. Please try again."
+    );
+
+    return;
+  }
+
+  if (
+    !Array.isArray(landResult.lands) ||
+    landResult.lands.length === 0
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "No registered land parcels were found for this WhatsApp number.",
+        "",
+        "Use option 1 to register a new land parcel."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  const lines = [
+    "🌾 My Registered Lands",
+    ""
+  ];
+
+  landResult.lands.forEach(
+    function (land, index) {
+      lines.push(
+        (index + 1) +
+          ". " +
+          (land.farmName || "Unnamed land")
+      );
+
+      lines.push(
+        "Land ID: " +
+          (land.landId || "-")
+      );
+
+      lines.push(
+        "Location: " +
+          [
+            land.localBody,
+            land.localBodyType,
+            land.district
+          ]
+            .filter(Boolean)
+            .join(", ")
+      );
+
+      lines.push(
+        "Area: " +
+          [
+            land.area,
+            land.areaUnit
+          ]
+            .filter(Boolean)
+            .join(" ")
+      );
+
+      lines.push(
+        "Main crop: " +
+          (land.mainCrop || "-")
+      );
+
+      lines.push("");
+    }
+  );
+
+  await sendWhatsAppMessage(
+    from,
+    lines.join("\n").trim()
+  );
+
+  return;
+}
   await sendWhatsAppMessage(
     from,
     "This Farm & Land Management option will be connected shortly."
