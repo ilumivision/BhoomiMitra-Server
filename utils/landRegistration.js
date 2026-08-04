@@ -9,7 +9,6 @@ function normalizeHeader(value) {
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^+|+$/g, "");
 }
-
 function generateLandId(existingRows) {
   let highestNumber = 0;
 
