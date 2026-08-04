@@ -13,6 +13,9 @@ const {
   getFarmerLands
 } = require("./utils/landRegistration");
 const {
+  handlePersonalRecords
+} = require("./utils/personalRecords");
+const {
   createServiceFinder,
   resolveRequestedService,
   isServiceRequest
@@ -598,6 +601,27 @@ if (regReply) {
 
   return;
 }    
+ const personalResult =
+  await handlePersonalRecords({
+    from,
+    phone: from,
+    userText,
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID
+  });
+
+if (
+  personalResult &&
+  personalResult.handled
+) {
+  await sendWhatsAppMessage(
+    from,
+    personalResult.reply
+  );
+
+  return;
+}   
  // =====================================================
 // WELCOME AND SERVICE MENU
 // =====================================================
