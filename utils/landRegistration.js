@@ -1,4 +1,4 @@
-[5:29 am, 4/8/2026] Dr C P Robert: "use strict";
+ "use strict";
 
 const SHEET_NAME = "Land_Parcels";
 
