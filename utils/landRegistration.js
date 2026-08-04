@@ -195,7 +195,135 @@ async function registerLand(data) {
     };
   }
 }
+async function getFarmerLands(data) {
+  try {
+    const sheets =
+      data && data.sheets;
 
+    const spreadsheetId =
+      data && data.spreadsheetId;
+
+    const phone =
+      String(
+        (data && data.phone) || ""
+      ).trim();
+
+    if (!sheets || !spreadsheetId) {
+      throw new Error(
+        "Google Sheets configuration is missing."
+      );
+    }
+
+    const response =
+      await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: SHEET_NAME + "!A:AZ"
+      });
+
+    const rows =
+      response.data.values || [];
+
+    if (rows.length < 2) {
+      return {
+        success: true,
+        lands: []
+      };
+    }
+
+    const headers =
+      rows[0].map(normalizeHeader);
+
+    const phoneIndexes = [
+      headers.indexOf("phone"),
+      headers.indexOf("mobile_number"),
+      headers.indexOf("whatsapp_number")
+    ].filter(function (index) {
+      return index >= 0;
+    });
+
+    const landIdIndex =
+      headers.indexOf("land_id");
+
+    const farmNameIndex =
+      headers.indexOf("farm_name");
+
+    const districtIndex =
+      headers.indexOf("district");
+
+    const localBodyTypeIndex =
+      headers.indexOf("local_body_type");
+
+    const localBodyIndex =
+      headers.indexOf("local_body");
+
+    const areaIndex =
+      headers.indexOf("area");
+
+    const areaUnitIndex =
+      headers.indexOf("area_unit");
+
+    const mainCropIndex =
+      headers.indexOf("main_crop");
+
+    const lands =
+      rows
+        .slice(1)
+        .filter(function (row) {
+          return phoneIndexes.some(
+            function (index) {
+              return (
+                String(row[index] || "")
+                  .trim() === phone
+              );
+            }
+          );
+        })
+        .map(function (row) {
+          return {
+            landId:
+              row[landIdIndex] || "",
+            farmName:
+              row[farmNameIndex] || "",
+            district:
+              row[districtIndex] || "",
+            localBodyType:
+              row[localBodyTypeIndex] || "",
+            localBody:
+              row[localBodyIndex] || "",
+            area:
+              row[areaIndex] || "",
+            areaUnit:
+              row[areaUnitIndex] || "",
+            mainCrop:
+              row[mainCropIndex] || ""
+          };
+        });
+
+    return {
+      success: true,
+      lands
+    };
+  } catch (error) {
+    console.error(
+      "Get farmer lands error:",
+      error &&
+      error.message
+        ? error.message
+        : error
+    );
+
+    return {
+      success: false,
+      lands: [],
+      error:
+        error &&
+        error.message
+          ? error.message
+          : "Unknown error"
+    };
+  }
+}
 module.exports = {
-  registerLand
+  registerLand,
+  getFarmerLands
 };
