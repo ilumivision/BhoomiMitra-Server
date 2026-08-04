@@ -8,7 +8,9 @@ const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
 const soilModule = require("./utils/soil");
-
+const {
+  registerLand
+} = require("./utils/landRegistration");
 const {
   createServiceFinder,
   resolveRequestedService,
