@@ -1147,27 +1147,7 @@ if (
 
   return;
 }
-    await sendWhatsAppMessage(
-      from,
-      [
-        "✅ Land details confirmed.",
-        "",
-        "The land will now be saved and a unique Land ID will be generated."
-      ].join("\n")
-    );
-
-    activeFarmMenu.step =
-      "land_registration_save";
-
-    activeFarmMenu.updatedAt =
-      Date.now();
-
-    userMenus[from] =
-      activeFarmMenu;
-
-    return;
-  }
-
+   
   if (confirmationChoice === "2") {
     activeFarmMenu.step =
       "land_registration_name";
