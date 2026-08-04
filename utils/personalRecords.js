@@ -1,5 +1,9 @@
 "use strict";
 
+const {
+  getFarmerAnimals
+} = require("./animalRegistration");
+
 function normalizeText(value) {
   return String(value || "")
     .trim()
@@ -561,15 +565,128 @@ async function handlePersonalRecords(data) {
       };
     }
 
-    if (
-      command === "my animals"
-    ) {
-      return {
-        handled: true,
-        reply:
-          "Animal records will be connected shortly."
-      };
+   if (
+  command === "my animals"
+) {
+  const animalResult =
+    await getFarmerAnimals({
+      sheets:
+        data && data.sheets,
+      spreadsheetId:
+        data && data.spreadsheetId,
+      phone:
+        data && data.phone
+    });
+
+  if (
+    !animalResult ||
+    !animalResult.success
+  ) {
+    return {
+      handled: true,
+      reply:
+        "Sorry, your animal records could not be retrieved. Please try again."
+    };
+  }
+
+  if (
+    !Array.isArray(
+      animalResult.animals
+    ) ||
+    animalResult.animals.length === 0
+  ) {
+    return {
+      handled: true,
+      reply: [
+        "🐄 No registered animals were found for this WhatsApp number.",
+        "",
+        "Animal registration will be available shortly."
+      ].join("\n")
+    };
+  }
+
+  const lines = [
+    "🐄 My Registered Animals",
+    ""
+  ];
+
+  animalResult.animals.forEach(
+    function (animal, index) {
+      lines.push(
+        String(index + 1) +
+          ". " +
+          (
+            animal.animalType ||
+            "Animal"
+          )
+      );
+
+      lines.push(
+        "Animal ID: " +
+          (
+            animal.animalId ||
+            "-"
+          )
+      );
+
+      lines.push(
+        "Breed: " +
+          (
+            animal.breed ||
+            "-"
+          )
+      );
+
+      lines.push(
+        "Sex: " +
+          (
+            animal.sex ||
+            "-"
+          )
+      );
+
+      lines.push(
+        "Age: " +
+          (
+            animal.age ||
+            "-"
+          )
+      );
+
+      lines.push(
+        "Tag number: " +
+          (
+            animal.tagNumber ||
+            "-"
+          )
+      );
+
+      lines.push(
+        "Vaccination: " +
+          (
+            animal.vaccinationStatus ||
+            "-"
+          )
+      );
+
+      lines.push(
+        "Health status: " +
+          (
+            animal.healthStatus ||
+            "-"
+          )
+      );
+
+      lines.push("");
     }
+  );
+
+  return {
+    handled: true,
+    reply:
+      lines.join("\n").trim()
+  };
+}
 
     return {
       handled: false,
