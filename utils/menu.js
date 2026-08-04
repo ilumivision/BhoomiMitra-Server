@@ -183,7 +183,9 @@ function isPureMenuSelection(text) {
     return false;
   }
 
-  normalized.match(/10|[1-9]/g)
+  return /^(10|[1-9])(?:[,\s]+(10|[1-9]))*$/.test(
+    normalized
+  );
 }
 
 function createMenuSession() {
