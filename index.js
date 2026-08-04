@@ -1107,7 +1107,46 @@ if (
   const confirmationChoice =
     String(userText || "").trim();
 
-  if (confirmationChoice === "1") {
+ if (confirmationChoice === "1") {
+  const landResult =
+    await registerLand({
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      phone: from,
+      land:
+        activeFarmMenu
+          .landRegistration
+    });
+
+  if (
+    !landResult ||
+    !landResult.success
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      "Sorry, the land could not be registered. Please try again."
+    );
+
+    return;
+  }
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ Land registered successfully.",
+      "",
+      "Land ID: " +
+        landResult.landId,
+      "",
+      "This Land ID can be used for future farm activities, advisories, soil tests and land summaries."
+    ].join("\n")
+  );
+
+  delete userMenus[from];
+
+  return;
+}
     await sendWhatsAppMessage(
       from,
       [
