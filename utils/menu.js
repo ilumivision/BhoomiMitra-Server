@@ -15,7 +15,7 @@ const MENU_SESSION_TIMEOUT_MS =
   30 * 60 * 1000;
 
 const SERVICE_OPTIONS = {
-  "1": {
+    "1": {
     key: "question",
     label:
       "Ask an agriculture question"
@@ -68,6 +68,10 @@ const SERVICE_OPTIONS = {
     label:
      "Manage farm/land, activities and advisory history"
   }
+ "10": {
+  key: "personal_records",
+  label: "My Personal Records"
+} 
 };
 
 function normalizeMenuText(value) {
@@ -122,8 +126,9 @@ function getWelcomeMessage() {
     "7️⃣ Find skilled farm workers",
     "8️⃣ Find service providers or machinery operators",
     "9️⃣ Manage farm/land, activities and advisory history",
-    "",
-    "Reply with one number or multiple numbers.",
+    "🔟 My Personal Records",
+"",
+"Reply with one number or multiple numbers.",
     "",
     "Examples:",
     "2",
@@ -144,7 +149,7 @@ function parseServiceSelections(text) {
   }
 
   const matches =
-    normalized.match(/[1-9]/g);
+   normalized.match(/10|[1-9]/g)
 
   if (!matches) {
     return [];
@@ -177,9 +182,7 @@ function isPureMenuSelection(text) {
     return false;
   }
 
-  return /^[1-9,\s]+$/.test(
-    normalized
-  );
+  normalized.match(/10|[1-9]/g)
 }
 
 function createMenuSession() {
@@ -344,7 +347,19 @@ if (serviceKey === "farm") {
     "Reply with one number."
   ].join("\n");
 }
-
+if (serviceKey === "personal_records") {
+  return [
+    "👤 My Personal Records",
+    "",
+    "1️⃣ My details",
+    "2️⃣ My BhoomiMitra Farmer ID",
+    "3️⃣ My registered lands",
+    "4️⃣ My registered animals",
+    "5️⃣ Back to Main Menu",
+    "",
+    "Reply with 1, 2, 3, 4 or 5."
+  ].join("\n");
+}
   return getWelcomeMessage();
 }
 
