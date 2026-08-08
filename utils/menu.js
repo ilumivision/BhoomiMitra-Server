@@ -72,6 +72,11 @@ const SERVICE_OPTIONS = {
 "10": {
   key: "personal_records",
   label: "My Personal Records"
+},
+
+"11": {
+  key: "registration",
+  label: "Register as a BhoomiMitra Member"
 }
 };
 
@@ -128,6 +133,7 @@ function getWelcomeMessage() {
     "8️⃣ Find service providers or machinery operators",
     "9️⃣ Manage farm/land, activities and advisory history",
     "🔟 My Personal Records",
+    "1️⃣1️⃣ Register as a BhoomiMitra Member",
 "",
 "Reply with one number or multiple numbers.",
     "",
@@ -150,7 +156,7 @@ function parseServiceSelections(text) {
   }
 
   const matches =
-   normalized.match(/10|[1-9]/g)
+   normalized.match(11/10|[1-9]/g);
 
   if (!matches) {
     return [];
@@ -183,7 +189,7 @@ function isPureMenuSelection(text) {
     return false;
   }
 
-  return /^(10|[1-9])(?:[,\s]+(10|[1-9]))*$/.test(
+  return /^(11|10[1-9])(?:[,\s]+(11|10[1-9]))*$/.test(
     normalized
   );
 }
