@@ -1434,7 +1434,38 @@ if (
     parseServiceSelections(
       userText
     );
+const registrationSelected =
+  selections.find(
+    function (selection) {
+      return (
+        selection.key ===
+        "registration"
+      );
+    }
+  );
 
+if (registrationSelected) {
+  const regReply =
+    await registrationModule({
+      text: "register",
+      from,
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID
+    });
+
+  if (
+    regReply &&
+    regReply.reply
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      regReply.reply
+    );
+
+    return;
+  }
+}
   if (
     selections.length === 0
   ) {
