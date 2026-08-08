@@ -1451,7 +1451,7 @@ const registrationSelected =
 if (registrationSelected) {
   const regReply =
     await registrationModule({
-      text: "register",
+      text: "start",
       from,
       sheets,
       spreadsheetId:
