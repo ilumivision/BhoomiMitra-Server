@@ -155,8 +155,8 @@ function parseServiceSelections(text) {
     return [];
   }
 
-  const matches =
-   normalized.match(11/10|[1-9]/g);
+ const matches =
+  normalized.match(/11|10|[1-9]/g);
 
   if (!matches) {
     return [];
