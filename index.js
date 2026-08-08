@@ -2853,7 +2853,7 @@ async function updateFarmerPreferredLanguage(
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^+|+$/g, "");
+    .replace(/^_+|_+$/g, "");
 
       if (
         Object.prototype.hasOwnProperty.call(
