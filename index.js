@@ -2848,7 +2848,7 @@ async function updateFarmerPreferredLanguage(
     let languageColumnIndex = -1;
 
     languageHeaders.some(function (header) {
-     const normalizedHeader =
+    const normalizedHeader =
   String(header || "")
     .trim()
     .toLowerCase()
