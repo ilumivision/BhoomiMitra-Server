@@ -2260,9 +2260,12 @@ Promise.all([
   );
 });
 
-  } catch (error) {
-    console.error("Webhook error:", error.response && error.response.data ? error.response.data : error.message);
-  }
+ } catch (error) {
+  console.error(
+    "Webhook error:",
+    error
+  );
+}
 });
 
 // =====================================================
