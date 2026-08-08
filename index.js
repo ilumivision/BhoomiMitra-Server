@@ -15,6 +15,10 @@ const {
 const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
+
+const registrationModule =
+  require("./utils/registration");
+
 const {
   createServiceFinder,
   resolveRequestedService,
