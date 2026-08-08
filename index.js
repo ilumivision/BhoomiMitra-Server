@@ -2848,8 +2848,12 @@ async function updateFarmerPreferredLanguage(
     let languageColumnIndex = -1;
 
     languageHeaders.some(function (header) {
-      const normalizedHeader =
-        normalizeHeader(header);
+     const normalizedHeader =
+  String(header || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^+|+$/g, "");
 
       if (
         Object.prototype.hasOwnProperty.call(
