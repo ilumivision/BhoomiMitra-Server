@@ -539,7 +539,7 @@ delete pendingLanguageSelections[from];
     from,
     languageConfirmation +
       "\n\n" +
-      getWelcomeMessage()
+     getWelcomeMessage(selectedLanguage)
   );
 
   return;
