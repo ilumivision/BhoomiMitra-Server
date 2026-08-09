@@ -115,7 +115,79 @@ function isMenuCommand(text) {
   );
 }
 
-function getWelcomeMessage() {
+function getWelcomeMessage(language = "English") {
+  const lang = String(language || "English")
+    .trim()
+    .toLowerCase();
+
+  if (lang === "malayalam") {
+    return [
+      "🌱 ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം",
+      "കേരളത്തിന്റെ കാർഷിക AI സഹായി",
+      "Ilumivision വികസിപ്പിച്ചത്",
+      "",
+      "താങ്കൾക്ക് ആവശ്യമായ സേവനം തിരഞ്ഞെടുക്കുക:",
+      "",
+      "1️⃣ കാർഷിക ചോദ്യം ചോദിക്കുക",
+      "2️⃣ വിള പ്രശ്നത്തിന്റെ ഫോട്ടോ അയച്ച് രോഗനിർണയം നേടുക",
+      "3️⃣ സ്ഥലത്തെ അടിസ്ഥാനമാക്കിയുള്ള മണ്ണ് വിവരങ്ങൾ ലഭിക്കുക",
+      "4️⃣ കാലാവസ്ഥയും മഴ വിവരങ്ങളും ലഭിക്കുക",
+      "5️⃣ കാർഷിക വിപണി വില പരിശോധിക്കുക",
+      "6️⃣ കാർഷിക വിദഗ്ധ സഹായം അഭ്യർത്ഥിക്കുക",
+      "7️⃣ പ്രാവീണ്യമുള്ള കാർഷിക തൊഴിലാളികളെ കണ്ടെത്തുക",
+      "8️⃣ സേവനദാതാക്കളെയോ യന്ത്ര ഓപ്പറേറ്റർമാരെയോ കണ്ടെത്തുക",
+      "9️⃣ കൃഷിയിടം/ഭൂമി, പ്രവർത്തനങ്ങൾ, ഉപദേശ ചരിത്രം നിയന്ത്രിക്കുക",
+      "🔟 എന്റെ വ്യക്തിഗത രേഖകൾ",
+      "1️⃣1️⃣ ഭൂമിമിത്ര അംഗമായി രജിസ്റ്റർ ചെയ്യുക",
+      "",
+      "ഒരു നമ്പർ അല്ലെങ്കിൽ ഒന്നിലധികം നമ്പറുകൾ അയയ്ക്കുക.",
+      "",
+      "ഉദാഹരണങ്ങൾ:",
+      "2",
+      "5",
+      "7,8",
+      "1 3 5",
+      "",
+      "MENU എന്ന് എപ്പോൾ വേണമെങ്കിലും അയയ്ക്കാം."
+    ].join("\n");
+  }
+
+  if (
+    lang === "bilingual" ||
+    lang === "english + malayalam" ||
+    lang === "english/malayalam"
+  ) {
+    return [
+      "🌱 Welcome to BhoomiMitra / ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം",
+      "Kerala’s Agriculture AI Assistant / കേരളത്തിന്റെ കാർഷിക AI സഹായി",
+      "Developed by Ilumivision",
+      "",
+      "Please select the service you need / ആവശ്യമായ സേവനം തിരഞ്ഞെടുക്കുക:",
+      "",
+      "1️⃣ Ask an agriculture question / കാർഷിക ചോദ്യം ചോദിക്കുക",
+      "2️⃣ Diagnose a crop problem using a photo / ഫോട്ടോ ഉപയോഗിച്ച് വിള പ്രശ്നം കണ്ടെത്തുക",
+      "3️⃣ Get location-based soil information / സ്ഥലത്തെ അടിസ്ഥാനമാക്കിയുള്ള മണ്ണ് വിവരങ്ങൾ",
+      "4️⃣ Get weather and rainfall information / കാലാവസ്ഥയും മഴ വിവരങ്ങളും",
+      "5️⃣ Check agricultural market prices / കാർഷിക വിപണി വില പരിശോധിക്കുക",
+      "6️⃣ Request agricultural expert advice / കാർഷിക വിദഗ്ധ സഹായം അഭ്യർത്ഥിക്കുക",
+      "7️⃣ Find skilled farm workers / പ്രാവീണ്യമുള്ള കാർഷിക തൊഴിലാളികളെ കണ്ടെത്തുക",
+      "8️⃣ Find service providers or machinery operators / സേവനദാതാക്കളെയോ യന്ത്ര ഓപ്പറേറ്റർമാരെയോ കണ്ടെത്തുക",
+      "9️⃣ Manage farm/land, activities and advisory history / കൃഷിയിടം/ഭൂമി, പ്രവർത്തനങ്ങൾ, ഉപദേശ ചരിത്രം",
+      "🔟 My Personal Records / എന്റെ വ്യക്തിഗത രേഖകൾ",
+      "1️⃣1️⃣ Register as a BhoomiMitra Member / ഭൂമിമിത്ര അംഗമായി രജിസ്റ്റർ ചെയ്യുക",
+      "",
+      "Reply with one number or multiple numbers / ഒരു നമ്പർ അല്ലെങ്കിൽ ഒന്നിലധികം നമ്പറുകൾ അയയ്ക്കുക.",
+      "",
+      "Examples / ഉദാഹരണങ്ങൾ:",
+      "2",
+      "5",
+      "7,8",
+      "1 3 5",
+      "",
+      "You can send MENU at any time / MENU എന്ന് എപ്പോൾ വേണമെങ്കിലും അയയ്ക്കാം."
+    ].join("\n");
+  }
+
   return [
     "🌱 Welcome to BhoomiMitra",
     "Kerala’s Agriculture AI Assistant",
@@ -134,8 +206,8 @@ function getWelcomeMessage() {
     "9️⃣ Manage farm/land, activities and advisory history",
     "🔟 My Personal Records",
     "1️⃣1️⃣ Register as a BhoomiMitra Member",
-"",
-"Reply with one number or multiple numbers.",
+    "",
+    "Reply with one number or multiple numbers.",
     "",
     "Examples:",
     "2",
