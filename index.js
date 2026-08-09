@@ -641,7 +641,24 @@ if (
 ) {
   delete userMenus[from];
 }
+if (
+  ["language", "lang", "ഭാഷ"].includes(
+    String(userText || "")
+      .trim()
+      .toLowerCase()
+  )
+) {
+  pendingLanguageSelections[from] = true;
 
+  await sendWhatsAppMessage(
+    from,
+    getLanguageSelectionMessage(
+      "Bilingual"
+    )
+  );
+
+  return;
+}
 if (isMenuCommand(userText)) {
   userMenus[from] =
     createMenuSession();
