@@ -648,7 +648,9 @@ if (isMenuCommand(userText)) {
 
   await sendWhatsAppMessage(
     from,
-    getWelcomeMessage()
+  getWelcomeMessage(
+  userLanguagePreferences[from] || "English"
+)
   );
 
   return;
