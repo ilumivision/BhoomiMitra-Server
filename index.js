@@ -2282,10 +2282,16 @@ return;
   getForecastContext(userText)
 ]);
     const aiReply = await getAIReply(
-      userText + caseContext,
-      weatherContext,
-      forecastContext
-    );
+  "Saved preferred reply language: " +
+    preferredLanguage +
+    "\n" +
+    "IMPORTANT: Follow this saved language preference even if the user's current message is written in another language." +
+    "\n\n" +
+    userText +
+    caseContext,
+  weatherContext,
+  forecastContext
+);
     // ---------------- Expert Escalation ----------------
 const lowerUserText =
   String(userText || "")
