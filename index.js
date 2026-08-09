@@ -433,6 +433,14 @@ if (
 
   return;
 }
+  if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.currentService ===
+    "soil"
+) {
   const soilResult =
     await soilModule({
       latitude,
@@ -447,6 +455,7 @@ if (
   );
 
   return;
+}
 } else {
     userText = "User sent a non-text message.";
 }
