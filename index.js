@@ -1451,14 +1451,16 @@ const registrationSelected =
   );
 
 if (registrationSelected) {
-  const regReply =
-    await registrationModule({
-      text: "start",
-      from,
-      sheets,
-      spreadsheetId:
-        GOOGLE_SHEET_ID
-    });
+ const regReply =
+  await registrationModule({
+    text: "start",
+    from,
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+    language:
+      userLanguagePreferences[from] || "English"
+  });
 
   if (
     regReply &&
