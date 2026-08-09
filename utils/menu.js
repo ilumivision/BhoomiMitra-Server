@@ -261,7 +261,7 @@ function isPureMenuSelection(text) {
     return false;
   }
 
-  return /^(11|10[1-9])(?:[,\s]+(11|10[1-9]))*$/.test(
+ return /^(11|10|[1-9])(?:[,\s]+(11|10|[1-9]))*$/.test(
     normalized
   );
 }
