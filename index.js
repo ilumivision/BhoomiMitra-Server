@@ -4072,6 +4072,14 @@ async function getLatestWeatherContext(userText) {
     return "Weather data could not be read from BhoomiMitra database.";
   }
 }
+}
+
+const WEATHER_CACHE_MS = 10 * 60 * 1000;
+
+const weatherCache = {
+  currentRows: null,
+  currentTime: 0
+};
 
 async function getForecastContext(userText) {
   try {
