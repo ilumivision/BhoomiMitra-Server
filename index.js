@@ -4068,9 +4068,14 @@ async function getLatestWeatherContext(userText) {
     ].join("\n");
 
   } catch (error) {
-    console.error("Weather read error:", error.response && error.response.data ? error.response.data : error.message);
-    return "Weather data could not be read from BhoomiMitra database.";
-  }
+  console.error(
+    "Weather read error:",
+    error.response && error.response.data
+      ? error.response.data
+      : error.message
+  );
+
+  return "Weather data could not be read from BhoomiMitra database.";
 }
 }
 
