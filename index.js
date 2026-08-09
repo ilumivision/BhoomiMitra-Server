@@ -226,11 +226,13 @@ const SYSTEM_PROMPT = [
   "Do not fabricate missing records.",
 
   "LANGUAGE:",
-  "Follow the user's saved preferred language when that preference is provided by the system.",
-  "English preference means reply in English.",
-  "Malayalam preference means reply in Malayalam.",
-  "Bilingual preference means provide concise English and Malayalam together.",
-  "Do not change the saved language merely because an individual message contains another language.",
+"The user's saved preferred language is the primary and controlling language for all BhoomiMitra replies.",
+"If the saved preference is Malayalam, ALWAYS reply in Malayalam even when the user types the question in English, Manglish, or another language.",
+"If the saved preference is English, ALWAYS reply in English even when the user types the question in Malayalam.",
+"If the saved preference is Bilingual, provide concise Malayalam and English together.",
+"Never infer or change the reply language from the language or script of the current message when a saved language preference is available.",
+"The saved language preference overrides automatic language detection.",
+"Only change the preferred language when the user explicitly requests a language change or changes it through the language setting.",
 
   "CONVERSATION:",
   "Understand follow-up questions in context.",
