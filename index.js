@@ -550,14 +550,25 @@ if (
       from
     });
 
-  await sendWhatsAppMessage(
-    from,
-    weatherResult.reply ||
-      "Weather information is currently unavailable."
-  );
+ await sendWhatsAppMessage(
+  from,
+  weatherResult.reply ||
+    "Weather information is currently unavailable."
+);
 
-  return;
-}
+activeFarmMenu.currentService =
+  null;
+
+activeFarmMenu.step =
+  "completed";
+
+activeFarmMenu.updatedAt =
+  Date.now();
+
+userMenus[from] =
+  activeFarmMenu;
+
+return;
 
 // ===== SOIL LOCATION HANDLING =====
 if (
@@ -1685,27 +1696,64 @@ if (
   !isMenuSessionExpired(activeWeatherMenu) &&
   activeWeatherMenu.currentService === "weather"
 ) {
-  const weatherText = String(userText || "").trim();
+  const weatherText =
+    String(userText || "").trim();
 
-  const weatherResult = await weatherModule({
-    text: weatherText,
-    from,
-    language:
-      userLanguagePreferences[from] || "English"
-  });
+  const weatherContext =
+    await getLatestWeatherContext(
+      weatherText
+    );
+
+  const forecastContext =
+    await getForecastContext(
+      weatherText
+    );
+
+  const preferredLanguage =
+    userLanguagePreferences[from] ||
+    "English";
+
+  const weatherReply =
+    await getAIReply(
+      [
+        "This is BhoomiMitra Weather service.",
+        "The user has already selected Weather.",
+        "Do NOT ask what help is needed.",
+        "Do NOT show another service menu.",
+        "Immediately provide weather information for the supplied location.",
+        "Show Current Weather first.",
+        "Then show Forecast if available.",
+        "Then give a short farmer advisory based only on the supplied weather data.",
+        "Do not invent any weather values.",
+        "Reply strictly in saved language: " +
+          preferredLanguage,
+        "",
+        "Location:",
+        weatherText
+      ].join("\n"),
+      weatherContext,
+      forecastContext
+    );
 
   await sendWhatsAppMessage(
     from,
-    weatherResult && weatherResult.reply
-      ? weatherResult.reply
-      : "Weather information is currently unavailable."
+    weatherReply
   );
 
-  activeWeatherMenu.updatedAt = Date.now();
-  userMenus[from] = activeWeatherMenu;
+  activeWeatherMenu.currentService =
+    null;
+
+  activeWeatherMenu.step =
+    "completed";
+
+  activeWeatherMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeWeatherMenu;
 
   return;
-}    
+}
 // =====================================================
 // VERIFIED SERVICE / WORKER / EXPERT SEARCH
 // =====================================================
