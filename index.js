@@ -820,8 +820,7 @@ if (isMenuCommand(userText)) {
 
   return;
 }
-const activeFarmMenu =
-  userMenus[from];
+
 if (
   activeFarmMenu &&
   !isMenuSessionExpired(
