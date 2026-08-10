@@ -1675,6 +1675,38 @@ if (registrationSelected) {
   return;
 }   
 // =====================================================
+// WEATHER - TYPED LOCATION HANDLING
+// =====================================================
+
+const activeWeatherMenu = userMenus[from];
+
+if (
+  activeWeatherMenu &&
+  !isMenuSessionExpired(activeWeatherMenu) &&
+  activeWeatherMenu.currentService === "weather"
+) {
+  const weatherText = String(userText || "").trim();
+
+  const weatherResult = await weatherModule({
+    text: weatherText,
+    from,
+    language:
+      userLanguagePreferences[from] || "English"
+  });
+
+  await sendWhatsAppMessage(
+    from,
+    weatherResult && weatherResult.reply
+      ? weatherResult.reply
+      : "Weather information is currently unavailable."
+  );
+
+  activeWeatherMenu.updatedAt = Date.now();
+  userMenus[from] = activeWeatherMenu;
+
+  return;
+}    
+// =====================================================
 // VERIFIED SERVICE / WORKER / EXPERT SEARCH
 // =====================================================
 
