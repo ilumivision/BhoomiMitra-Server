@@ -2505,11 +2505,11 @@ Promise.all([
     error && error.message
       ? error.message
       : error
-  );
-});
 
-  
-});
+    });
+
+}
+ });
 
 // =====================================================
 // BHOOMIMITRA REGISTRATION SYSTEM
