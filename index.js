@@ -2500,13 +2500,14 @@ Promise.all([
     ]
   )
 ])
-  .catch(function (error) {
+ .catch(function (error) {
     console.error(
       "Background AI logging error:",
       error
     );
   });
 
+}
 });
 // =====================================================
 // BHOOMIMITRA REGISTRATION SYSTEM
