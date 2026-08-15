@@ -2499,17 +2499,15 @@ Promise.all([
       "Open"
     ]
   )
-]).catch(function (error) {
-  console.error(
-    "Background AI logging error:",
-    error && error.message
-      ? error.message
-      : error
+])
+  .catch(function (error) {
+    console.error(
+      "Background AI logging error:",
+      error
+    );
+  });
 
-    });
-
-}
- });
+});
 
 // =====================================================
 // BHOOMIMITRA REGISTRATION SYSTEM
