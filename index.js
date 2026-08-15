@@ -572,6 +572,7 @@ userMenus[from] =
   activeFarmMenu;
 
 return;
+}
 
 // ===== SOIL LOCATION HANDLING =====
 if (
