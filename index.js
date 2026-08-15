@@ -2508,7 +2508,6 @@ Promise.all([
   });
 
 });
-
 // =====================================================
 // BHOOMIMITRA REGISTRATION SYSTEM
 // Farmer | Expert | Skilled Worker | Service Provider
