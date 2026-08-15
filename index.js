@@ -290,8 +290,11 @@ app.post("/webhook", async function (req, res) {
     if (processedMessages.has(message.id)) return;
     processedMessages.add(message.id);
 
-       const from = message.from;
-    let userText = "";
+     const from = message.from;
+
+console.log("[TEXT TEST] type =", message.type, "text =", message.text && message.text.body);
+
+let userText = "";
 if (message.type === "text") {
     userText = message.text && message.text.body
         ? message.text.body.trim()
