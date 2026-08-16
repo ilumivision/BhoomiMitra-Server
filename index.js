@@ -272,7 +272,7 @@ app.get("/webhook", function (req, res) {
 app.post("/webhook", async function (req, res) {
   res.status(200).send("EVENT_RECEIVED");
 
- 
+ try {
     const body = req.body;
     if (!body || body.object !== "whatsapp_business_account") return;
 
