@@ -472,135 +472,209 @@ return;
   const longitude =
     message.location &&
     message.location.longitude;
-const activeFarmMenu =
-  userMenus[from];
 
-if (
-  activeFarmMenu &&
-  !isMenuSessionExpired(
-    activeFarmMenu
-  ) &&
-  activeFarmMenu.step ===
-    "land_registration_gps"
-) {
-  activeFarmMenu.landRegistration =
-    activeFarmMenu.landRegistration || {};
+  // =====================================================
+  // LAND REGISTRATION GPS
+  // =====================================================
 
-  activeFarmMenu.landRegistration.latitude =
-    latitude;
+  if (
+    activeFarmMenu &&
+    !isMenuSessionExpired(
+      activeFarmMenu
+    ) &&
+    activeFarmMenu.step ===
+      "land_registration_gps"
+  ) {
+    activeFarmMenu.landRegistration =
+      activeFarmMenu.landRegistration || {};
 
-  activeFarmMenu.landRegistration.longitude =
-    longitude;
+    activeFarmMenu.landRegistration.latitude =
+      latitude;
 
-  activeFarmMenu.step =
-    "land_registration_confirm";
+    activeFarmMenu.landRegistration.longitude =
+      longitude;
 
-  activeFarmMenu.updatedAt =
-    Date.now();
+    activeFarmMenu.step =
+      "land_registration_confirm";
 
-  userMenus[from] =
-    activeFarmMenu;
+    activeFarmMenu.updatedAt =
+      Date.now();
 
-  const land =
-    activeFarmMenu.landRegistration;
+    userMenus[from] =
+      activeFarmMenu;
 
+    const land =
+      activeFarmMenu.landRegistration;
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "✅ GPS location saved.",
+        "",
+        "Please confirm the land details:",
+        "",
+        "Land name: " +
+          (land.farmName || "-"),
+        "District: " +
+          (land.district || "-"),
+        "Local body: " +
+          (land.localBody || "-") +
+          " " +
+          (land.localBodyType || ""),
+        "Area: " +
+          (land.area || "-") +
+          " " +
+          (land.areaUnit || ""),
+        "Crop details: " +
+          (land.mainCrop || "-"),
+        "",
+        "1️⃣ Confirm and register",
+        "2️⃣ Edit details",
+        "3️⃣ Cancel",
+        "",
+        "Reply with 1, 2 or 3."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  // =====================================================
+  // WEATHER GPS LOCATION
+  // =====================================================
+
+  if (
+    activeFarmMenu &&
+    !isMenuSessionExpired(
+      activeFarmMenu
+    ) &&
+    activeFarmMenu.currentService ===
+      "weather"
+  ) {
+    try {
+      const weatherResult =
+        await weatherModule({
+          latitude,
+          longitude,
+          from
+        });
+
+      await sendWhatsAppMessage(
+        from,
+        weatherResult &&
+        weatherResult.reply
+          ? weatherResult.reply
+          : "Weather information is currently unavailable."
+      );
+
+      activeFarmMenu.currentService =
+        null;
+
+      activeFarmMenu.step =
+        "completed";
+
+      activeFarmMenu.updatedAt =
+        Date.now();
+
+      userMenus[from] =
+        activeFarmMenu;
+
+      return;
+
+    } catch (weatherError) {
+      console.error(
+        "Weather location error:",
+        weatherError &&
+        weatherError.message
+          ? weatherError.message
+          : weatherError
+      );
+
+      await sendWhatsAppMessage(
+        from,
+        "Weather information is currently unavailable. Please try again."
+      );
+
+      return;
+    }
+  }
+
+  // =====================================================
+  // SOIL GPS LOCATION
+  // =====================================================
+
+  if (
+    activeFarmMenu &&
+    !isMenuSessionExpired(
+      activeFarmMenu
+    ) &&
+    activeFarmMenu.currentService ===
+      "soil"
+  ) {
+    try {
+      const soilResult =
+        await soilModule({
+          latitude,
+          longitude,
+          from
+        });
+
+      await sendWhatsAppMessage(
+        from,
+        soilResult &&
+        soilResult.reply
+          ? soilResult.reply
+          : "ക്ഷമിക്കണം, മണ്ണ് വിവരങ്ങൾ ലഭ്യമല്ല."
+      );
+
+      activeFarmMenu.currentService =
+        null;
+
+      activeFarmMenu.step =
+        "completed";
+
+      activeFarmMenu.updatedAt =
+        Date.now();
+
+      userMenus[from] =
+        activeFarmMenu;
+
+      return;
+
+    } catch (soilError) {
+      console.error(
+        "Soil location error:",
+        soilError &&
+        soilError.message
+          ? soilError.message
+          : soilError
+      );
+
+      await sendWhatsAppMessage(
+        from,
+        "ക്ഷമിക്കണം, മണ്ണ് വിവരങ്ങൾ ഇപ്പോൾ ലഭ്യമല്ല."
+      );
+
+      return;
+    }
+  }
+
+  // Location received without an active
+  // weather / soil / land-registration request.
   await sendWhatsAppMessage(
     from,
     [
-      "✅ GPS location saved.",
+      "📍 Location received.",
       "",
-      "Please confirm the land details:",
-      "",
-      "Land name: " +
-        (land.farmName || "-"),
-      "District: " +
-        (land.district || "-"),
-      "Local body: " +
-        (land.localBody || "-") +
-        " " +
-        (land.localBodyType || ""),
-      "Area: " +
-        (land.area || "-") +
-        " " +
-        (land.areaUnit || ""),
-      "Crop details: " +
-        (land.mainCrop || "-"),
-      "",
-      "1️⃣ Confirm and register",
-      "2️⃣ Edit details",
-      "3️⃣ Cancel",
-      "",
-      "Reply with 1, 2 or 3."
+      "Please select the required BhoomiMitra service from MENU."
     ].join("\n")
   );
 
   return;
-}
-
-// ===== WEATHER LOCATION HANDLING =====
-if (
-  activeFarmMenu &&
-  !isMenuSessionExpired(
-    activeFarmMenu
-  ) &&
-  activeFarmMenu.currentService ===
-    "weather"
-) {
-  const weatherResult =
-    await weatherModule({
-      latitude,
-      longitude,
-      from
-    });
-
- await sendWhatsAppMessage(
-  from,
-  weatherResult.reply ||
-    "Weather information is currently unavailable."
-);
-
-activeFarmMenu.currentService =
-  null;
-
-activeFarmMenu.step =
-  "completed";
-
-activeFarmMenu.updatedAt =
-  Date.now();
-
-userMenus[from] =
-  activeFarmMenu;
-
-return;
-}
-
-// ===== SOIL LOCATION HANDLING =====
-if (
-  activeFarmMenu &&
-  !isMenuSessionExpired(
-    activeFarmMenu
-  ) &&
-  activeFarmMenu.currentService ===
-    "soil"
-) {
-  const soilResult =
-    await soilModule({
-      latitude,
-      longitude,
-      from
-    });
-
-  await sendWhatsAppMessage(
-    from,
-    soilResult.reply ||
-      "ക്ഷമിക്കണം, മണ്ണ് വിവരങ്ങൾ ലഭ്യമല്ല."
-  );
-
-  return;
-}
 
 } else {
-    userText = "User sent a non-text message.";
+  userText =
+    "User sent a non-text message.";
 }
  /*
  * Registration must be processed before
