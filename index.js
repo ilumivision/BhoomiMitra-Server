@@ -8,6 +8,7 @@ const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
 const soilModule = require("./utils/soil");
+const weatherModule = require("./utils/weather");
 const {
   registerLand,
   getFarmerLands
@@ -290,11 +291,15 @@ app.post("/webhook", async function (req, res) {
     if (processedMessages.has(message.id)) return;
     processedMessages.add(message.id);
 
-     const from = message.from;
+    const from = message.from;
 
 console.log("[TEXT TEST] type =", message.type, "text =", message.text && message.text.body);
 
 let userText = "";
+
+const activeFarmMenu =
+  userMenus[from];
+
 if (message.type === "text") {
     userText = message.text && message.text.body
         ? message.text.body.trim()
@@ -2578,13 +2583,20 @@ Promise.all([
     ]
   )
 ])
- .catch(function (error) {
-    console.error(
-      "Background AI logging error:",
-      error
-    );
-  });
+.catch(function (error) {
+  console.error(
+    "Background AI logging error:",
+    error
+  );
+});
 
+} catch (error) {
+  console.error(
+    "Webhook error:",
+    error && error.message
+      ? error.message
+      : error
+  );
 }
 });
 // =====================================================
