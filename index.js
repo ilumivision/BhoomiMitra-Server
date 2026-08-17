@@ -491,7 +491,109 @@ return;
 
   const activeFarmMenu =
     userMenus[from];
+ // =====================================================
+  // LAND BOUNDARY GPS POINT CAPTURE
+  // =====================================================
 
+  const activeBoundarySession =
+    boundarySessions[from];
+
+  if (
+    activeBoundarySession &&
+    activeBoundarySession.sessionId &&
+    activeBoundarySession.landId
+  ) {
+    try {
+      const boundaryPointResult =
+        await addBoundaryPoint({
+          sheets,
+          spreadsheetId:
+            GOOGLE_SHEET_ID,
+
+          landId:
+            activeBoundarySession.landId,
+
+          farmerId:
+            activeBoundarySession.farmerId || "",
+
+          whatsapp:
+            from,
+
+          sessionId:
+            activeBoundarySession.sessionId,
+
+          latitude,
+          longitude,
+
+          gpsSource:
+            "WhatsApp"
+        });
+
+      if (
+        !boundaryPointResult ||
+        !boundaryPointResult.success
+      ) {
+        await sendWhatsAppMessage(
+          from,
+          boundaryPointResult &&
+          boundaryPointResult.error
+            ? boundaryPointResult.error
+            : "Boundary point could not be saved. Please try again."
+        );
+
+        return;
+      }
+
+      activeBoundarySession.pointCount =
+        boundaryPointResult.totalPoints;
+
+      activeBoundarySession.updatedAt =
+        Date.now();
+
+      boundarySessions[from] =
+        activeBoundarySession;
+
+      await sendWhatsAppMessage(
+        from,
+        [
+          "✅ Boundary point " +
+            boundaryPointResult.pointNo +
+            " saved.",
+          "",
+          "📍 Latitude: " +
+            boundaryPointResult.latitude,
+          "📍 Longitude: " +
+            boundaryPointResult.longitude,
+          "",
+          "Move to the next corner of the land and send your current location again.",
+          "",
+          "When all boundary points are completed, type DONE.",
+          "",
+          "To stop boundary capture, type CANCEL."
+        ].join("\n")
+      );
+
+      return;
+
+    } catch (boundaryError) {
+      console.error(
+        "Boundary GPS capture error:",
+        boundaryError &&
+        boundaryError.message
+          ? boundaryError.message
+          : boundaryError
+      );
+
+      await sendWhatsAppMessage(
+        from,
+        "Boundary point could not be saved. Please try again."
+      );
+
+      return;
+    }
+  }
+
+  
   // =====================================================
   // LAND REGISTRATION GPS
   // =====================================================
