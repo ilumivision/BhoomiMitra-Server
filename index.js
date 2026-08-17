@@ -1719,12 +1719,32 @@ if (farmMenuChoice === "2") {
 
   return;
 }
-  await sendWhatsAppMessage(
-    from,
-    "This Farm & Land Management option will be connected shortly."
-  );
+activeFarmMenu.step =
+  "land_boundary_select_land";
 
-  return;
+activeFarmMenu.updatedAt =
+  Date.now();
+
+userMenus[from] =
+  activeFarmMenu;
+
+await sendWhatsAppMessage(
+  from,
+  [
+    "🗺️ Land Boundary Mapping",
+    "",
+    "Please enter the Land ID of the registered land for which you want to map the boundary.",
+    "",
+    "Example:",
+    "BM-L-000001",
+    "",
+    "You can view your Land IDs using My Registered Lands.",
+    "",
+    "Type CANCEL to stop."
+  ].join("\n")
+);
+
+return;
 }
 if (
   activeFarmMenu &&
