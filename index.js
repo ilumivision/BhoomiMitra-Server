@@ -1746,6 +1746,177 @@ await sendWhatsAppMessage(
 
 return;
 }
+/ =====================================================
+// LAND BOUNDARY - SELECT REGISTERED LAND
+// =====================================================
+
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_boundary_select_land"
+) {
+  const selectedLandId =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+  if (selectedLandId === "CANCEL") {
+    activeFarmMenu.step =
+      "completed";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    delete boundarySessions[from];
+
+    await sendWhatsAppMessage(
+      from,
+      "❌ Land boundary mapping cancelled."
+    );
+
+    return;
+  }
+
+  if (
+    !selectedLandId ||
+    !selectedLandId.startsWith(
+      "BM-L-"
+    )
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "Please enter a valid registered Land ID.",
+        "",
+        "Example:",
+        "BM-L-000001",
+        "",
+        "Type CANCEL to stop."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  try {
+    const boundaryStartResult =
+      await startBoundarySession({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+
+        landId:
+          selectedLandId,
+
+        farmerId:
+          activeFarmMenu.farmerId || "",
+
+        whatsapp:
+          from
+      });
+
+    if (
+      !boundaryStartResult ||
+      !boundaryStartResult.success
+    ) {
+      await sendWhatsAppMessage(
+        from,
+        boundaryStartResult &&
+        boundaryStartResult.error
+          ? boundaryStartResult.error
+          : "Boundary mapping could not be started."
+      );
+
+      return;
+    }
+
+    boundarySessions[from] = {
+      sessionId:
+        boundaryStartResult.sessionId,
+
+      landId:
+        selectedLandId,
+
+      farmerId:
+        activeFarmMenu.farmerId || "",
+
+      pointCount:
+        0,
+
+      startedAt:
+        Date.now(),
+
+      updatedAt:
+        Date.now()
+    };
+
+    activeFarmMenu.step =
+      "land_boundary_capture";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    const selectedLand =
+      boundaryStartResult.land || {};
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "🗺️ Land Boundary Mapping Started",
+        "",
+        "Land ID: " +
+          selectedLandId,
+        "",
+        selectedLand.farmName
+          ? "Land: " +
+            selectedLand.farmName
+          : "",
+        "",
+        "📍 Go to the first corner / boundary point of the land.",
+        "",
+        "From WhatsApp, tap:",
+        "📎 → Location → Send your current location",
+        "",
+        "After the first point is saved, move to the next boundary point and send location again.",
+        "",
+        "Capture all important corners of the land.",
+        "",
+        "When finished, type DONE.",
+        "",
+        "To stop without completing, type CANCEL."
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+
+    return;
+
+  } catch (boundaryStartError) {
+    console.error(
+      "Boundary start error:",
+      boundaryStartError &&
+      boundaryStartError.message
+        ? boundaryStartError.message
+        : boundaryStartError
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      "Boundary mapping could not be started. Please try again."
+    );
+
+    return;
+  }
+}   
 if (
   activeFarmMenu &&
   !isMenuSessionExpired(
