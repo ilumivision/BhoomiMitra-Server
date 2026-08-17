@@ -126,6 +126,7 @@ const userMenus = {};
 const pendingLanguageSelections = {};
 const userLanguagePreferences = {};
 const pendingServiceSearches = {};
+const boundarySessions = {};
 const processedMessages = new Set();
 let sheetMetadataCache = null;
 let sheetMetadataCacheTime = 0;
