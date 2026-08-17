@@ -489,6 +489,9 @@ return;
     message.location &&
     message.location.longitude;
 
+  const activeFarmMenu =
+    userMenus[from];
+
   // =====================================================
   // LAND REGISTRATION GPS
   // =====================================================
