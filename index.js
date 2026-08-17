@@ -13,6 +13,16 @@ const {
   registerLand,
   getFarmerLands
 } = require("./utils/landRegistration");
+
+const {
+  startBoundarySession,
+  addBoundaryPoint,
+  getBoundaryPoints,
+  completeBoundary,
+  verifyBoundary,
+  cancelBoundary
+} = require("./utils/landBoundary");
+
 const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
