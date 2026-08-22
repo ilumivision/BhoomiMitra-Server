@@ -1708,11 +1708,12 @@ if (
   !isMenuSessionExpired(
     activeFarmMenu
   ) &&
-  activeFarmMenu.currentService ===
-    "farm" &&
-  /^[1-9]$/.test(
-    String(userText || "").trim()
-  )
+ activeFarmMenu.currentService ===
+  "farm" &&
+activeFarmMenu.step !== "satellite_gps_menu" &&
+/^[1-9]$/.test(
+  String(userText || "").trim()
+)
 ) {
   const farmMenuChoice =
     String(userText || "").trim();
