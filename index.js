@@ -2666,11 +2666,150 @@ if (
   activeFarmMenu.step ===
     "land_map_select_land"
 ) {
-  const selectedLandId =
-    String(userText || "")
-      .trim()
-      .toUpperCase();
+  const rawSelection =
+  String(userText || "")
+    .trim();
 
+let selectedLandId = "";
+
+if (
+  rawSelection.toUpperCase() ===
+  "CANCEL"
+) {
+  selectedLandId = "CANCEL";
+
+} else {
+  const savedLands =
+    Array.isArray(
+      activeFarmMenu.landMapLands
+    )
+      ? activeFarmMenu.landMapLands
+      : [];
+
+  // Selection by serial number
+  if (/^\d+$/.test(rawSelection)) {
+    const selectedIndex =
+      Number(rawSelection) - 1;
+
+    if (
+      selectedIndex >= 0 &&
+      selectedIndex <
+        savedLands.length
+    ) {
+      const selectedLand =
+        savedLands[selectedIndex];
+
+      selectedLandId =
+        String(
+          selectedLand.landId ||
+          selectedLand.Land_ID ||
+          selectedLand["Land ID"] ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+    }
+  }
+
+  // Selection by Land ID
+  if (!selectedLandId) {
+    const landById =
+      savedLands.find(
+        function (land) {
+          const savedLandId =
+            String(
+              land.landId ||
+              land.Land_ID ||
+              land["Land ID"] ||
+              ""
+            )
+              .trim()
+              .toUpperCase();
+
+          return (
+            savedLandId ===
+            rawSelection.toUpperCase()
+          );
+        }
+      );
+
+    if (landById) {
+      selectedLandId =
+        String(
+          landById.landId ||
+          landById.Land_ID ||
+          landById["Land ID"] ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+    }
+  }
+
+  // Selection by land name
+  if (!selectedLandId) {
+    const normalizedName =
+      rawSelection
+        .toLowerCase()
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const landByName =
+      savedLands.find(
+        function (land) {
+          const savedName =
+            String(
+              land.farmName ||
+              land.landName ||
+              land.Farm_Name ||
+              land.Land_Name ||
+              ""
+            )
+              .toLowerCase()
+              .replace(/\s+/g, " ")
+              .trim();
+
+          return (
+            savedName ===
+            normalizedName
+          );
+        }
+      );
+
+    if (landByName) {
+      selectedLandId =
+        String(
+          landByName.landId ||
+          landByName.Land_ID ||
+          landByName["Land ID"] ||
+          ""
+        )
+          .trim()
+          .toUpperCase();
+    }
+  }
+
+  if (!selectedLandId) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "⚠️ Land not found.",
+        "",
+        "Please reply with:",
+        "• Serial number",
+        "• Land ID",
+        "• Land name",
+        "",
+        "Example:",
+        "2",
+        "BM-L-000003",
+        "Manjadi home land"
+      ].join("\n")
+    );
+
+    return;
+  }
+}
   if (selectedLandId === "CANCEL") {
     activeFarmMenu.step =
       "satellite_gps_menu";
@@ -2733,11 +2872,26 @@ if (
       return;
     }
 
-    const mapUrl =
-      "https://www.google.com/maps/search/?api=1&query=" +
-      mapResult.points[0].latitude +
-      "," +
-      mapResult.points[0].longitude;
+   const googleMapUrl =
+  "https://www.google.com/maps/search/?api=1&query=" +
+  mapResult.points[0].latitude +
+  "," +
+  mapResult.points[0].longitude;
+
+const baseUrl =
+  process.env.RENDER_EXTERNAL_HOSTNAME
+    ? "https://" +
+      process.env.RENDER_EXTERNAL_HOSTNAME
+    : "";
+
+const bhoomiMitraMapUrl =
+  baseUrl
+    ? baseUrl +
+      "/land-map/" +
+      encodeURIComponent(
+        mapResult.landId
+      )
+    : "";
 
     await sendWhatsAppMessage(
       from,
@@ -2755,10 +2909,15 @@ if (
         "📍 Boundary points: " +
           mapResult.pointCount,
         "",
-        "Open location:",
-        mapUrl,
-        "",
-        "Boundary polygon data is available for this land."
+        "🌍 Open location in Google Maps:",
+googleMapUrl,
+"",
+bhoomiMitraMapUrl
+  ? "🗺️ View Complete BhoomiMitra Land Map:"
+  : "",
+bhoomiMitraMapUrl,
+"",
+"✅ Boundary polygon and land sketch are available."
       ]
         .filter(Boolean)
         .join("\n")
