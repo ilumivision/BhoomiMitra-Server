@@ -1340,7 +1340,10 @@ async function completeBoundary({
     buildPolygonGeoJSON(
       pointResult.points
     );
-
+const measurements =
+  calculateLandMeasurements(
+    pointResult.points
+  );
   if (!geoJSON) {
     return {
       success: false,
@@ -1380,7 +1383,27 @@ async function completeBoundary({
         "Boundary_GeoJSON column was not found in Land_Parcels."
     };
   }
+if (measurements) {
+  setValue(
+    landRow,
+    landHeaderMap,
+    [
+      "GPS_Calculated_Area",
+      "GPS Calculated Area"
+    ],
+    measurements.cents
+  );
 
+  setValue(
+    landRow,
+    landHeaderMap,
+    [
+      "GPS_Calculated_Area_Unit",
+      "GPS Calculated Area Unit"
+    ],
+    "Cent"
+  );
+}
   setValue(
     landRow,
     landHeaderMap,
