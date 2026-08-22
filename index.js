@@ -2422,16 +2422,14 @@ if (
  // 2 - VIEW LAND MAP
 if (satelliteChoice === "2") {
   try {
-    const landsResult =
-      await getFarmerLands({
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        farmerId:
-          activeFarmMenu.farmerId || "",
-        whatsapp:
-          from
-      });
+   const landsResult =
+  await getFarmerLands({
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+    phone:
+      from
+  });
 
     const lands =
       landsResult &&
