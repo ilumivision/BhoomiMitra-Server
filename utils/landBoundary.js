@@ -464,7 +464,131 @@ async function findLand({
       "Registered land was not found."
   };
 }
+// =====================================================
+// GET SAVED LAND BOUNDARY MAP DATA
+// =====================================================
 
+async function getLandBoundaryMapData({
+  sheets,
+  spreadsheetId,
+  landId,
+  farmerId,
+  whatsapp
+}) {
+  const landResult =
+    await findLand({
+      sheets,
+      spreadsheetId,
+      landId,
+      farmerId,
+      whatsapp
+    });
+
+  if (
+    !landResult ||
+    !landResult.success
+  ) {
+    return landResult || {
+      success: false,
+      error: "Registered land was not found."
+    };
+  }
+
+  const boundaryText =
+    getValue(
+      landResult.row,
+      landResult.headerMap,
+      [
+        "Boundary_GeoJSON",
+        "Boundary GeoJSON"
+      ]
+    );
+
+  if (!boundaryText) {
+    return {
+      success: false,
+      error:
+        "Boundary mapping has not yet been completed for this land.",
+      land:
+        landResult.land
+    };
+  }
+
+  let geoJSON;
+
+  try {
+    geoJSON =
+      typeof boundaryText === "string"
+        ? JSON.parse(boundaryText)
+        : boundaryText;
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        "Saved boundary data could not be read.",
+      land:
+        landResult.land
+    };
+  }
+
+  if (
+    !geoJSON ||
+    geoJSON.type !== "Polygon" ||
+    !Array.isArray(
+      geoJSON.coordinates
+    ) ||
+    !Array.isArray(
+      geoJSON.coordinates[0]
+    )
+  ) {
+    return {
+      success: false,
+      error:
+        "A valid land boundary polygon was not found.",
+      land:
+        landResult.land
+    };
+  }
+
+  const ring =
+    geoJSON.coordinates[0];
+
+  const points =
+    ring.map(function (coordinate) {
+      return {
+        longitude:
+          Number(coordinate[0]),
+        latitude:
+          Number(coordinate[1])
+      };
+    });
+
+  return {
+    success: true,
+
+    landId:
+      landResult.land &&
+      landResult.land.landId
+        ? landResult.land.landId
+        : landId,
+
+    farmName:
+      landResult.land &&
+      landResult.land.farmName
+        ? landResult.land.farmName
+        : "",
+
+    geoJSON,
+
+    points,
+
+    pointCount:
+      Math.max(
+        0,
+        points.length - 1
+      )
+  };
+}
 async function startBoundarySession({
   sheets,
   spreadsheetId,
@@ -1339,5 +1463,6 @@ module.exports = {
   completeBoundary,
   verifyBoundary,
   cancelBoundary,
+  getLandBoundaryMapData,
   buildPolygonGeoJSON
 };
