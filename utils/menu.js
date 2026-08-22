@@ -423,7 +423,7 @@ if (serviceKey === "farm") {
     "6️⃣ View BhoomiMitra advisory history",
     "7️⃣ View land summary",
     "8️⃣ Add or update soil-test details",
-    "9️⃣ View satellite and GPS observations",
+    "9️⃣ Map / update land boundary",
     "",
     "Reply with one number."
   ].join("\n");
