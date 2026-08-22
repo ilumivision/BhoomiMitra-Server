@@ -104,6 +104,508 @@ const googleAuth = new google.auth.JWT({
 });
 
 const sheets = google.sheets({ version: "v4", auth: googleAuth });
+// =====================================================
+// BHOOMIMITRA COMBINED LAND MAP
+// =====================================================
+
+app.get("/land-map/:landId", async (req, res) => {
+  try {
+    const requestedLandId =
+      String(req.params.landId || "")
+        .trim()
+        .toUpperCase();
+
+    const mapResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        landId:
+          requestedLandId,
+        farmerId: "",
+        whatsapp: ""
+      });
+
+    if (
+      !mapResult ||
+      !mapResult.success
+    ) {
+      return res
+        .status(404)
+        .send(
+          "<h2>Land map not available</h2><p>" +
+          (
+            mapResult &&
+            mapResult.error
+              ? mapResult.error
+              : "Boundary data was not found."
+          ) +
+          "</p>"
+        );
+    }
+
+    const boundaryPoints =
+      mapResult.points.slice(
+        0,
+        mapResult.pointCount
+      );
+
+    if (!boundaryPoints.length) {
+      return res
+        .status(404)
+        .send(
+          "<h2>No GPS boundary points found.</h2>"
+        );
+    }
+
+    const centerLatitude =
+      boundaryPoints.reduce(
+        (sum, point) =>
+          sum +
+          Number(point.latitude),
+        0
+      ) / boundaryPoints.length;
+
+    const centerLongitude =
+      boundaryPoints.reduce(
+        (sum, point) =>
+          sum +
+          Number(point.longitude),
+        0
+      ) / boundaryPoints.length;
+
+    const googleMapUrl =
+      "https://www.google.com/maps/search/?api=1&query=" +
+      centerLatitude +
+      "," +
+      centerLongitude;
+
+    const leafletPoints =
+      boundaryPoints.map(
+        function (point) {
+          return [
+            Number(point.latitude),
+            Number(point.longitude)
+          ];
+        }
+      );
+
+    const pointRows =
+      boundaryPoints
+        .map(
+          function (point, index) {
+            return (
+              "<tr>" +
+              "<td>Point " +
+              (index + 1) +
+              "</td>" +
+              "<td>" +
+              Number(
+                point.latitude
+              ).toFixed(7) +
+              "</td>" +
+              "<td>" +
+              Number(
+                point.longitude
+              ).toFixed(7) +
+              "</td>" +
+              "</tr>"
+            );
+          }
+        )
+        .join("");
+
+    const pageTitle =
+      mapResult.farmName ||
+      mapResult.landId;
+
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>BhoomiMitra Land Map</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f4f7f2;
+      color: #222;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: auto;
+      padding: 18px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 16px;
+      box-shadow:
+        0 2px 10px
+        rgba(0,0,0,0.08);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 25px;
+    }
+
+    h2 {
+      font-size: 19px;
+    }
+
+    #map {
+      height: 430px;
+      width: 100%;
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      border-bottom:
+        1px solid #ddd;
+      padding: 9px;
+      text-align: left;
+    }
+
+    .mapButton {
+      display: inline-block;
+      padding: 12px 18px;
+      background: #2e7d32;
+      color: white;
+      text-decoration: none;
+      border-radius: 9px;
+      margin-top: 10px;
+    }
+
+    .landSketch {
+      width: 100%;
+      height: 320px;
+      background: #fafafa;
+      border-radius: 12px;
+    }
+
+    .small {
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="card">
+    <h1>🗺️ BhoomiMitra Land Map</h1>
+
+    <p>
+      <strong>🌱 Land:</strong>
+      ${pageTitle}
+    </p>
+
+    <p>
+      <strong>🆔 Land ID:</strong>
+      ${mapResult.landId}
+    </p>
+
+    <p>
+      <strong>📍 Boundary points:</strong>
+      ${mapResult.pointCount}
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>🛰️ Interactive Land Boundary Map</h2>
+
+    <div id="map"></div>
+
+    <a
+      class="mapButton"
+      href="${googleMapUrl}"
+      target="_blank"
+    >
+      🌍 Open location in Google Maps
+    </a>
+  </div>
+
+  <div class="card">
+    <h2>📐 Land Boundary Sketch</h2>
+
+    <svg
+      id="landSketch"
+      class="landSketch"
+      viewBox="0 0 500 320"
+    ></svg>
+
+    <p class="small">
+      Sketch is generated from the saved GPS boundary coordinates.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>📍 GPS Boundary Points</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Point</th>
+          <th>Latitude</th>
+          <th>Longitude</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        ${pointRows}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+</script>
+
+<script>
+  const points =
+    ${JSON.stringify(leafletPoints)};
+
+  const map =
+    L.map("map");
+
+  L.tileLayer(
+    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 22,
+      attribution:
+        "&copy; OpenStreetMap contributors"
+    }
+  ).addTo(map);
+
+  const polygon =
+    L.polygon(points)
+      .addTo(map);
+
+  points.forEach(
+    function (point, index) {
+      L.marker(point)
+        .addTo(map)
+        .bindPopup(
+          "Boundary Point " +
+          (index + 1)
+        );
+    }
+  );
+
+  map.fitBounds(
+    polygon.getBounds(),
+    {
+      padding: [30, 30]
+    }
+  );
+
+  const svg =
+    document.getElementById(
+      "landSketch"
+    );
+
+  const latitudes =
+    points.map(
+      p => p[0]
+    );
+
+  const longitudes =
+    points.map(
+      p => p[1]
+    );
+
+  const minLat =
+    Math.min(...latitudes);
+
+  const maxLat =
+    Math.max(...latitudes);
+
+  const minLng =
+    Math.min(...longitudes);
+
+  const maxLng =
+    Math.max(...longitudes);
+
+  function scaleX(lng) {
+    const range =
+      maxLng - minLng || 1;
+
+    return (
+      60 +
+      (
+        (lng - minLng) /
+        range
+      ) * 380
+    );
+  }
+
+  function scaleY(lat) {
+    const range =
+      maxLat - minLat || 1;
+
+    return (
+      260 -
+      (
+        (lat - minLat) /
+        range
+      ) * 200
+    );
+  }
+
+  const svgPoints =
+    points.map(
+      function (point) {
+        return (
+          scaleX(point[1]) +
+          "," +
+          scaleY(point[0])
+        );
+      }
+    ).join(" ");
+
+  const polygonElement =
+    document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "polygon"
+    );
+
+  polygonElement.setAttribute(
+    "points",
+    svgPoints
+  );
+
+  polygonElement.setAttribute(
+    "fill",
+    "rgba(76,175,80,0.20)"
+  );
+
+  polygonElement.setAttribute(
+    "stroke",
+    "#2e7d32"
+  );
+
+  polygonElement.setAttribute(
+    "stroke-width",
+    "4"
+  );
+
+  svg.appendChild(
+    polygonElement
+  );
+
+  points.forEach(
+    function (point, index) {
+      const x =
+        scaleX(point[1]);
+
+      const y =
+        scaleY(point[0]);
+
+      const circle =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "circle"
+        );
+
+      circle.setAttribute(
+        "cx",
+        x
+      );
+
+      circle.setAttribute(
+        "cy",
+        y
+      );
+
+      circle.setAttribute(
+        "r",
+        "7"
+      );
+
+      circle.setAttribute(
+        "fill",
+        "#d32f2f"
+      );
+
+      svg.appendChild(
+        circle
+      );
+
+      const label =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text"
+        );
+
+      label.setAttribute(
+        "x",
+        x + 10
+      );
+
+      label.setAttribute(
+        "y",
+        y - 10
+      );
+
+      label.setAttribute(
+        "font-size",
+        "16"
+      );
+
+      label.textContent =
+        "Point " +
+        (index + 1);
+
+      svg.appendChild(
+        label
+      );
+    }
+  );
+</script>
+
+</body>
+</html>
+    `);
+
+  } catch (error) {
+    console.error(
+      "Land map page error:",
+      error
+    );
+
+    res
+      .status(500)
+      .send(
+        "<h2>Unable to load land map.</h2>"
+      );
+  }
+});
 const serviceFinder = createServiceFinder({
   readSheetRows,
   sheets: {
