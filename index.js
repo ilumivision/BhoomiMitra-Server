@@ -2581,7 +2581,152 @@ if (satelliteChoice === "3") {
 
   return;
 }
+// ============================================================
+// BOUNDARY STATUS - SELECT LAND
+// ============================================================
 
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "boundary_status_select_land"
+) {
+  const selectedLandId =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+  if (selectedLandId === "CANCEL") {
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      "❌ Boundary status check cancelled."
+    );
+
+    return;
+  }
+
+  if (
+    !selectedLandId ||
+    !selectedLandId.startsWith("BM-L-")
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "Please enter a valid registered Land ID.",
+        "",
+        "Example:",
+        "BM-L-000003",
+        "",
+        "Type CANCEL to stop."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  try {
+    const statusResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        landId:
+          selectedLandId,
+        farmerId:
+          activeFarmMenu.farmerId || "",
+        whatsapp:
+          from
+      });
+
+    if (
+      !statusResult ||
+      !statusResult.success
+    ) {
+      await sendWhatsAppMessage(
+        from,
+        statusResult &&
+        statusResult.error
+          ? "⚠️ " +
+            statusResult.error
+          : "⚠️ Boundary status could not be loaded."
+      );
+
+      return;
+    }
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "📍 Boundary Status",
+        "",
+        "🆔 Land ID: " +
+          statusResult.landId,
+        "",
+        statusResult.farmName
+          ? "🌱 Land: " +
+            statusResult.farmName
+          : "",
+        "",
+        "✅ Boundary mapping: Completed",
+        "📍 Boundary points: " +
+          statusResult.pointCount,
+
+        statusResult.measurements
+          ? "📐 GPS calculated area: " +
+            statusResult.measurements.cents +
+            " Cent"
+          : "",
+
+        statusResult.measurements
+          ? "📏 Perimeter: " +
+            statusResult.measurements.perimeterMetres +
+            " m"
+          : "",
+
+        statusResult.mappedAt
+          ? "🕒 Last updated: " +
+            statusResult.mappedAt
+          : ""
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    return;
+  } catch (statusError) {
+    console.error(
+      "Boundary status error:",
+      statusError &&
+      statusError.message
+        ? statusError.message
+        : statusError
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      "⚠️ Boundary status could not be loaded. Please try again."
+    );
+
+    return;
+  }
   // 4 - VIEW GPS DETAILS
 if (satelliteChoice === "4") {
   activeFarmMenu.step =
