@@ -2214,6 +2214,7 @@ if (
  activeFarmMenu.currentService ===
   "farm" &&
 activeFarmMenu.step !== "satellite_gps_menu" &&
+activeFarmMenu.step !== "land_map_select_land" &&   
 /^[1-9]$/.test(
   String(userText || "").trim()
 )
