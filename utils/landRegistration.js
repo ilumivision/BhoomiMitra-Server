@@ -261,11 +261,17 @@ async function getFarmerLands(data) {
     const localBodyIndex =
       headers.indexOf("local_body");
 
-    const areaIndex =
-      headers.indexOf("area");
+   const farmerReportedAreaIndex =
+  headers.indexOf("farmer_reported_area");
 
-    const areaUnitIndex =
-      headers.indexOf("area_unit");
+const revenueRecordAreaIndex =
+  headers.indexOf("revenue_record_area");
+
+const gpsCalculatedAreaIndex =
+  headers.indexOf("gps_calculated_area");
+
+const areaUnitIndex =
+  headers.indexOf("area_unit");
 
     const mainCropIndex =
       headers.indexOf("main_crop");
@@ -296,9 +302,12 @@ async function getFarmerLands(data) {
             localBody:
               row[localBodyIndex] || "",
             area:
-              row[areaIndex] || "",
-            areaUnit:
-              row[areaUnitIndex] || "",
+  row[farmerReportedAreaIndex] ||
+  row[revenueRecordAreaIndex] ||
+  row[gpsCalculatedAreaIndex] ||
+  "",
+areaUnit:
+  row[areaUnitIndex] || "",
             mainCrop:
               row[mainCropIndex] || ""
           };
