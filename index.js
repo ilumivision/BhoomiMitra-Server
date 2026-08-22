@@ -2917,11 +2917,33 @@ const bhoomiMitraMapUrl =
             mapResult.farmName
           : "",
         "",
-        "📍 Boundary points: " +
-          mapResult.pointCount,
-        "",
-        "🌍 Open location in Google Maps:",
+        mapResult.measurements
+  ? "📐 GPS calculated area: " +
+    mapResult.measurements.cents +
+    " Cent"
+  : "",
+
+mapResult.measurements
+  ? "📐 Area: " +
+    mapResult.measurements.squareMetres +
+    " m²"
+  : "",
+
+mapResult.measurements
+  ? "🌾 Acres: " +
+    mapResult.measurements.acres
+  : "",
+
+mapResult.measurements
+  ? "📏 Perimeter: " +
+    mapResult.measurements.perimeterMetres +
+    " m"
+  : "",
+
+"",
+"🌍 Open location in Google Maps:",
 googleMapUrl,
+
 "",
 bhoomiMitraMapUrl
   ? "🗺️ View Complete BhoomiMitra Land Map:"
