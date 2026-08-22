@@ -315,6 +315,126 @@ if (message.type === "text") {
     userText = message.text && message.text.body
         ? message.text.body.trim()
         : "";
+  // =====================================================
+// LAND BOUNDARY - COMPLETE WITH DONE
+// =====================================================
+
+const activeBoundaryForDone =
+  boundarySessions[from];
+
+if (
+  activeBoundaryForDone &&
+  activeBoundaryForDone.sessionId &&
+  activeBoundaryForDone.landId &&
+  String(userText || "")
+    .trim()
+    .toUpperCase() === "DONE"
+) {
+  try {
+    const boundaryCompleteResult =
+      await completeBoundary({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+
+        landId:
+          activeBoundaryForDone.landId,
+
+        farmerId:
+          activeBoundaryForDone.farmerId || "",
+
+        whatsapp:
+          from,
+
+        sessionId:
+          activeBoundaryForDone.sessionId
+      });
+
+    if (
+      !boundaryCompleteResult ||
+      !boundaryCompleteResult.success
+    ) {
+      const pointCount =
+        boundaryCompleteResult &&
+        boundaryCompleteResult.pointCount !== undefined
+          ? boundaryCompleteResult.pointCount
+          : activeBoundaryForDone.pointCount || 0;
+
+      await sendWhatsAppMessage(
+        from,
+        [
+          "⚠️ Land boundary could not be completed.",
+          "",
+          boundaryCompleteResult &&
+          boundaryCompleteResult.error
+            ? boundaryCompleteResult.error
+            : "Please check the captured boundary points.",
+          "",
+          "Points currently captured: " +
+            pointCount,
+          "",
+          "Please send more boundary locations if required, then type DONE again."
+        ].join("\n")
+      );
+
+      return;
+    }
+
+    const completedLandId =
+      boundaryCompleteResult.landId ||
+      activeBoundaryForDone.landId;
+
+    const completedPointCount =
+      boundaryCompleteResult.pointCount || 0;
+
+    delete boundarySessions[from];
+
+    if (userMenus[from]) {
+      userMenus[from].step =
+        "completed";
+
+      userMenus[from].updatedAt =
+        Date.now();
+    }
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "✅ Land Boundary Mapping Completed",
+        "",
+        "🆔 Land ID: " +
+          completedLandId,
+        "",
+        "📍 Boundary points: " +
+          completedPointCount,
+        "",
+        "🗺️ Land boundary polygon has been created and saved.",
+        "",
+        "The registered land is now ready for the next stage of GPS and satellite monitoring.",
+        "",
+        "You can type MENU to continue."
+      ].join("\n")
+    );
+
+    return;
+
+  } catch (boundaryCompleteError) {
+    console.error(
+      "Boundary completion error:",
+      boundaryCompleteError &&
+      boundaryCompleteError.message
+        ? boundaryCompleteError.message
+        : boundaryCompleteError
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      "Boundary completion failed. Your captured points have been retained. Please type DONE again or try later."
+    );
+
+    return;
+  }
+}
 } else if (message.type === "audio" || message.type === "voice") {
     const mediaId = message.audio && message.audio.id
         ? message.audio.id
