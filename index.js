@@ -1945,26 +1945,61 @@ if (satelliteChoice === "2") {
   return;
 }
 
-  // 3 - VIEW BOUNDARY STATUS
-  if (satelliteChoice === "3") {
-    await sendWhatsAppMessage(
-      from,
-      "📍 Boundary Status is being connected next."
-    );
+ // 3 - VIEW BOUNDARY STATUS
+if (satelliteChoice === "3") {
+  activeFarmMenu.step =
+    "boundary_status_select_land";
 
-    return;
-  }
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "📍 Boundary Status",
+      "",
+      "Please enter the Land ID.",
+      "",
+      "Example:",
+      "BM-L-000003",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
+}
 
   // 4 - VIEW GPS DETAILS
-  if (satelliteChoice === "4") {
-    await sendWhatsAppMessage(
-      from,
-      "📡 GPS Details is being connected next."
-    );
+if (satelliteChoice === "4") {
+  activeFarmMenu.step =
+    "gps_details_select_land";
 
-    return;
-  }
+  activeFarmMenu.updatedAt =
+    Date.now();
 
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "📍 GPS Details",
+      "",
+      "Please enter the Land ID.",
+      "",
+      "Example:",
+      "BM-L-000003",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
+}
   // 5 - SATELLITE FARM HEALTH
   if (satelliteChoice === "5") {
     await sendWhatsAppMessage(
@@ -2154,6 +2189,142 @@ if (
     await sendWhatsAppMessage(
       from,
       "⚠️ Land map could not be loaded. Please try again."
+    );
+
+    return;
+  }
+}  
+ / =====================================================
+// GPS DETAILS - SELECT LAND
+// =====================================================
+
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "gps_details_select_land"
+) {
+  const selectedLandId =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+  if (selectedLandId === "CANCEL") {
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      "GPS details cancelled."
+    );
+
+    return;
+  }
+
+  try {
+    const gpsResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        landId:
+          selectedLandId,
+        farmerId:
+          activeFarmMenu.farmerId || "",
+        whatsapp:
+          from
+      });
+
+    if (
+      !gpsResult ||
+      !gpsResult.success
+    ) {
+      await sendWhatsAppMessage(
+        from,
+        gpsResult &&
+        gpsResult.error
+          ? "⚠️ " + gpsResult.error
+          : "⚠️ GPS details could not be loaded."
+      );
+
+      return;
+    }
+
+    const uniquePoints =
+      gpsResult.points.slice(
+        0,
+        gpsResult.pointCount
+      );
+
+    const gpsLines =
+      uniquePoints.map(
+        function (point, index) {
+          return (
+            "📍 Point " +
+            (index + 1) +
+            ": " +
+            Number(
+              point.latitude
+            ).toFixed(7) +
+            ", " +
+            Number(
+              point.longitude
+            ).toFixed(7)
+          );
+        }
+      );
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "📍 Land GPS Details",
+        "",
+        "🆔 Land ID: " +
+          gpsResult.landId,
+        "",
+        gpsResult.farmName
+          ? "🌱 Land: " +
+            gpsResult.farmName
+          : "",
+        "",
+        "Total boundary points: " +
+          gpsResult.pointCount,
+        "",
+        ...gpsLines
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    return;
+
+  } catch (gpsError) {
+    console.error(
+      "GPS details error:",
+      gpsError &&
+      gpsError.message
+        ? gpsError.message
+        : gpsError
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      "⚠️ GPS details could not be loaded."
     );
 
     return;
