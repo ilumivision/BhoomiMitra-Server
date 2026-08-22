@@ -562,7 +562,10 @@ async function getLandBoundaryMapData({
           Number(coordinate[1])
       };
     });
-
+const measurements =
+  calculateLandMeasurements(
+    points
+  );
   const updatedAt =
   getValue(
     landResult.row,
@@ -594,13 +597,15 @@ return {
 
   points,
 
-  pointCount:
-    Math.max(
-      0,
-      points.length - 1
-    ),
+ pointCount:
+  Math.max(
+    0,
+    points.length - 1
+  ),
 
-  boundaryExists: true,
+measurements,
+
+boundaryExists: true,
 
   mappedAt:
     updatedAt || ""
