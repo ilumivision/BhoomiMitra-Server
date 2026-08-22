@@ -1163,7 +1163,128 @@ function buildPolygonGeoJSON(
       [ring]
   };
 }
+function calculateLandMeasurements(points) {
+  if (!Array.isArray(points) || points.length < 3) {
+    return null;
+  }
 
+  const earthRadius = 6378137;
+
+  function toRadians(value) {
+    return (value * Math.PI) / 180;
+  }
+
+  const referenceLatitude =
+    points.reduce(
+      function (sum, point) {
+        return sum + Number(point.latitude || 0);
+      },
+      0
+    ) / points.length;
+
+  const referenceLongitude =
+    points.reduce(
+      function (sum, point) {
+        return sum + Number(point.longitude || 0);
+      },
+      0
+    ) / points.length;
+
+  const refLatRad =
+    toRadians(referenceLatitude);
+
+  const projectedPoints =
+    points.map(function (point) {
+      const latitude =
+        Number(point.latitude);
+
+      const longitude =
+        Number(point.longitude);
+
+      const x =
+        earthRadius *
+        toRadians(
+          longitude -
+          referenceLongitude
+        ) *
+        Math.cos(refLatRad);
+
+      const y =
+        earthRadius *
+        toRadians(
+          latitude -
+          referenceLatitude
+        );
+
+      return {
+        x,
+        y
+      };
+    });
+
+  let areaSum = 0;
+  let perimeterMetres = 0;
+
+  for (
+    let i = 0;
+    i < projectedPoints.length;
+    i += 1
+  ) {
+    const current =
+      projectedPoints[i];
+
+    const next =
+      projectedPoints[
+        (i + 1) %
+        projectedPoints.length
+      ];
+
+    areaSum +=
+      current.x * next.y -
+      next.x * current.y;
+
+    const dx =
+      next.x - current.x;
+
+    const dy =
+      next.y - current.y;
+
+    perimeterMetres +=
+      Math.sqrt(
+        dx * dx +
+        dy * dy
+      );
+  }
+
+  const squareMetres =
+    Math.abs(areaSum) / 2;
+
+  const cents =
+    squareMetres / 40.468564224;
+
+  const acres =
+    squareMetres / 4046.8564224;
+
+  const hectares =
+    squareMetres / 10000;
+
+  return {
+    squareMetres:
+      Number(squareMetres.toFixed(2)),
+
+    cents:
+      Number(cents.toFixed(3)),
+
+    acres:
+      Number(acres.toFixed(4)),
+
+    hectares:
+      Number(hectares.toFixed(4)),
+
+    perimeterMetres:
+      Number(perimeterMetres.toFixed(2))
+  };
+}
 async function completeBoundary({
   sheets,
   spreadsheetId,
