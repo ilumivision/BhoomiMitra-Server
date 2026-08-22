@@ -563,31 +563,48 @@ async function getLandBoundaryMapData({
       };
     });
 
-  return {
-    success: true,
+  const updatedAt =
+  getValue(
+    landResult.row,
+    landResult.headerMap,
+    [
+      "Updated_At",
+      "Updated At",
+      "Boundary_Updated_At",
+      "Boundary Updated At"
+    ]
+  );
 
-    landId:
-      landResult.land &&
-      landResult.land.landId
-        ? landResult.land.landId
-        : landId,
+return {
+  success: true,
 
-    farmName:
-      landResult.land &&
-      landResult.land.farmName
-        ? landResult.land.farmName
-        : "",
+  landId:
+    landResult.land &&
+    landResult.land.landId
+      ? landResult.land.landId
+      : landId,
 
-    geoJSON,
+  farmName:
+    landResult.land &&
+    landResult.land.farmName
+      ? landResult.land.farmName
+      : "",
 
-    points,
+  geoJSON,
 
-    pointCount:
-      Math.max(
-        0,
-        points.length - 1
-      )
-  };
+  points,
+
+  pointCount:
+    Math.max(
+      0,
+      points.length - 1
+    ),
+
+  boundaryExists: true,
+
+  mappedAt:
+    updatedAt || ""
+};
 }
 async function startBoundarySession({
   sheets,
