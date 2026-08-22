@@ -1840,7 +1840,7 @@ if (farmMenuChoice === "2") {
   return;
 }
 activeFarmMenu.step =
-  "land_boundary_select_land";
+  "satellite_gps_menu";
 
 activeFarmMenu.updatedAt =
   Date.now();
@@ -1851,16 +1851,19 @@ userMenus[from] =
 await sendWhatsAppMessage(
   from,
   [
-    "🗺️ Land Boundary Mapping",
+    "🛰️ Satellite, GPS & Land Monitoring",
     "",
-    "Please enter the Land ID of the registered land for which you want to map the boundary.",
+    "Please select an option:",
     "",
-    "Example:",
-    "BM-L-000001",
+    "1️⃣ Map / update land boundary",
+    "2️⃣ View land map",
+    "3️⃣ View boundary status",
+    "4️⃣ View GPS details",
+    "5️⃣ Satellite farm health",
+    "6️⃣ Satellite observation history",
+    "7️⃣ Back",
     "",
-    "You can view your Land IDs using My Registered Lands.",
-    "",
-    "Type CANCEL to stop."
+    "Reply with one number."
   ].join("\n")
 );
 
