@@ -2317,15 +2317,27 @@ if (farmMenuChoice === "2") {
             .join(", ")
       );
 
-      lines.push(
-        "Area: " +
-          [
-            land.area,
-            land.areaUnit
-          ]
-            .filter(Boolean)
-            .join(" ")
-      );
+     const areaValue =
+  land.area ||
+  land.areaValue ||
+  land.landArea ||
+  land.totalArea ||
+  land.Area ||
+  "";
+
+const areaUnit =
+  land.areaUnit ||
+  land.landAreaUnit ||
+  land.unit ||
+  land.Area_Unit ||
+  "";
+
+lines.push(
+  "Area: " +
+    [areaValue, areaUnit]
+      .filter(Boolean)
+      .join(" ")
+);
 
       lines.push(
         "Main crop: " +
