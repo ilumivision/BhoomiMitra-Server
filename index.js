@@ -2421,30 +2421,126 @@ if (
 
  // 2 - VIEW LAND MAP
 if (satelliteChoice === "2") {
-  activeFarmMenu.step =
-    "land_map_select_land";
+  try {
+    const landsResult =
+      await getFarmerLands({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        farmerId:
+          activeFarmMenu.farmerId || "",
+        whatsapp:
+          from
+      });
 
-  activeFarmMenu.updatedAt =
-    Date.now();
+    const lands =
+      landsResult &&
+      Array.isArray(landsResult.lands)
+        ? landsResult.lands
+        : Array.isArray(landsResult)
+          ? landsResult
+          : [];
 
-  userMenus[from] =
-    activeFarmMenu;
+    if (!lands.length) {
+      await sendWhatsAppMessage(
+        from,
+        [
+          "🌾 My Registered Lands",
+          "",
+          "No registered lands were found.",
+          "",
+          "Please register a land first."
+        ].join("\n")
+      );
 
-  await sendWhatsAppMessage(
-    from,
-    [
-      "🗺️ View Land Map",
-      "",
-      "Please enter the Land ID of the registered land.",
-      "",
-      "Example:",
-      "BM-L-000003",
-      "",
-      "Type CANCEL to stop."
-    ].join("\n")
-  );
+      return;
+    }
 
-  return;
+    activeFarmMenu.step =
+      "land_map_select_land";
+
+    activeFarmMenu.landMapLands =
+      lands;
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    const landLines =
+      [];
+
+    lands.forEach(
+      function (land, index) {
+        const landName =
+          land.farmName ||
+          land.landName ||
+          land.Farm_Name ||
+          land.Land_Name ||
+          "Registered land";
+
+        const landId =
+          land.landId ||
+          land.Land_ID ||
+          land["Land ID"] ||
+          "";
+
+        landLines.push(
+          (index + 1) +
+            ". " +
+            landName
+        );
+
+        if (landId) {
+          landLines.push(
+            "Land ID: " +
+              landId
+          );
+        }
+
+        landLines.push("");
+      }
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "🌾 My Registered Lands",
+        "",
+        ...landLines,
+        "Reply with:",
+        "• Serial number",
+        "• Land ID",
+        "• Land name",
+        "",
+        "Examples:",
+        "2",
+        "BM-L-000003",
+        "Manjadi home land",
+        "",
+        "Type CANCEL to stop."
+      ].join("\n")
+    );
+
+    return;
+
+  } catch (landListError) {
+    console.error(
+      "View land list error:",
+      landListError &&
+      landListError.message
+        ? landListError.message
+        : landListError
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      "⚠️ Registered lands could not be loaded. Please try again."
+    );
+
+    return;
+  }
 }
 
  // 3 - VIEW BOUNDARY STATUS
