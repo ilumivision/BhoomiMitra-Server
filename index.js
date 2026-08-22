@@ -2581,6 +2581,91 @@ if (satelliteChoice === "3") {
 
   return;
 }
+
+  // 4 - VIEW GPS DETAILS
+if (satelliteChoice === "4") {
+  activeFarmMenu.step =
+    "gps_details_select_land";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "📍 GPS Details",
+      "",
+      "Please enter the Land ID.",
+      "",
+      "Example:",
+      "BM-L-000003",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
+}
+  // 5 - SATELLITE FARM HEALTH
+  if (satelliteChoice === "5") {
+    await sendWhatsAppMessage(
+      from,
+      "🛰️ Satellite Farm Health is being connected next."
+    );
+
+    return;
+  }
+
+  // 6 - SATELLITE OBSERVATION HISTORY
+  if (satelliteChoice === "6") {
+    await sendWhatsAppMessage(
+      from,
+      "📊 Satellite Observation History is being connected next."
+    );
+
+    return;
+  }
+
+  // 7 - BACK
+  if (satelliteChoice === "7") {
+    activeFarmMenu.step =
+      "completed";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      getServiceMessage("farm")
+    );
+
+    return;
+  }
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "Please select a valid option.",
+      "",
+      "1️⃣ Map / update land boundary",
+      "2️⃣ View land map",
+      "3️⃣ View boundary status",
+      "4️⃣ View GPS details",
+      "5️⃣ Satellite farm health",
+      "6️⃣ Satellite observation history",
+      "7️⃣ Back"
+    ].join("\n")
+  );
+
+return;
+}
+
 // ============================================================
 // BOUNDARY STATUS - SELECT LAND
 // ============================================================
@@ -2727,92 +2812,10 @@ if (
 
     return;
   }
-  // 4 - VIEW GPS DETAILS
-if (satelliteChoice === "4") {
-  activeFarmMenu.step =
-    "gps_details_select_land";
-
-  activeFarmMenu.updatedAt =
-    Date.now();
-
-  userMenus[from] =
-    activeFarmMenu;
-
-  await sendWhatsAppMessage(
-    from,
-    [
-      "📍 GPS Details",
-      "",
-      "Please enter the Land ID.",
-      "",
-      "Example:",
-      "BM-L-000003",
-      "",
-      "Type CANCEL to stop."
-    ].join("\n")
-  );
-
-  return;
 }
-  // 5 - SATELLITE FARM HEALTH
-  if (satelliteChoice === "5") {
-    await sendWhatsAppMessage(
-      from,
-      "🛰️ Satellite Farm Health is being connected next."
-    );
-
-    return;
-  }
-
-  // 6 - SATELLITE OBSERVATION HISTORY
-  if (satelliteChoice === "6") {
-    await sendWhatsAppMessage(
-      from,
-      "📊 Satellite Observation History is being connected next."
-    );
-
-    return;
-  }
-
-  // 7 - BACK
-  if (satelliteChoice === "7") {
-    activeFarmMenu.step =
-      "completed";
-
-    activeFarmMenu.updatedAt =
-      Date.now();
-
-    userMenus[from] =
-      activeFarmMenu;
-
-    await sendWhatsAppMessage(
-      from,
-      getServiceMessage("farm")
-    );
-
-    return;
-  }
-
-  await sendWhatsAppMessage(
-    from,
-    [
-      "Please select a valid option.",
-      "",
-      "1️⃣ Map / update land boundary",
-      "2️⃣ View land map",
-      "3️⃣ View boundary status",
-      "4️⃣ View GPS details",
-      "5️⃣ Satellite farm health",
-      "6️⃣ Satellite observation history",
-      "7️⃣ Back"
-    ].join("\n")
-  );
-
-  return;
-}   
- // =====================================================
+// ============================================================
 // VIEW LAND MAP - SELECT REGISTERED LAND
-// =====================================================
+// ============================================================
 
 if (
   activeFarmMenu &&
