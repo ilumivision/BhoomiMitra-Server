@@ -20,7 +20,8 @@ const {
   getBoundaryPoints,
   completeBoundary,
   verifyBoundary,
-  cancelBoundary
+  cancelBoundary,
+  getLandBoundaryMapData
 } = require("./utils/landBoundary");
 
 const {
@@ -1916,15 +1917,33 @@ if (
     return;
   }
 
-  // 2 - VIEW LAND MAP
-  if (satelliteChoice === "2") {
-    await sendWhatsAppMessage(
-      from,
-      "🗺️ View Land Map is being connected next."
-    );
+ // 2 - VIEW LAND MAP
+if (satelliteChoice === "2") {
+  activeFarmMenu.step =
+    "land_map_select_land";
 
-    return;
-  }
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "🗺️ View Land Map",
+      "",
+      "Please enter the Land ID of the registered land.",
+      "",
+      "Example:",
+      "BM-L-000003",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
+}
 
   // 3 - VIEW BOUNDARY STATUS
   if (satelliteChoice === "3") {
@@ -2002,6 +2021,144 @@ if (
 
   return;
 }   
+ // =====================================================
+// VIEW LAND MAP - SELECT REGISTERED LAND
+// =====================================================
+
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(
+    activeFarmMenu
+  ) &&
+  activeFarmMenu.step ===
+    "land_map_select_land"
+) {
+  const selectedLandId =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+  if (selectedLandId === "CANCEL") {
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "🛰️ Satellite, GPS & Land Monitoring",
+        "",
+        "1️⃣ Map / update land boundary",
+        "2️⃣ View land map",
+        "3️⃣ View boundary status",
+        "4️⃣ View GPS details",
+        "5️⃣ Satellite farm health",
+        "6️⃣ Satellite observation history",
+        "7️⃣ Back",
+        "",
+        "Reply with one number."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  try {
+    const mapResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+
+        landId:
+          selectedLandId,
+
+        farmerId:
+          activeFarmMenu.farmerId || "",
+
+        whatsapp:
+          from
+      });
+
+    if (
+      !mapResult ||
+      !mapResult.success
+    ) {
+      await sendWhatsAppMessage(
+        from,
+        mapResult &&
+        mapResult.error
+          ? "⚠️ " + mapResult.error
+          : "⚠️ Land map could not be loaded."
+      );
+
+      return;
+    }
+
+    const mapUrl =
+      "https://www.google.com/maps/search/?api=1&query=" +
+      mapResult.points[0].latitude +
+      "," +
+      mapResult.points[0].longitude;
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "🗺️ Land Map",
+        "",
+        "🆔 Land ID: " +
+          mapResult.landId,
+        "",
+        mapResult.farmName
+          ? "🌱 Land: " +
+            mapResult.farmName
+          : "",
+        "",
+        "📍 Boundary points: " +
+          mapResult.pointCount,
+        "",
+        "Open location:",
+        mapUrl,
+        "",
+        "Boundary polygon data is available for this land."
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    return;
+
+  } catch (mapError) {
+    console.error(
+      "View land map error:",
+      mapError &&
+      mapError.message
+        ? mapError.message
+        : mapError
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      "⚠️ Land map could not be loaded. Please try again."
+    );
+
+    return;
+  }
+}  
 // =====================================================
 // LAND BOUNDARY - SELECT REGISTERED LAND
 // =====================================================
