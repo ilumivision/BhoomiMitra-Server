@@ -2933,45 +2933,118 @@ if (
 
       return;
     }
+const latestSatellite =
+  await getLatestSatelliteObservation({
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+    landId:
+      selectedLandId,
+    farmerId:
+      activeFarmMenu.farmerId || ""
+  });
+   await sendWhatsAppMessage(
+  from,
+  [
+    "🛰️ Satellite Farm Health",
+    "",
+    "🆔 Land ID: " +
+      healthResult.landId,
 
-    await sendWhatsAppMessage(
-      from,
-      [
-        "🛰️ Satellite Farm Health",
-        "",
-        "🆔 Land ID: " +
-          healthResult.landId,
-
+    healthResult.farmName
+      ? "🌱 Land: " +
         healthResult.farmName
-          ? "🌱 Land: " +
-            healthResult.farmName
-          : "",
+      : "",
 
-        "",
-        "✅ Land boundary available",
-        "📍 Boundary points: " +
-          healthResult.pointCount,
+    healthResult.measurements
+      ? "📐 GPS area: " +
+        healthResult.measurements.cents +
+        " Cent"
+      : "",
 
-        healthResult.measurements
-          ? "📐 GPS area: " +
-            healthResult.measurements.cents +
-            " Cent"
-          : "",
+    "",
 
-        "",
-        "🛰️ Live satellite crop-health analysis is the next connection stage.",
-        "",
-        "Planned indicators:",
-        "🌿 Vegetation / NDVI",
-        "💧 Moisture stress",
-        "🌧️ Waterlogging",
-        "⚠️ Crop stress",
-        "☁️ Cloud cover",
-        "📈 Change from previous observation"
-      ]
-        .filter(Boolean)
-        .join("\n")
-    );
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found
+      ? "✅ Latest satellite observation available"
+      : "ℹ️ No satellite observation available yet.",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.observationDate
+      ? "📅 Observation: " +
+        latestSatellite.observation.observationDate
+      : "",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.satelliteSource
+      ? "🛰️ Source: " +
+        latestSatellite.observation.satelliteSource
+      : "",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.ndvi !== ""
+      ? "🌿 NDVI: " +
+        latestSatellite.observation.ndvi
+      : "",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.vegetationStatus
+      ? "🌱 Vegetation: " +
+        latestSatellite.observation.vegetationStatus
+      : "",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.moistureStatus
+      ? "💧 Moisture: " +
+        latestSatellite.observation.moistureStatus
+      : "",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.waterloggingStatus
+      ? "🌧️ Waterlogging: " +
+        latestSatellite.observation.waterloggingStatus
+      : "",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.stressStatus
+      ? "⚠️ Stress: " +
+        latestSatellite.observation.stressStatus
+      : "",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.cloudCover !== ""
+      ? "☁️ Cloud cover: " +
+        latestSatellite.observation.cloudCover
+      : "",
+
+    latestSatellite &&
+    latestSatellite.success &&
+    latestSatellite.found &&
+    latestSatellite.observation.remarks
+      ? "📝 Remarks: " +
+        latestSatellite.observation.remarks
+      : ""
+  ]
+    .filter(Boolean)
+    .join("\n")
+);
 
     activeFarmMenu.step =
       "satellite_gps_menu";
