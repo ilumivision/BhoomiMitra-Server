@@ -23,7 +23,10 @@ const {
   cancelBoundary,
   getLandBoundaryMapData
 } = require("./utils/landBoundary");
-
+const {
+  getLatestSatelliteObservation,
+  getSatelliteObservationHistory
+} = require("./utils/satellite");
 const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
