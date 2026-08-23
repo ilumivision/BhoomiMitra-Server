@@ -3155,45 +3155,110 @@ if (
       return;
     }
 
+const historyResult =
+  await getSatelliteObservationHistory({
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+    landId:
+      selectedLandId,
+    farmerId:
+      activeFarmMenu.farmerId || "",
+    limit: 5
+  });
+
+
     await sendWhatsAppMessage(
-      from,
-      [
-        "📊 Satellite Observation History",
-        "",
-        "🆔 Land ID: " +
-          historyLandResult.landId,
+  from,
+  [
+    "📊 Satellite Observation History",
+    "",
+    "🆔 Land ID: " +
+      historyLandResult.landId,
 
+    historyLandResult.farmName
+      ? "🌱 Land: " +
         historyLandResult.farmName
-          ? "🌱 Land: " +
-            historyLandResult.farmName
-          : "",
+      : "",
 
-        "",
-        "✅ Land boundary available",
-        "📍 Boundary points: " +
-          historyLandResult.pointCount,
+    historyLandResult.measurements
+      ? "📐 GPS area: " +
+        historyLandResult.measurements.cents +
+        " Cent"
+      : "",
 
-        historyLandResult.measurements
-          ? "📐 GPS area: " +
-            historyLandResult.measurements.cents +
-            " Cent"
-          : "",
+    "",
 
-        "",
-        "ℹ️ No satellite observation records are available yet.",
-        "",
-        "Once satellite monitoring is connected, this section will show:",
-        "📅 Observation date",
-        "🌿 NDVI / vegetation health",
-        "💧 Moisture status",
-        "🌧️ Waterlogging status",
-        "⚠️ Crop stress",
-        "☁️ Cloud cover",
-        "📈 Change from previous observation"
-      ]
-        .filter(Boolean)
-        .join("\n")
-    );
+    historyResult &&
+    historyResult.success &&
+    historyResult.found
+      ? "✅ Satellite observation records found: " +
+        historyResult.count
+      : "ℹ️ No satellite observation records are available yet.",
+
+    historyResult &&
+    historyResult.success &&
+    historyResult.found
+      ? historyResult.observations
+          .map(function (observation, index) {
+            return [
+              "",
+              "📌 Observation " + (index + 1),
+
+              observation.observationDate
+                ? "📅 Date: " +
+                  observation.observationDate
+                : "",
+
+              observation.satelliteSource
+                ? "🛰️ Source: " +
+                  observation.satelliteSource
+                : "",
+
+              observation.ndvi !== ""
+                ? "🌿 NDVI: " +
+                  observation.ndvi
+                : "",
+
+              observation.vegetationStatus
+                ? "🌱 Vegetation: " +
+                  observation.vegetationStatus
+                : "",
+
+              observation.moistureStatus
+                ? "💧 Moisture: " +
+                  observation.moistureStatus
+                : "",
+
+              observation.waterloggingStatus
+                ? "🌧️ Waterlogging: " +
+                  observation.waterloggingStatus
+                : "",
+
+              observation.stressStatus
+                ? "⚠️ Stress: " +
+                  observation.stressStatus
+                : "",
+
+              observation.cloudCover !== ""
+                ? "☁️ Cloud cover: " +
+                  observation.cloudCover
+                : "",
+
+              observation.remarks
+                ? "📝 Remarks: " +
+                  observation.remarks
+                : ""
+            ]
+              .filter(Boolean)
+              .join("\n");
+          })
+          .join("\n")
+      : ""
+  ]
+    .filter(Boolean)
+    .join("\n")
+);
 
     activeFarmMenu.step =
       "satellite_gps_menu";
