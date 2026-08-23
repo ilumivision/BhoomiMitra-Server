@@ -2609,25 +2609,61 @@ if (satelliteChoice === "4") {
 
   return;
 }
-  // 5 - SATELLITE FARM HEALTH
-  if (satelliteChoice === "5") {
-    await sendWhatsAppMessage(
-      from,
-      "🛰️ Satellite Farm Health is being connected next."
-    );
+ // 5 - SATELLITE FARM HEALTH
+if (satelliteChoice === "5") {
+  activeFarmMenu.step =
+    "satellite_health_select_land";
 
-    return;
-  }
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "🛰️ Satellite Farm Health",
+      "",
+      "Please enter the Land ID.",
+      "",
+      "Example:",
+      "BM-L-000003",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
+}
 
   // 6 - SATELLITE OBSERVATION HISTORY
-  if (satelliteChoice === "6") {
-    await sendWhatsAppMessage(
-      from,
-      "📊 Satellite Observation History is being connected next."
-    );
+if (satelliteChoice === "6") {
+  activeFarmMenu.step =
+    "satellite_history_select_land";
 
-    return;
-  }
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "📊 Satellite Observation History",
+      "",
+      "Please enter the Land ID.",
+      "",
+      "Example:",
+      "BM-L-000003",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
+}
 
   // 7 - BACK
   if (satelliteChoice === "7") {
@@ -2813,6 +2849,303 @@ if (
     return;
   }
 }
+// ============================================================
+// SATELLITE FARM HEALTH - SELECT LAND
+// ============================================================
+
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "satellite_health_select_land"
+) {
+  const selectedLandId =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+  if (selectedLandId === "CANCEL") {
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      "❌ Satellite farm health check cancelled."
+    );
+
+    return;
+  }
+
+  if (
+    !selectedLandId ||
+    !selectedLandId.startsWith("BM-L-")
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "Please enter a valid registered Land ID.",
+        "",
+        "Example:",
+        "BM-L-000003",
+        "",
+        "Type CANCEL to stop."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  try {
+    const healthResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        landId:
+          selectedLandId,
+        farmerId:
+          activeFarmMenu.farmerId || "",
+        whatsapp:
+          from
+      });
+
+    if (
+      !healthResult ||
+      !healthResult.success
+    ) {
+      await sendWhatsAppMessage(
+        from,
+        healthResult &&
+        healthResult.error
+          ? "⚠️ " +
+            healthResult.error
+          : "⚠️ Land information could not be loaded."
+      );
+
+      return;
+    }
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "🛰️ Satellite Farm Health",
+        "",
+        "🆔 Land ID: " +
+          healthResult.landId,
+
+        healthResult.farmName
+          ? "🌱 Land: " +
+            healthResult.farmName
+          : "",
+
+        "",
+        "✅ Land boundary available",
+        "📍 Boundary points: " +
+          healthResult.pointCount,
+
+        healthResult.measurements
+          ? "📐 GPS area: " +
+            healthResult.measurements.cents +
+            " Cent"
+          : "",
+
+        "",
+        "🛰️ Live satellite crop-health analysis is the next connection stage.",
+        "",
+        "Planned indicators:",
+        "🌿 Vegetation / NDVI",
+        "💧 Moisture stress",
+        "🌧️ Waterlogging",
+        "⚠️ Crop stress",
+        "☁️ Cloud cover",
+        "📈 Change from previous observation"
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    return;
+  } catch (healthError) {
+    console.error(
+      "Satellite farm health error:",
+      healthError &&
+      healthError.message
+        ? healthError.message
+        : healthError
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      "⚠️ Satellite farm health could not be loaded. Please try again."
+    );
+
+    return;
+  }
+}   
+// ============================================================
+// SATELLITE OBSERVATION HISTORY - SELECT LAND
+// ============================================================
+
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "satellite_history_select_land"
+) {
+  const selectedLandId =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+  if (selectedLandId === "CANCEL") {
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      "❌ Satellite observation history cancelled."
+    );
+
+    return;
+  }
+
+  if (
+    !selectedLandId ||
+    !selectedLandId.startsWith("BM-L-")
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "Please enter a valid registered Land ID.",
+        "",
+        "Example:",
+        "BM-L-000003",
+        "",
+        "Type CANCEL to stop."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  try {
+    const historyLandResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        landId:
+          selectedLandId,
+        farmerId:
+          activeFarmMenu.farmerId || "",
+        whatsapp:
+          from
+      });
+
+    if (
+      !historyLandResult ||
+      !historyLandResult.success
+    ) {
+      await sendWhatsAppMessage(
+        from,
+        historyLandResult &&
+        historyLandResult.error
+          ? "⚠️ " +
+            historyLandResult.error
+          : "⚠️ Land information could not be loaded."
+      );
+
+      return;
+    }
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "📊 Satellite Observation History",
+        "",
+        "🆔 Land ID: " +
+          historyLandResult.landId,
+
+        historyLandResult.farmName
+          ? "🌱 Land: " +
+            historyLandResult.farmName
+          : "",
+
+        "",
+        "✅ Land boundary available",
+        "📍 Boundary points: " +
+          historyLandResult.pointCount,
+
+        historyLandResult.measurements
+          ? "📐 GPS area: " +
+            historyLandResult.measurements.cents +
+            " Cent"
+          : "",
+
+        "",
+        "ℹ️ No satellite observation records are available yet.",
+        "",
+        "Once satellite monitoring is connected, this section will show:",
+        "📅 Observation date",
+        "🌿 NDVI / vegetation health",
+        "💧 Moisture status",
+        "🌧️ Waterlogging status",
+        "⚠️ Crop stress",
+        "☁️ Cloud cover",
+        "📈 Change from previous observation"
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
+
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    return;
+  } catch (historyError) {
+    console.error(
+      "Satellite observation history error:",
+      historyError &&
+      historyError.message
+        ? historyError.message
+        : historyError
+    );
+
+    await sendWhatsAppMessage(
+      from,
+      "⚠️ Satellite observation history could not be loaded. Please try again."
+    );
+
+    return;
+  }
+}   
 // ============================================================
 // VIEW LAND MAP - SELECT REGISTERED LAND
 // ============================================================
