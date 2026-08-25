@@ -3131,6 +3131,70 @@ if (
 
       return;
     }
+  const liveNdviResult =
+  await getSentinel2Ndvi({
+    geometry:
+      healthResult.geoJSON
+  });
+
+if (
+  liveNdviResult &&
+  liveNdviResult.success
+) {
+  await saveSatelliteObservation({
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+
+    landId:
+      healthResult.landId,
+
+    farmerId:
+      activeFarmMenu.farmerId || "",
+
+    farmName:
+      healthResult.farmName || "",
+
+    observationDate:
+      new Date().toISOString(),
+
+    satelliteSource:
+      "Sentinel-2 L2A",
+
+    ndvi:
+      liveNdviResult.averageNdvi !== undefined
+        ? liveNdviResult.averageNdvi
+        : "",
+
+    vegetationStatus:
+      liveNdviResult.vegetationStatus || "",
+
+    cloudCover: "",
+
+    areaSqM:
+      healthResult.measurements
+        ? healthResult.measurements.areaSqM || ""
+        : "",
+
+    areaCent:
+      healthResult.measurements
+        ? healthResult.measurements.cents || ""
+        : "",
+
+    areaAcre:
+      healthResult.measurements
+        ? healthResult.measurements.acres || ""
+        : "",
+
+    perimeterM:
+      healthResult.measurements
+        ? healthResult.measurements.perimeterM || ""
+        : "",
+
+    remarks:
+      "Sentinel-2 NDVI observation from WhatsApp"
+  });
+}  
 const latestSatellite =
   await getLatestSatelliteObservation({
     sheets,
