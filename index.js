@@ -27,7 +27,8 @@ const {
   getLatestSatelliteObservation,
   getSatelliteObservationHistory,
   getCopernicusAccessToken,
-  getLatestSentinel2Scene
+  getLatestSentinel2Scene,
+  getSentinel2Ndvi
 } = require("./utils/satellite");
 const {
   handlePersonalRecords
@@ -154,6 +155,61 @@ app.get("/test-sentinel2", async (req, res) => {
   } catch (error) {
     console.error(
       "Sentinel-2 test error:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message:
+        error.message
+    });
+  }
+});
+app.get("/test-sentinel2-ndvi", async (req, res) => {
+  try {
+    const landResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        landId:
+          "BM-L-000003",
+        farmerId: "",
+        whatsapp: ""
+      });
+
+    if (
+      !landResult ||
+      !landResult.success
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          landResult &&
+          landResult.error
+            ? landResult.error
+            : "Land boundary could not be loaded."
+      });
+    }
+
+    const ndviResult =
+      await getSentinel2Ndvi({
+        geometry:
+          landResult.geoJSON
+      });
+
+    res.json({
+      success: true,
+      landId:
+        landResult.landId,
+      farmName:
+        landResult.farmName,
+      ndvi:
+        ndviResult
+    });
+  } catch (error) {
+    console.error(
+      "Sentinel-2 NDVI test error:",
       error
     );
 
