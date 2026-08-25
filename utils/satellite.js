@@ -1,6 +1,94 @@
 const SATELLITE_SHEET =
   "Satellite_Observations";
+let copernicusTokenCache = {
+  accessToken: "",
+  expiresAt: 0
+};
 
+async function getCopernicusAccessToken() {
+  const clientId =
+    process.env.COPERNICUS_CLIENT_ID;
+
+  const clientSecret =
+    process.env.COPERNICUS_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      "Copernicus credentials are missing."
+    );
+  }
+
+  if (
+    copernicusTokenCache.accessToken &&
+    Date.now() <
+      copernicusTokenCache.expiresAt
+  ) {
+    return copernicusTokenCache.accessToken;
+  }
+
+  const tokenUrl =
+    "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token";
+
+  const body =
+    new URLSearchParams();
+
+  body.append(
+    "grant_type",
+    "client_credentials"
+  );
+
+  body.append(
+    "client_id",
+    clientId
+  );
+
+  body.append(
+    "client_secret",
+    clientSecret
+  );
+
+  const response =
+    await fetch(tokenUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/x-www-form-urlencoded"
+      },
+      body
+    });
+
+  if (!response.ok) {
+    const errorText =
+      await response.text();
+
+    throw new Error(
+      "Copernicus token request failed: " +
+        response.status +
+        " " +
+        errorText
+    );
+  }
+
+  const data =
+    await response.json();
+
+  const expiresIn =
+    Number(data.expires_in || 600);
+
+  copernicusTokenCache = {
+    accessToken:
+      data.access_token,
+    expiresAt:
+      Date.now() +
+      Math.max(
+        expiresIn - 60,
+        60
+      ) *
+        1000
+  };
+
+  return data.access_token;
+}
 function normalizeHeader(value) {
   return String(value || "")
     .trim()
@@ -448,5 +536,6 @@ async function getSatelliteObservationHistory({
 
 module.exports = {
   getLatestSatelliteObservation,
-  getSatelliteObservationHistory
+  getSatelliteObservationHistory,
+  getCopernicusAccessToken
 };
