@@ -758,7 +758,73 @@ async function readSatelliteSheet({
     };
   }
 }
+async function saveSatelliteObservation({
+  sheets,
+  spreadsheetId,
+  landId,
+  farmerId = "",
+  farmName = "",
+  observationDate = "",
+  satelliteSource = "Sentinel-2 L2A",
+  ndvi = "",
+  vegetationStatus = "",
+  moistureStatus = "",
+  waterloggingStatus = "",
+  stressStatus = "",
+  cloudCover = "",
+  areaSqM = "",
+  areaCent = "",
+  areaAcre = "",
+  perimeterM = "",
+  remarks = ""
+}) {
+  const now =
+    new Date().toISOString();
 
+  const observationId =
+    "SAT-" +
+    Date.now();
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range:
+      SATELLITE_SHEET + "!A:S",
+    valueInputOption:
+      "USER_ENTERED",
+    insertDataOption:
+      "INSERT_ROWS",
+    requestBody: {
+      values: [
+        [
+          observationId,
+          landId,
+          farmerId,
+          farmName,
+          observationDate || now,
+          satelliteSource,
+          ndvi,
+          vegetationStatus,
+          moistureStatus,
+          waterloggingStatus,
+          stressStatus,
+          cloudCover,
+          areaSqM,
+          areaCent,
+          areaAcre,
+          perimeterM,
+          remarks,
+          now,
+          now
+        ]
+      ]
+    }
+  });
+
+  return {
+    success: true,
+    observationId
+  };
+}
 async function getLatestSatelliteObservation({
   sheets,
   spreadsheetId,
@@ -939,5 +1005,6 @@ module.exports = {
   getSatelliteObservationHistory,
   getCopernicusAccessToken,
   getLatestSentinel2Scene,
-  getSentinel2Ndvi
+  getSentinel2Ndvi,
+  saveSatelliteObservation
 };
