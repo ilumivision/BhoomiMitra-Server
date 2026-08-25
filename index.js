@@ -26,7 +26,8 @@ const {
 const {
   getLatestSatelliteObservation,
   getSatelliteObservationHistory,
-  getCopernicusAccessToken
+  getCopernicusAccessToken,
+  getLatestSentinel2Scene
 } = require("./utils/satellite");
 const {
   handlePersonalRecords
@@ -108,7 +109,98 @@ app.get("/test-copernicus", async (req, res) => {
     });
   }
 });
+[12:17 am, 25/8/2026] Dr C P Robert: app.get("/test-sentinel2", async (req, res) => {
+  try {
+    const landResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        landId:
+          "BM-L-000003",
+        farmerId: "",
+        whatsapp: ""
+      });
 
+    if (
+      !landResult ||
+      !landResult.success
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          landResult &&
+          landResult.error
+            ? landResult.error
+            : "Land boundary could not be loaded."
+      });
+    }
+
+    const sentinelResult =
+      await getLatestSentinel2Scene({
+        geometry:
+          landResult.geoJSON
+      });
+
+    res.json({
+      success: true,
+      landId:
+        landResult.landId,…
+[12:18 am, 25/8/2026] Dr C P Robert: app.get("/test-sentinel2", async (req, res) => {
+  try {
+    const landResult =
+      await getLandBoundaryMapData({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        landId:
+          "BM-L-000003",
+        farmerId: "",
+        whatsapp: ""
+      });
+
+    if (
+      !landResult ||
+      !landResult.success
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          landResult &&
+          landResult.error
+            ? landResult.error
+            : "Land boundary could not be loaded."
+      });
+    }
+
+    const sentinelResult =
+      await getLatestSentinel2Scene({
+        geometry:
+          landResult.geoJSON
+      });
+
+    res.json({
+      success: true,
+      landId:
+        landResult.landId,
+      farmName:
+        landResult.farmName,
+      sentinel:
+        sentinelResult
+    });
+  } catch (error) {
+    console.error(
+      "Sentinel-2 test error:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message:
+        error.message
+    });
+  }
+});
 const PORT = process.env.PORT || 10000;
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
