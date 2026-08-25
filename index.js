@@ -28,7 +28,8 @@ const {
   getSatelliteObservationHistory,
   getCopernicusAccessToken,
   getLatestSentinel2Scene,
-  getSentinel2Ndvi
+  getSentinel2Ndvi,
+  saveSatelliteObservation
 } = require("./utils/satellite");
 const {
   handlePersonalRecords
@@ -197,15 +198,74 @@ app.get("/test-sentinel2-ndvi", async (req, res) => {
         geometry:
           landResult.geoJSON
       });
+   const saveResult =
+  await saveSatelliteObservation({
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
 
+    landId:
+      landResult.landId,
+
+    farmerId: "",
+
+    farmName:
+      landResult.farmName || "",
+
+    observationDate:
+      new Date().toISOString(),
+
+    satelliteSource:
+      "Sentinel-2 L2A",
+
+    ndvi:
+      ndviResult &&
+      ndviResult.averageNdvi !== undefined
+        ? ndviResult.averageNdvi
+        : "",
+
+    vegetationStatus:
+      ndviResult &&
+      ndviResult.vegetationStatus
+        ? ndviResult.vegetationStatus
+        : "",
+
+    cloudCover: "",
+
+    areaSqM:
+      landResult.measurements
+        ? landResult.measurements.areaSqM || ""
+        : "",
+
+    areaCent:
+      landResult.measurements
+        ? landResult.measurements.cents || ""
+        : "",
+
+    areaAcre:
+      landResult.measurements
+        ? landResult.measurements.acres || ""
+        : "",
+
+    perimeterM:
+      landResult.measurements
+        ? landResult.measurements.perimeterM || ""
+        : "",
+
+    remarks:
+      "Sentinel-2 NDVI observation"
+  });
     res.json({
       success: true,
       landId:
         landResult.landId,
       farmName:
         landResult.farmName,
-      ndvi:
-        ndviResult
+     ndvi:
+  ndviResult,
+
+savedObservation:
+  saveResult
     });
   } catch (error) {
     console.error(
