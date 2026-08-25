@@ -145,43 +145,6 @@ app.get("/test-sentinel2", async (req, res) => {
     res.json({
       success: true,
       landId:
-        landResult.landId,…
-[12:18 am, 25/8/2026] Dr C P Robert: app.get("/test-sentinel2", async (req, res) => {
-  try {
-    const landResult =
-      await getLandBoundaryMapData({
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        landId:
-          "BM-L-000003",
-        farmerId: "",
-        whatsapp: ""
-      });
-
-    if (
-      !landResult ||
-      !landResult.success
-    ) {
-      return res.status(400).json({
-        success: false,
-        message:
-          landResult &&
-          landResult.error
-            ? landResult.error
-            : "Land boundary could not be loaded."
-      });
-    }
-
-    const sentinelResult =
-      await getLatestSentinel2Scene({
-        geometry:
-          landResult.geoJSON
-      });
-
-    res.json({
-      success: true,
-      landId:
         landResult.landId,
       farmName:
         landResult.farmName,
