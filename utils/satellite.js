@@ -256,38 +256,51 @@ async function getSentinel2Ndvi({
   const processUrl =
     "https://sh.dataspace.copernicus.eu/process/v1";
 
-  const evalscript = `
-    //VERSION=3
+ const evalscript = `
+  //VERSION=3
 
-    function setup() {
-      return {
-        input: [
-          "B04",
-          "B08",
-          "dataMask"
-        ],
-        output: {
-          bands: 2,
-          sampleType: "FLOAT32"
-        }
-      };
+  function setup() {
+    return {
+      input: [
+        "B04",
+        "B08",
+        "SCL",
+        "dataMask"
+      ],
+      output: {
+        bands: 2,
+        sampleType: "FLOAT32"
+      }
+    };
+  }
+
+  function evaluatePixel(sample) {
+    const badPixel =
+      sample.SCL === 0 ||
+      sample.SCL === 3 ||
+      sample.SCL === 8 ||
+      sample.SCL === 9 ||
+      sample.SCL === 10 ||
+      sample.SCL === 11;
+
+    const valid =
+      sample.dataMask &&
+      !badPixel;
+
+    let ndvi = 0;
+
+    if (
+      valid &&
+      (sample.B08 + sample.B04) !== 0
+    ) {
+      ndvi =
+        (sample.B08 - sample.B04) /
+        (sample.B08 + sample.B04);
     }
 
-    function evaluatePixel(sample) {
-      let ndvi = 0;
-
-      if (
-        sample.dataMask &&
-        (sample.B08 + sample.B04) !== 0
-      ) {
-        ndvi =
-          (sample.B08 - sample.B04) /
-          (sample.B08 + sample.B04);
-      }
-
-      return [
-        ndvi,
-        sample.dataMask
+    return [
+      ndvi,
+      valid ? 1 : 0
       ];
     }
   `;
