@@ -259,50 +259,62 @@ async function getSentinel2Ndvi({
  const evalscript = `
   //VERSION=3
 
-  function setup() {
-    return {
-      input: [
-        "B04",
-        "B08",
-        "SCL",
-        "dataMask"
-      ],
-      output: {
-        bands: 2,
-        sampleType: "FLOAT32"
-      }
-    };
+ function setup() {
+  return {
+    input: [
+      "B04",
+      "B08",
+      "B11",
+      "SCL",
+      "dataMask"
+    ],
+    output: {
+      bands: 3,
+      sampleType: "FLOAT32"
+    }
+  };
+}
+
+function evaluatePixel(sample) {
+  const badPixel =
+    sample.SCL === 0 ||
+    sample.SCL === 3 ||
+    sample.SCL === 8 ||
+    sample.SCL === 9 ||
+    sample.SCL === 10 ||
+    sample.SCL === 11;
+
+  const valid =
+    sample.dataMask &&
+    !badPixel;
+
+  let ndvi = 0;
+  let ndmi = 0;
+
+  if (
+    valid &&
+    (sample.B08 + sample.B04) !== 0
+  ) {
+    ndvi =
+      (sample.B08 - sample.B04) /
+      (sample.B08 + sample.B04);
   }
 
-  function evaluatePixel(sample) {
-    const badPixel =
-      sample.SCL === 0 ||
-      sample.SCL === 3 ||
-      sample.SCL === 8 ||
-      sample.SCL === 9 ||
-      sample.SCL === 10 ||
-      sample.SCL === 11;
+  if (
+    valid &&
+    (sample.B08 + sample.B11) !== 0
+  ) {
+    ndmi =
+      (sample.B08 - sample.B11) /
+      (sample.B08 + sample.B11);
+  }
 
-    const valid =
-      sample.dataMask &&
-      !badPixel;
-
-    let ndvi = 0;
-
-    if (
-      valid &&
-      (sample.B08 + sample.B04) !== 0
-    ) {
-      ndvi =
-        (sample.B08 - sample.B04) /
-        (sample.B08 + sample.B04);
-    }
-
-    return [
-      ndvi,
-      valid ? 1 : 0
-      ];
-    }
+  return [
+    ndvi,
+    valid ? 1 : 0,
+    ndmi
+  ];
+}
   `;
 
   const response =
@@ -395,10 +407,18 @@ const ndviBand =
 const maskBand =
   rasters[1];
 
+const ndmiBand =
+  rasters[2];
+
 let sum = 0;
 let validPixels = 0;
 let minNdvi = 1;
 let maxNdvi = -1;
+
+let ndmiSum = 0;
+let validNdmiPixels = 0;
+let minNdmi = 1;
+let maxNdmi = -1;
 
 for (
   let i = 0;
@@ -407,6 +427,11 @@ for (
 ) {
   const ndvi =
     Number(ndviBand[i]);
+
+  const ndmi =
+    ndmiBand
+      ? Number(ndmiBand[i])
+      : NaN;
 
   const valid =
     maskBand
@@ -430,6 +455,24 @@ for (
       maxNdvi = ndvi;
     }
   }
+
+  if (
+    valid &&
+    Number.isFinite(ndmi) &&
+    ndmi >= -1 &&
+    ndmi <= 1
+  ) {
+    ndmiSum += ndmi;
+    validNdmiPixels++;
+
+    if (ndmi < minNdmi) {
+      minNdmi = ndmi;
+    }
+
+    if (ndmi > maxNdmi) {
+      maxNdmi = ndmi;
+    }
+  }
 }
 
 if (validPixels === 0) {
@@ -445,7 +488,29 @@ if (validPixels === 0) {
 
 const averageNdvi =
   sum / validPixels;
+const averageNdmi =
+  validNdmiPixels > 0
+    ? ndmiSum / validNdmiPixels
+    : null;
 
+let moistureStatus =
+  "Moisture data unavailable";
+
+if (averageNdmi !== null) {
+  if (averageNdmi >= 0.4) {
+    moistureStatus =
+      "Good Moisture";
+  } else if (averageNdmi >= 0.2) {
+    moistureStatus =
+      "Moderate Moisture";
+  } else if (averageNdmi >= 0) {
+    moistureStatus =
+      "Low Moisture";
+  } else {
+    moistureStatus =
+      "Very Low Moisture / Possible Water Stress";
+  }
+}
 let vegetationStatus =
   "Very Low Vegetation";
 
@@ -475,7 +540,30 @@ return {
     Number(
       minNdvi.toFixed(3)
     ),
+ averageNdmi:
+  averageNdmi !== null
+    ? Number(
+        averageNdmi.toFixed(3)
+      )
+    : null,
 
+minimumNdmi:
+  validNdmiPixels > 0
+    ? Number(
+        minNdmi.toFixed(3)
+      )
+    : null,
+
+maximumNdmi:
+  validNdmiPixels > 0
+    ? Number(
+        maxNdmi.toFixed(3)
+      )
+    : null,
+
+validNdmiPixels,
+
+moistureStatus,
   maximumNdvi:
     Number(
       maxNdvi.toFixed(3)
