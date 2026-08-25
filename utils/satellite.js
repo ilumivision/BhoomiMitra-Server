@@ -89,6 +89,140 @@ async function getCopernicusAccessToken() {
 
   return data.access_token;
 }
+async function getLatestSentinel2Scene({
+  geometry,
+  daysBack = 30
+}) {
+  if (
+    !geometry ||
+    !geometry.type ||
+    !geometry.coordinates
+  ) {
+    throw new Error(
+      "Valid land boundary geometry is required."
+    );
+  }
+
+  const token =
+    await getCopernicusAccessToken();
+
+  const endDate =
+    new Date();
+
+  const startDate =
+    new Date(
+      endDate.getTime() -
+        daysBack *
+          24 *
+          60 *
+          60 *
+          1000
+    );
+
+  const catalogUrl =
+    "https://sh.dataspace.copernicus.eu/catalog/v1/search";
+
+  const response =
+    await fetch(catalogUrl, {
+      method: "POST",
+      headers: {
+        Authorization:
+          "Bearer " + token,
+        "Content-Type":
+          "application/json"
+      },
+      body: JSON.stringify({
+        collections: [
+          "sentinel-2-l2a"
+        ],
+        datetime:
+          startDate.toISOString() +
+          "/" +
+          endDate.toISOString(),
+        intersects:
+          geometry,
+        limit: 20
+      })
+    });
+
+  if (!response.ok) {
+    const errorText =
+      await response.text();
+
+    throw new Error(
+      "Sentinel-2 catalog request failed: " +
+        response.status +
+        " " +
+        errorText
+    );
+  }
+
+  const data =
+    await response.json();
+
+  const features =
+    Array.isArray(data.features)
+      ? data.features
+      : [];
+
+  if (features.length === 0) {
+    return {
+      success: true,
+      found: false,
+      scene: null
+    };
+  }
+
+  features.sort(function (a, b) {
+    const aTime =
+      new Date(
+        a &&
+        a.properties &&
+        a.properties.datetime
+          ? a.properties.datetime
+          : 0
+      ).getTime();
+
+    const bTime =
+      new Date(
+        b &&
+        b.properties &&
+        b.properties.datetime
+          ? b.properties.datetime
+          : 0
+      ).getTime();
+
+    return bTime - aTime;
+  });
+
+  const latest =
+    features[0];
+
+  return {
+    success: true,
+    found: true,
+    scene: {
+      id:
+        latest.id || "",
+      observationDate:
+        latest.properties &&
+        latest.properties.datetime
+          ? latest.properties.datetime
+          : "",
+      cloudCover:
+        latest.properties &&
+        latest.properties[
+          "eo:cloud_cover"
+        ] !== undefined
+          ? latest.properties[
+              "eo:cloud_cover"
+            ]
+          : "",
+      source:
+        "Sentinel-2 L2A"
+    }
+  };
+}
 function normalizeHeader(value) {
   return String(value || "")
     .trim()
@@ -537,5 +671,6 @@ async function getSatelliteObservationHistory({
 module.exports = {
   getLatestSatelliteObservation,
   getSatelliteObservationHistory,
-  getCopernicusAccessToken
+  getCopernicusAccessToken,
+  getLatestSentinel2Scene
 };
