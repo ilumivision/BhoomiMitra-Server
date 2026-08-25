@@ -25,7 +25,8 @@ const {
 } = require("./utils/landBoundary");
 const {
   getLatestSatelliteObservation,
-  getSatelliteObservationHistory
+  getSatelliteObservationHistory,
+  getCopernicusAccessToken
 } = require("./utils/satellite");
 const {
   handlePersonalRecords
@@ -81,6 +82,32 @@ const app = express();
 
 app.use(express.json());
 app.use(soilTestRoute);
+
+app.get("/test-copernicus", async (req, res) => {
+  try {
+    const token =
+      await getCopernicusAccessToken();
+
+    res.json({
+      success: true,
+      message:
+        "Copernicus authentication successful",
+      tokenReceived:
+        Boolean(token)
+    });
+  } catch (error) {
+    console.error(
+      "Copernicus test error:",
+      error
+    );
+
+    res.status(500).json({
+      success: false,
+      message:
+        error.message
+    });
+  }
+});
 
 const PORT = process.env.PORT || 10000;
 
