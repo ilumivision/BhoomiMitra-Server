@@ -223,6 +223,152 @@ async function getLatestSentinel2Scene({
     }
   };
 }
+async function getSentinel2Ndvi({
+  geometry,
+  daysBack = 30
+}) {
+  if (
+    !geometry ||
+    !geometry.type ||
+    !geometry.coordinates
+  ) {
+    throw new Error(
+      "Valid land boundary geometry is required."
+    );
+  }
+
+  const token =
+    await getCopernicusAccessToken();
+
+  const endDate =
+    new Date();
+
+  const startDate =
+    new Date(
+      endDate.getTime() -
+        daysBack *
+          24 *
+          60 *
+          60 *
+          1000
+    );
+
+  const processUrl =
+    "https://sh.dataspace.copernicus.eu/process/v1";
+
+  const evalscript = `
+    //VERSION=3
+
+    function setup() {
+      return {
+        input: [
+          "B04",
+          "B08",
+          "dataMask"
+        ],
+        output: {
+          bands: 2,
+          sampleType: "FLOAT32"
+        }
+      };
+    }
+
+    function evaluatePixel(sample) {
+      let ndvi = 0;
+
+      if (
+        sample.dataMask &&
+        (sample.B08 + sample.B04) !== 0
+      ) {
+        ndvi =
+          (sample.B08 - sample.B04) /
+          (sample.B08 + sample.B04);
+      }
+
+      return [
+        ndvi,
+        sample.dataMask
+      ];
+    }
+  `;
+
+  const response =
+    await fetch(processUrl, {
+      method: "POST",
+      headers: {
+        Authorization:
+          "Bearer " + token,
+        "Content-Type":
+          "application/json",
+        Accept:
+          "image/tiff"
+      },
+      body: JSON.stringify({
+        input: {
+          bounds: {
+            geometry,
+            properties: {
+              crs:
+                "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+            }
+          },
+          data: [
+            {
+              type:
+                "sentinel-2-l2a",
+              dataFilter: {
+                timeRange: {
+                  from:
+                    startDate.toISOString(),
+                  to:
+                    endDate.toISOString()
+                },
+                mosaickingOrder:
+                  "leastCC"
+              }
+            }
+          ]
+        },
+        output: {
+          width: 64,
+          height: 64,
+          responses: [
+            {
+              identifier:
+                "default",
+              format: {
+                type:
+                  "image/tiff"
+              }
+            }
+          ]
+        },
+        evalscript
+      })
+    });
+
+  if (!response.ok) {
+    const errorText =
+      await response.text();
+
+    throw new Error(
+      "Sentinel-2 NDVI request failed: " +
+        response.status +
+        " " +
+        errorText
+    );
+  }
+
+  const arrayBuffer =
+    await response.arrayBuffer();
+
+  return {
+    success: true,
+    received: true,
+    bytes:
+      arrayBuffer.byteLength
+  };
+}
 function normalizeHeader(value) {
   return String(value || "")
     .trim()
@@ -672,5 +818,6 @@ module.exports = {
   getLatestSatelliteObservation,
   getSatelliteObservationHistory,
   getCopernicusAccessToken,
-  getLatestSentinel2Scene
+  getLatestSentinel2Scene,
+  getSentinel2Ndvi
 };
