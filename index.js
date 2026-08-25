@@ -32,6 +32,12 @@ const {
   saveSatelliteObservation
 } = require("./utils/satellite");
 const {
+  checkLandAccess,
+  grantLandAccess,
+  revokeLandAccess,
+  getLandAuthorizedUsers
+} = require("./utils/landAccess");
+const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
 
@@ -983,7 +989,90 @@ app.get("/webhook", function (req, res) {
 
   return res.sendStatus(403);
 });
+async function getAccessibleLand({
+  sheets,
+  spreadsheetId,
+  landId,
+  farmerId = "",
+  whatsapp = ""
+}) {
+  const ownerResult =
+    await getLandBoundaryMapData({
+      sheets,
+      spreadsheetId,
+      landId,
+      farmerId,
+      whatsapp
+    });
 
+  if (
+    ownerResult &&
+    ownerResult.success
+  ) {
+    return {
+      success: true,
+      accessType: "OWNER",
+      accessLevel: "MANAGE",
+      land: ownerResult
+    };
+  }
+
+  const sharedAccess =
+    await checkLandAccess({
+      sheets,
+      spreadsheetId,
+      landId,
+      whatsapp,
+      requiredLevel: "VIEW"
+    });
+
+  if (
+    !sharedAccess ||
+    !sharedAccess.success ||
+    !sharedAccess.allowed
+  ) {
+    return {
+      success: false,
+      error:
+        "You do not have access to this land."
+    };
+  }
+
+  const sharedLand =
+    await getLandBoundaryMapData({
+      sheets,
+      spreadsheetId,
+      landId,
+      farmerId: "",
+      whatsapp: ""
+    });
+
+  if (
+    !sharedLand ||
+    !sharedLand.success
+  ) {
+    return {
+      success: false,
+      error:
+        "Land information could not be loaded."
+    };
+  }
+
+  return {
+    success: true,
+    accessType:
+      "AUTHORIZED",
+    accessLevel:
+      sharedAccess.access &&
+      sharedAccess.access.accessLevel
+        ? sharedAccess.access.accessLevel
+        : "VIEW",
+    access:
+      sharedAccess.access,
+    land:
+      sharedLand
+  };
+}
 app.post("/webhook", async function (req, res) {
   res.status(200).send("EVENT_RECEIVED");
 
@@ -3103,34 +3192,39 @@ if (
   }
 
   try {
-    const healthResult =
-      await getLandBoundaryMapData({
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        landId:
-          selectedLandId,
-        farmerId:
-          activeFarmMenu.farmerId || "",
-        whatsapp:
-          from
-      });
+  const accessibleHealth =
+  await getAccessibleLand({
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+    landId:
+      selectedLandId,
+    farmerId:
+      activeFarmMenu.farmerId || "",
+    whatsapp:
+      from
+  });
 
-    if (
-      !healthResult ||
-      !healthResult.success
-    ) {
-      await sendWhatsAppMessage(
-        from,
-        healthResult &&
-        healthResult.error
-          ? "⚠️ " +
-            healthResult.error
-          : "⚠️ Land information could not be loaded."
-      );
+if (
+  !accessibleHealth ||
+  !accessibleHealth.success
+) {
+  await sendWhatsAppMessage(
+    from,
+    "⚠️ " +
+      (
+        accessibleHealth &&
+        accessibleHealth.error
+          ? accessibleHealth.error
+          : "You do not have access to this land."
+      )
+  );
 
-      return;
-    }
+  return;
+}
+
+const healthResult =
+  accessibleHealth.land;
   const liveNdviResult =
   await getSentinel2Ndvi({
     geometry:
@@ -3420,35 +3514,37 @@ if (
   }
 
   try {
-    const historyLandResult =
-      await getLandBoundaryMapData({
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        landId:
-          selectedLandId,
-        farmerId:
-          activeFarmMenu.farmerId || "",
-        whatsapp:
-          from
-      });
+   const accessibleHistory =
+  await getAccessibleLand({
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+    landId:
+      selectedLandId,
+    farmerId:
+      activeFarmMenu.farmerId || "",
+    whatsapp:
+      from
+  });
 
-    if (
-      !historyLandResult ||
-      !historyLandResult.success
-    ) {
-      await sendWhatsAppMessage(
-        from,
-        historyLandResult &&
-        historyLandResult.error
-          ? "⚠️ " +
-            historyLandResult.error
-          : "⚠️ Land information could not be loaded."
-      );
+if (
+  !accessibleHistory ||
+  !accessibleHistory.success
+) {
+  await sendWhatsAppMessage(
+    from,
+    accessibleHistory &&
+    accessibleHistory.error
+      ? "⚠️ " +
+        accessibleHistory.error
+      : "⚠️ You do not have access to this land."
+  );
 
-      return;
-    }
+  return;
+}
 
+const historyLandResult =
+  accessibleHistory.land;
 const historyResult =
   await getSatelliteObservationHistory({
     sheets,
