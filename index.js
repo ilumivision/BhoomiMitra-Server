@@ -4115,8 +4115,7 @@ if (
 
     await sendWhatsAppMessage(
       from,
-      [
-       [
+             [
   "🛰️ Satellite, GPS & Land Monitoring",
   "",
   "1️⃣ Map / update land boundary",
