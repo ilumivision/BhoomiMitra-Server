@@ -269,7 +269,7 @@ async function getSentinel2Ndvi({
       "dataMask"
     ],
     output: {
-      bands: 3,
+      bands: 4,
       sampleType: "FLOAT32"
     }
   };
@@ -287,7 +287,10 @@ function evaluatePixel(sample) {
   const valid =
     sample.dataMask &&
     !badPixel;
-
+  const cloudPixel =
+  sample.SCL === 8 ||
+  sample.SCL === 9 ||
+  sample.SCL === 10;
   let ndvi = 0;
   let ndmi = 0;
 
@@ -310,10 +313,11 @@ function evaluatePixel(sample) {
   }
 
   return [
-    ndvi,
-    valid ? 1 : 0,
-    ndmi
-  ];
+  ndvi,
+  valid ? 1 : 0,
+  ndmi,
+  cloudPixel ? 1 : 0
+];
 }
   `;
 
@@ -409,7 +413,8 @@ const maskBand =
 
 const ndmiBand =
   rasters[2];
-
+const cloudBand =
+  rasters[3];
 let sum = 0;
 let validPixels = 0;
 let minNdvi = 1;
@@ -419,7 +424,7 @@ let ndmiSum = 0;
 let validNdmiPixels = 0;
 let minNdmi = 1;
 let maxNdmi = -1;
-
+let cloudPixels = 0;
 for (
   let i = 0;
   i < ndviBand.length;
@@ -432,7 +437,11 @@ for (
     ndmiBand
       ? Number(ndmiBand[i])
       : NaN;
-
+  if (
+  Number(cloudBand[i]) > 0.5
+) {
+  cloudPixels++;
+}
   const valid =
     maskBand
       ? Number(maskBand[i]) > 0
@@ -488,11 +497,27 @@ if (validPixels === 0) {
 
 const averageNdvi =
   sum / validPixels;
+
 const averageNdmi =
   validNdmiPixels > 0
     ? ndmiSum / validNdmiPixels
     : null;
 
+const totalPixels =
+  ndviBand.length;
+
+const validPixelPercent =
+  totalPixels > 0
+    ? (validPixels / totalPixels) * 100
+    : 0;
+
+const cloudCover =
+  totalPixels > 0
+    ? (cloudPixels / totalPixels) * 100
+    : 0;
+
+
+// MOISTURE STATUS
 let moistureStatus =
   "Moisture data unavailable";
 
@@ -511,6 +536,9 @@ if (averageNdmi !== null) {
       "Very Low Moisture / Possible Water Stress";
   }
 }
+
+
+// STRESS STATUS
 let stressStatus =
   "Stress data unavailable";
 
@@ -522,14 +550,12 @@ if (
     averageNdvi >= 0.6 &&
     averageNdmi >= 0.3
   ) {
-    stressStatus =
-      "Low Stress";
+    stressStatus = "Low Stress";
   } else if (
     averageNdvi >= 0.45 &&
     averageNdmi >= 0.15
   ) {
-    stressStatus =
-      "Mild Stress";
+    stressStatus = "Mild Stress";
   } else if (
     averageNdvi >= 0.3 &&
     averageNdmi >= 0
@@ -537,10 +563,12 @@ if (
     stressStatus =
       "Moderate Stress";
   } else {
-    stressStatus =
-      "High Stress";
+    stressStatus = "High Stress";
   }
-}  
+}
+
+
+// VEGETATION STATUS
 let vegetationStatus =
   "Very Low Vegetation";
 
@@ -555,9 +583,88 @@ if (averageNdvi >= 0.6) {
     "Low Vegetation / Possible Stress";
 }
 
+
+// WATERLOGGING SCREENING
+let waterloggingStatus =
+  "No Waterlogging Signal";
+
+if (
+  averageNdmi !== null &&
+  averageNdmi >= 0.45 &&
+  averageNdvi < 0.45
+) {
+  waterloggingStatus =
+    "Possible Waterlogging / Excess Moisture";
+} else if (
+  averageNdmi !== null &&
+  averageNdmi >= 0.45
+) {
+  waterloggingStatus =
+    "High Moisture - Monitor";
+}
+
+
+// IMAGE QUALITY
+let imageQualityStatus = "Good";
+
+if (
+  cloudCover > 50 ||
+  validPixelPercent < 25
+) {
+  imageQualityStatus =
+    "Limited / Cloud Affected";
+} else if (
+  cloudCover > 20 ||
+  validPixelPercent < 50
+) {
+  imageQualityStatus =
+    "Moderate";
+}
+
+
+// OVERALL HEALTH SUMMARY
+let healthSummary =
+  "Moderate Condition - Monitor";
+
+if (stressStatus === "High Stress") {
+  healthSummary =
+    "Attention Needed - High Crop Stress";
+} else if (
+  waterloggingStatus ===
+  "Possible Waterlogging / Excess Moisture"
+) {
+  healthSummary =
+    "Attention Needed - Possible Excess Moisture";
+} else if (
+  stressStatus === "Moderate Stress"
+) {
+  healthSummary =
+    "Monitor Crop Stress";
+} else if (
+  moistureStatus ===
+  "Very Low Moisture / Possible Water Stress"
+) {
+  healthSummary =
+    "Monitor Possible Water Stress";
+} else if (
+  vegetationStatus ===
+    "Healthy / Dense Vegetation" &&
+  stressStatus === "Low Stress"
+) {
+  healthSummary =
+    "Generally Healthy";
+} else if (
+  stressStatus === "Mild Stress"
+) {
+  healthSummary =
+    "Generally Stable - Mild Stress";
+}
+
+
 return {
   success: true,
   received: true,
+
   bytes:
     arrayBuffer.byteLength,
 
@@ -570,44 +677,60 @@ return {
     Number(
       minNdvi.toFixed(3)
     ),
- averageNdmi:
-  averageNdmi !== null
-    ? Number(
-        averageNdmi.toFixed(3)
-      )
-    : null,
 
-minimumNdmi:
-  validNdmiPixels > 0
-    ? Number(
-        minNdmi.toFixed(3)
-      )
-    : null,
+  maximumNdvi:
+    Number(
+      maxNdvi.toFixed(3)
+    ),
 
-maximumNdmi:
-  validNdmiPixels > 0
-    ? Number(
-        maxNdmi.toFixed(3)
-      )
-    : null,
+  averageNdmi:
+    averageNdmi !== null
+      ? Number(
+          averageNdmi.toFixed(3)
+        )
+      : null,
 
-validNdmiPixels,
+  minimumNdmi:
+    validNdmiPixels > 0
+      ? Number(
+          minNdmi.toFixed(3)
+        )
+      : null,
 
-moistureStatus,
-
-stressStatus,
-
-maximumNdvi:
-  Number(
-    maxNdvi.toFixed(3)
-  ),
+  maximumNdmi:
+    validNdmiPixels > 0
+      ? Number(
+          maxNdmi.toFixed(3)
+        )
+      : null,
 
   validPixels,
 
-  totalPixels:
-    ndviBand.length,
+  validNdmiPixels,
 
-  vegetationStatus
+  totalPixels,
+
+  validPixelPercent:
+    Number(
+      validPixelPercent.toFixed(1)
+    ),
+
+  cloudCover:
+    Number(
+      cloudCover.toFixed(1)
+    ),
+
+  vegetationStatus,
+
+  moistureStatus,
+
+  stressStatus,
+
+  waterloggingStatus,
+
+  imageQualityStatus,
+
+  healthSummary
 };
 }
 function normalizeHeader(value) {
