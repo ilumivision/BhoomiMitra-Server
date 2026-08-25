@@ -3098,6 +3098,113 @@ if (accessChoice === "A") {
   }
 }
  // ============================================================
+// LAND ACCESS - ADD PERSON - SELECT LAND
+// ============================================================
+
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "land_access_add_select_land"
+) {
+  const selectedLandId =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+  if (selectedLandId === "CANCEL") {
+    activeFarmMenu.step =
+      "land_access_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      "❌ Add authorized person cancelled."
+    );
+
+    return;
+  }
+
+  if (
+    !selectedLandId ||
+    !selectedLandId.startsWith("BM-L-")
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "⚠️ Please enter a valid Land ID.",
+        "",
+        "Example:",
+        "BM-L-000003",
+        "",
+        "Type CANCEL to stop."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  const ownerLand =
+    await getLandBoundaryMapData({
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      landId:
+        selectedLandId,
+      farmerId:
+        activeFarmMenu.farmerId || "",
+      whatsapp:
+        from
+    });
+
+  if (
+    !ownerLand ||
+    !ownerLand.success
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      "⚠️ This land was not found under your ownership. Only the registered OWNER can grant access."
+    );
+
+    return;
+  }
+
+  activeFarmMenu.accessLandId =
+    selectedLandId;
+
+  activeFarmMenu.step =
+    "land_access_add_mobile";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "👤 Authorized Person",
+      "",
+      "Land ID: " + selectedLandId,
+      "",
+      "Please enter the WhatsApp mobile number of the person you want to authorize.",
+      "",
+      "Example:",
+      "1234567890",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
+}  
+ // ============================================================
 // LAND ACCESS - ADD PERSON - MOBILE
 // ============================================================
 if (
