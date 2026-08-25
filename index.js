@@ -3165,7 +3165,8 @@ if (
       liveNdviResult.averageNdvi !== undefined
         ? liveNdviResult.averageNdvi
         : "",
-
+  moistureStatus:
+  liveNdviResult.moistureStatus || "",
     vegetationStatus:
       liveNdviResult.vegetationStatus || "",
 
