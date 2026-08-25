@@ -109,7 +109,7 @@ app.get("/test-copernicus", async (req, res) => {
     });
   }
 });
-[12:17 am, 25/8/2026] Dr C P Robert: app.get("/test-sentinel2", async (req, res) => {
+app.get("/test-sentinel2", async (req, res) => {
   try {
     const landResult =
       await getLandBoundaryMapData({
