@@ -511,6 +511,36 @@ if (averageNdmi !== null) {
       "Very Low Moisture / Possible Water Stress";
   }
 }
+let stressStatus =
+  "Stress data unavailable";
+
+if (
+  Number.isFinite(averageNdvi) &&
+  averageNdmi !== null
+) {
+  if (
+    averageNdvi >= 0.6 &&
+    averageNdmi >= 0.3
+  ) {
+    stressStatus =
+      "Low Stress";
+  } else if (
+    averageNdvi >= 0.45 &&
+    averageNdmi >= 0.15
+  ) {
+    stressStatus =
+      "Mild Stress";
+  } else if (
+    averageNdvi >= 0.3 &&
+    averageNdmi >= 0
+  ) {
+    stressStatus =
+      "Moderate Stress";
+  } else {
+    stressStatus =
+      "High Stress";
+  }
+}  
 let vegetationStatus =
   "Very Low Vegetation";
 
@@ -564,10 +594,13 @@ maximumNdmi:
 validNdmiPixels,
 
 moistureStatus,
-  maximumNdvi:
-    Number(
-      maxNdvi.toFixed(3)
-    ),
+
+stressStatus,
+
+maximumNdvi:
+  Number(
+    maxNdvi.toFixed(3)
+  ),
 
   validPixels,
 
