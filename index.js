@@ -3162,15 +3162,26 @@ if (
       "Sentinel-2 L2A",
 
     ndvi:
-      liveNdviResult.averageNdvi !== undefined
-        ? liveNdviResult.averageNdvi
-        : "",
-  moistureStatus:
-  liveNdviResult.moistureStatus || "",
-    vegetationStatus:
-      liveNdviResult.vegetationStatus || "",
+  liveNdviResult.averageNdvi !== undefined
+    ? liveNdviResult.averageNdvi
+    : "",
 
-    cloudCover: "",
+vegetationStatus:
+  liveNdviResult.vegetationStatus || "",
+
+moistureStatus:
+  liveNdviResult.moistureStatus || "",
+
+waterloggingStatus:
+  liveNdviResult.waterloggingStatus || "",
+
+stressStatus:
+  liveNdviResult.stressStatus || "",
+
+cloudCover:
+  liveNdviResult.cloudCover !== undefined
+    ? liveNdviResult.cloudCover
+    : "",
 
     areaSqM:
       healthResult.measurements
@@ -3192,8 +3203,28 @@ if (
         ? healthResult.measurements.perimeterM || ""
         : "",
 
-    remarks:
-      "Sentinel-2 NDVI observation from WhatsApp"
+  remarks:
+  [
+    "Sentinel-2 farm health observation from WhatsApp",
+
+    liveNdviResult.averageNdmi !== null &&
+    liveNdviResult.averageNdmi !== undefined
+      ? "NDMI: " +
+        liveNdviResult.averageNdmi
+      : "",
+
+    liveNdviResult.imageQualityStatus
+      ? "Image quality: " +
+        liveNdviResult.imageQualityStatus
+      : "",
+
+    liveNdviResult.healthSummary
+      ? "Health summary: " +
+        liveNdviResult.healthSummary
+      : ""
+  ]
+    .filter(Boolean)
+    .join(" | ")
   });
 }  
 const latestSatellite =
