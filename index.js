@@ -2646,7 +2646,7 @@ lines.push(
 
   return;
 }
- if (String(userText || "").trim() === "9") {  
+if (String(userText || "").trim() === "9") { 
 activeFarmMenu.step =
   "satellite_gps_menu";
 
@@ -2679,6 +2679,7 @@ await sendWhatsAppMessage(
 
 return;
 }
+ }  
 // =====================================================
 // SATELLITE / GPS SUBMENU HANDLER
 // =====================================================
