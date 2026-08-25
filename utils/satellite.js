@@ -359,15 +359,122 @@ async function getSentinel2Ndvi({
     );
   }
 
-  const arrayBuffer =
-    await response.arrayBuffer();
+ const arrayBuffer =
+  await response.arrayBuffer();
 
+const { fromArrayBuffer } =
+  await import("geotiff");
+
+const tiff =
+  await fromArrayBuffer(
+    arrayBuffer
+  );
+
+const image =
+  await tiff.getImage();
+
+const rasters =
+  await image.readRasters();
+
+const ndviBand =
+  rasters[0];
+
+const maskBand =
+  rasters[1];
+
+let sum = 0;
+let validPixels = 0;
+let minNdvi = 1;
+let maxNdvi = -1;
+
+for (
+  let i = 0;
+  i < ndviBand.length;
+  i++
+) {
+  const ndvi =
+    Number(ndviBand[i]);
+
+  const valid =
+    maskBand
+      ? Number(maskBand[i]) > 0
+      : true;
+
+  if (
+    valid &&
+    Number.isFinite(ndvi) &&
+    ndvi >= -1 &&
+    ndvi <= 1
+  ) {
+    sum += ndvi;
+    validPixels++;
+
+    if (ndvi < minNdvi) {
+      minNdvi = ndvi;
+    }
+
+    if (ndvi > maxNdvi) {
+      maxNdvi = ndvi;
+    }
+  }
+}
+
+if (validPixels === 0) {
   return {
-    success: true,
+    success: false,
     received: true,
     bytes:
-      arrayBuffer.byteLength
+      arrayBuffer.byteLength,
+    error:
+      "No valid NDVI pixels were found."
   };
+}
+
+const averageNdvi =
+  sum / validPixels;
+
+let vegetationStatus =
+  "Very Low Vegetation";
+
+if (averageNdvi >= 0.6) {
+  vegetationStatus =
+    "Healthy / Dense Vegetation";
+} else if (averageNdvi >= 0.4) {
+  vegetationStatus =
+    "Moderate Vegetation";
+} else if (averageNdvi >= 0.2) {
+  vegetationStatus =
+    "Low Vegetation / Possible Stress";
+}
+
+return {
+  success: true,
+  received: true,
+  bytes:
+    arrayBuffer.byteLength,
+
+  averageNdvi:
+    Number(
+      averageNdvi.toFixed(3)
+    ),
+
+  minimumNdvi:
+    Number(
+      minNdvi.toFixed(3)
+    ),
+
+  maximumNdvi:
+    Number(
+      maxNdvi.toFixed(3)
+    ),
+
+  validPixels,
+
+  totalPixels:
+    ndviBand.length,
+
+  vegetationStatus
+};
 }
 function normalizeHeader(value) {
   return String(value || "")
