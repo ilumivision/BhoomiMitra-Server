@@ -2899,6 +2899,34 @@ if (satelliteChoice === "4") {
 
   return;
 }
+// A - MANAGE LAND ACCESS
+if (satelliteChoice === "A") {
+  activeFarmMenu.step =
+    "land_access_menu";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "👥 Land Access Management",
+      "",
+      "A. Add authorized person",
+      "B. View authorized persons",
+      "C. Change permission",
+      "D. Revoke access",
+      "E. Back",
+      "",
+      "Reply with A, B, C, D or E."
+    ].join("\n")
+  );
+
+  return;
+}  
  // 5 - SATELLITE FARM HEALTH
 if (satelliteChoice === "5") {
   activeFarmMenu.step =
@@ -2991,23 +3019,49 @@ if (satelliteChoice === "6") {
 
 return;
 }
-
 // ============================================================
-// BOUNDARY STATUS - SELECT LAND
+// LAND ACCESS MANAGEMENT MENU
 // ============================================================
-
 if (
   activeFarmMenu &&
   !isMenuSessionExpired(activeFarmMenu) &&
   activeFarmMenu.step ===
-    "boundary_status_select_land"
+    "land_access_menu"
 ) {
-  const selectedLandId =
+  const accessChoice =
     String(userText || "")
       .trim()
       .toUpperCase();
+  // A - ADD AUTHORIZED PERSON
+if (accessChoice === "A") {
+  activeFarmMenu.step =
+    "land_access_add_select_land";
 
-  if (selectedLandId === "CANCEL") {
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "👤 Add Authorized Person",
+      "",
+      "Please enter your Land ID.",
+      "",
+      "Example:",
+      "BM-L-000003",
+      "",
+      "Only the registered OWNER can add another person.",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
+}
+  // E - BACK
+  if (accessChoice === "E") {
     activeFarmMenu.step =
       "satellite_gps_menu";
 
@@ -3019,23 +3073,72 @@ if (
 
     await sendWhatsAppMessage(
       from,
-      "❌ Boundary status check cancelled."
+      [
+        "🛰️ Satellite, GPS & Land Monitoring",
+        "",
+        "1️⃣ Map / update land boundary",
+        "2️⃣ View land map",
+        "3️⃣ View boundary status",
+        "4️⃣ View GPS details",
+        "5️⃣ Satellite farm health",
+        "6️⃣ Satellite observation history",
+        "",
+        "A. Manage land access",
+        "7️⃣ Back",
+        "",
+        "Reply with a number or A."
+      ].join("\n")
+    );
+
+    return;
+  }
+}
+ // ============================================================
+// LAND ACCESS - ADD PERSON - MOBILE
+// ============================================================
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "land_access_add_mobile"
+) {
+  const rawMobile =
+    String(userText || "")
+      .trim();
+
+  if (
+    rawMobile.toUpperCase() === "CANCEL"
+  ) {
+    activeFarmMenu.step =
+      "land_access_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      "❌ Add authorized person cancelled."
     );
 
     return;
   }
 
-  if (
-    !selectedLandId ||
-    !selectedLandId.startsWith("BM-L-")
-  ) {
+  const mobile =
+    rawMobile
+      .replace(/\D/g, "")
+      .slice(-10);
+
+  if (mobile.length !== 10) {
     await sendWhatsAppMessage(
       from,
       [
-        "Please enter a valid registered Land ID.",
+        "⚠️ Please enter a valid 10-digit WhatsApp mobile number.",
         "",
         "Example:",
-        "BM-L-000003",
+        "1234567890",
         "",
         "Type CANCEL to stop."
       ].join("\n")
@@ -3044,76 +3147,58 @@ if (
     return;
   }
 
-  try {
-    const statusResult =
-      await getLandBoundaryMapData({
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        landId:
-          selectedLandId,
-        farmerId:
-          activeFarmMenu.farmerId || "",
-        whatsapp:
-          from
-      });
+  activeFarmMenu.accessMobile =
+    mobile;
 
-    if (
-      !statusResult ||
-      !statusResult.success
-    ) {
-      await sendWhatsAppMessage(
-        from,
-        statusResult &&
-        statusResult.error
-          ? "⚠️ " +
-            statusResult.error
-          : "⚠️ Boundary status could not be loaded."
-      );
+  activeFarmMenu.step =
+    "land_access_add_permission";
 
-      return;
-    }
+  activeFarmMenu.updatedAt =
+    Date.now();
 
-    await sendWhatsAppMessage(
-      from,
-      [
-        "📍 Boundary Status",
-        "",
-        "🆔 Land ID: " +
-          statusResult.landId,
-        "",
-        statusResult.farmName
-          ? "🌱 Land: " +
-            statusResult.farmName
-          : "",
-        "",
-        "✅ Boundary mapping: Completed",
-        "📍 Boundary points: " +
-          statusResult.pointCount,
+  userMenus[from] =
+    activeFarmMenu;
 
-        statusResult.measurements
-          ? "📐 GPS calculated area: " +
-            statusResult.measurements.cents +
-            " Cent"
-          : "",
+  await sendWhatsAppMessage(
+    from,
+    [
+      "👤 Authorized person details",
+      "",
+      "Choose permission:",
+      "",
+      "VIEW",
+      "MANAGE",
+      "",
+      "VIEW = can view permitted land information.",
+      "MANAGE = can perform permitted farm operations.",
+      "",
+      "MANAGE does not give owner-level control.",
+      "Only the OWNER can add, change or revoke access.",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
 
-        statusResult.measurements
-          ? "📏 Perimeter: " +
-            statusResult.measurements.perimeterMetres +
-            " m"
-          : "",
+  return;
+}
+// ============================================================
+// LAND ACCESS - ADD PERSON - MOBILE
+// ============================================================
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "land_access_add_mobile"
+) {
+  const rawMobile =
+    String(userText || "")
+      .trim();
 
-        statusResult.mappedAt
-          ? "🕒 Last updated: " +
-            statusResult.mappedAt
-          : ""
-      ]
-        .filter(Boolean)
-        .join("\n")
-    );
-
+  if (
+    rawMobile.toUpperCase() === "CANCEL"
+  ) {
     activeFarmMenu.step =
-      "satellite_gps_menu";
+      "land_access_menu";
 
     activeFarmMenu.updatedAt =
       Date.now();
@@ -3121,24 +3206,209 @@ if (
     userMenus[from] =
       activeFarmMenu;
 
-    return;
-  } catch (statusError) {
-    console.error(
-      "Boundary status error:",
-      statusError &&
-      statusError.message
-        ? statusError.message
-        : statusError
-    );
-
     await sendWhatsAppMessage(
       from,
-      "⚠️ Boundary status could not be loaded. Please try again."
+      "❌ Add authorized person cancelled."
     );
 
     return;
   }
+
+  const mobile =
+    rawMobile
+      .replace(/\D/g, "")
+      .slice(-10);
+
+  if (mobile.length !== 10) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "⚠️ Please enter a valid 10-digit WhatsApp mobile number.",
+        "",
+        "Example:",
+        "1234567890",
+        "",
+        "Type CANCEL to stop."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  activeFarmMenu.accessMobile =
+    mobile;
+
+  activeFarmMenu.step =
+    "land_access_add_permission";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "👤 Authorized person details",
+      "",
+      "Choose permission:",
+      "",
+      "VIEW",
+      "MANAGE",
+      "",
+      "VIEW = can view permitted land information.",
+      "MANAGE = can perform permitted farm operations.",
+      "",
+      "MANAGE does not give owner-level control.",
+      "Only the OWNER can add, change or revoke access.",
+      "",
+      "Type CANCEL to stop."
+    ].join("\n")
+  );
+
+  return;
 }
+ // ============================================================
+// LAND ACCESS - ADD PERSON - PERMISSION
+// ============================================================
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "land_access_add_permission"
+) {
+  const permissionInput =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+  if (permissionInput === "CANCEL") {
+    activeFarmMenu.step =
+      "land_access_menu";
+
+    activeFarmMenu.updatedAt =
+      Date.now();
+
+    userMenus[from] =
+      activeFarmMenu;
+
+    await sendWhatsAppMessage(
+      from,
+      "❌ Add authorized person cancelled."
+    );
+
+    return;
+  }
+
+  let accessLevel = "";
+
+  if (
+    permissionInput === "VIEW" ||
+    permissionInput === "VIEW ONLY"
+  ) {
+    accessLevel = "VIEW";
+  }
+
+  if (
+    permissionInput === "MANAGE" ||
+    permissionInput === "FARM MANAGEMENT"
+  ) {
+    accessLevel = "MANAGE";
+  }
+
+  if (!accessLevel) {
+    await sendWhatsAppMessage(
+      from,
+      [
+        "⚠️ Please choose one permission:",
+        "",
+        "VIEW ONLY",
+        "FARM MANAGEMENT",
+        "",
+        "Type CANCEL to stop."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+  const grantResult =
+  await grantLandAccess({
+    sheets,
+    spreadsheetId:
+      GOOGLE_SHEET_ID,
+    landId:
+      activeFarmMenu.accessLandId,
+    ownerFarmerId:
+      activeFarmMenu.farmerId || "",
+    ownerWhatsapp:
+      from,
+    authorizedName:
+      "",
+    authorizedWhatsapp:
+      activeFarmMenu.accessMobile,
+    relationship:
+      "",
+    accessLevel:
+      accessLevel,
+    grantedBy:
+      from,
+    remarks:
+      "Granted by land owner through BhoomiMitra"
+  });
+
+  if (
+    !grantResult ||
+    !grantResult.success
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      grantResult &&
+      grantResult.error
+        ? "⚠️ " + grantResult.error
+        : "⚠️ Access could not be granted."
+    );
+
+    return;
+  }
+
+  const maskedMobile =
+    "**" +
+    String(activeFarmMenu.accessMobile || "")
+      .slice(-4);
+
+  activeFarmMenu.accessLandId = null;
+  activeFarmMenu.accessMobile = null;
+
+  activeFarmMenu.step =
+    "land_access_menu";
+
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    [
+      "✅ Land access granted.",
+      "",
+      "Mobile: " + maskedMobile,
+      "Permission: " +
+        (
+          accessLevel === "VIEW"
+            ? "VIEW ONLY"
+            : "FARM MANAGEMENT"
+        ),
+      "",
+      "Only the OWNER can change or revoke this access."
+    ].join("\n")
+  );
+
+  return;
+}  
 // ============================================================
 // SATELLITE FARM HEALTH - SELECT LAND
 // ============================================================
@@ -3846,19 +4116,22 @@ if (
     await sendWhatsAppMessage(
       from,
       [
-        "🛰️ Satellite, GPS & Land Monitoring",
-        "",
-        "1️⃣ Map / update land boundary",
-        "2️⃣ View land map",
-        "3️⃣ View boundary status",
-        "4️⃣ View GPS details",
-        "5️⃣ Satellite farm health",
-        "6️⃣ Satellite observation history",
-        "7️⃣ Back",
-        "",
-        "Reply with one number."
-      ].join("\n")
-    );
+       [
+  "🛰️ Satellite, GPS & Land Monitoring",
+  "",
+  "1️⃣ Map / update land boundary",
+  "2️⃣ View land map",
+  "3️⃣ View boundary status",
+  "4️⃣ View GPS details",
+  "5️⃣ Satellite farm health",
+  "6️⃣ Satellite observation history",
+  "",
+  "A. Manage land access",
+  "7️⃣ Back",
+  "",
+  "Reply with a number or A."
+].join("\n")
+         );
 
     return;
   }
