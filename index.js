@@ -2669,9 +2669,11 @@ await sendWhatsAppMessage(
     "4️⃣ View GPS details",
     "5️⃣ Satellite farm health",
     "6️⃣ Satellite observation history",
+"",
+"A. Manage land access",
     "7️⃣ Back",
-    "",
-    "Reply with one number."
+"",
+"Reply with one number or A."
   ].join("\n")
 );
 
