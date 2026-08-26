@@ -5107,28 +5107,26 @@ if (registrationSelected) {
 return;
   }
 
-  const regReply =
-    await registrationModule({
-    text: "start",
+ userMenus[from] = {
+  ...(userMenus[from] || {}),
+  step: "registration_active",
+  updatedAt: Date.now()
+};
+
+const regReply =
+  await handleRegistration(
     from,
-    sheets,
-    spreadsheetId:
-      GOOGLE_SHEET_ID,
-    language:
-      userLanguagePreferences[from] || "English"
-  });
+    "register"
+  );
 
-  if (
-    regReply &&
-    regReply.reply
-  ) {
-    await sendWhatsAppMessage(
-      from,
-      regReply.reply
-    );
+if (regReply) {
+  await sendWhatsAppMessage(
+    from,
+    regReply
+  );
 
-    return;
-  }
+  return;
+}
 }
   if (
     selections.length === 0
