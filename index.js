@@ -1113,6 +1113,29 @@ if (message.type === "text") {
         ? message.text.body.trim()
         : "";
   // ============================================================
+// ACTIVE REGISTRATION SESSION
+// ============================================================
+if (userText) {
+  const registrationReply =
+    await registrationModule({
+      text: userText,
+      from,
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      language:
+        userLanguagePreferences[from] || "English"
+    });
+
+  if (registrationReply) {
+    await sendWhatsAppMessage(
+      from,
+      registrationReply
+    );
+    return;
+  }
+}
+  // ============================================================
 // PRIVACY CONSENT - AGREE / DECLINE
 // ============================================================
 if (
