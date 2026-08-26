@@ -6909,9 +6909,7 @@ async function handleRegistration(
       );
 
     if (existing) {
-      delete sessions[from];
-
-      return formatExistingRegistration(
+       return formatExistingRegistration(
         existing,
         from
       );
