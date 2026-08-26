@@ -1120,18 +1120,19 @@ if (
   userMenus[from] &&
   userMenus[from].step === "registration_active"
 ) {
- const registrationReply =
-  await handleRegistration(
-    from,
-    userText
-  );
+  const registrationReply =
+    await handleRegistration(
+      from,
+      userText
+    );
 
-if (registrationReply) {
-  await sendWhatsAppMessage(
-    from,
-    registrationReply
-  );
-  return;
+  if (registrationReply) {
+    await sendWhatsAppMessage(
+      from,
+      registrationReply
+    );
+    return;
+  }
 }
   // ============================================================
 // PRIVACY CONSENT - AGREE / DECLINE
