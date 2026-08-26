@@ -6866,19 +6866,30 @@ async function handleRegistration(
    * Allow user to cancel an active
    * registration session.
    */
-  if (
-    lower === "cancel" ||
-    lower === "stop" ||
-    lower === "റദ്ദാക്കുക"
-  ) {
-    delete sessions[from];
+  if (lower === "menu") {
+  delete sessions[from];
 
-    return (
-      "രജിസ്ട്രേഷൻ റദ്ദാക്കി. " +
-      "വീണ്ടും തുടങ്ങാൻ Registration എന്ന് അയക്കുക."
-    );
+  if (userMenus[from]) {
+    userMenus[from].step = null;
+    userMenus[from].updatedAt =
+      Date.now();
   }
 
+  return getWelcomeMessage();
+}
+
+if (
+  lower === "cancel" ||
+  lower === "stop" ||
+  lower === "നിറുത്തുക"
+) {
+  delete sessions[from];
+
+  return (
+    "രജിസ്ട്രേഷൻ റദ്ദാക്കി. " +
+    "വീണ്ടും തുടങ്ങാൻ Registration എന്ന് അയയ്ക്കുക."
+  );
+}
   /*
    * CATEGORY
    */
