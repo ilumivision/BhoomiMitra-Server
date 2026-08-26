@@ -4789,7 +4789,14 @@ if (
       .trim()
       .toUpperCase();
 
-  if (consentChoice === "AGREE") {
+ if (
+  consentChoice === "AGREE" ||
+  consentChoice === "I AGREE" ||
+  consentChoice === "I ACCEPT" ||
+  consentChoice === "ACCEPT" ||
+  consentChoice === "ഞാൻ അംഗീകരിക്കുന്നു" ||
+  consentChoice === "സമ്മതിക്കുന്നു"
+) {
     const saveResult =
       await saveConsent({
         sheets,
@@ -4844,7 +4851,14 @@ if (
     return;
   }
 
-  if (consentChoice === "DECLINE") {
+  if (
+  consentChoice === "DECLINE" ||
+  consentChoice === "I DECLINE" ||
+  consentChoice === "I DO NOT ACCEPT" ||
+  consentChoice === "DO NOT ACCEPT" ||
+  consentChoice === "ഞാൻ അംഗീകരിക്കുന്നില്ല" ||
+  consentChoice === "സമ്മതിക്കുന്നില്ല"
+) {
     await saveConsent({
       sheets,
       spreadsheetId:
