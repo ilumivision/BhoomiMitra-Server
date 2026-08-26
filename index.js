@@ -1127,13 +1127,16 @@ if (userText) {
         userLanguagePreferences[from] || "English"
     });
 
-  if (registrationReply) {
-    await sendWhatsAppMessage(
-      from,
-      registrationReply
-    );
-    return;
-  }
+ if (
+  registrationReply &&
+  registrationReply.reply
+) {
+  await sendWhatsAppMessage(
+    from,
+    registrationReply.reply
+  );
+  return;
+}
 }
   // ============================================================
 // PRIVACY CONSENT - AGREE / DECLINE
