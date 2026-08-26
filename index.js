@@ -1115,7 +1115,11 @@ if (message.type === "text") {
   // ============================================================
 // ACTIVE REGISTRATION SESSION
 // ============================================================
-if (userText) {
+if (
+  userText &&
+  userMenus[from] &&
+  userMenus[from].step === "registration_active"
+) {
   const registrationReply =
     await registrationModule({
       text: userText,
@@ -1187,7 +1191,7 @@ if (
       return;
     }
 
-    userMenus[from].step = null;
+    userMenus[from].step = "registration_active";
     userMenus[from].updatedAt =
       Date.now();
 
