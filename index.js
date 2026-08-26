@@ -38,6 +38,10 @@ const {
   getLandAuthorizedUsers
 } = require("./utils/landAccess");
 const {
+  getLatestConsent,
+  saveConsent
+} = require("./utils/privacy");
+const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
 
@@ -4772,10 +4776,251 @@ const registrationSelected =
       );
     }
   );
+// ============================================================
+// PRIVACY CONSENT - AGREE / DECLINE
+// ============================================================
+if (
+  userMenus[from] &&
+  userMenus[from].step ===
+    "privacy_consent_pending"
+) {
+  const consentChoice =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
 
+  if (consentChoice === "AGREE") {
+    const saveResult =
+      await saveConsent({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        whatsapp:
+          from,
+        consentStatus:
+          "AGREED",
+        policyLanguage:
+  "BILINGUAL-EN-ML",
+          source:
+          "WHATSAPP",
+        remarks:
+          "Pilot User Agreement and Privacy Notice accepted"
+      });
+
+    if (
+      !saveResult ||
+      !saveResult.success
+    ) {
+      await sendWhatsAppMessage(
+        from,
+        "⚠️ Your acceptance could not be recorded. Please try AGREE again."
+      );
+      return;
+    }
+
+    userMenus[from].step = null;
+    userMenus[from].updatedAt =
+      Date.now();
+
+    const regReply =
+      await registrationModule({
+        text: "start",
+        from,
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        language:
+          userLanguagePreferences[from] ||
+          "English"
+      });
+
+    if (regReply) {
+      await sendWhatsAppMessage(
+        from,
+        regReply
+      );
+    }
+
+    return;
+  }
+
+  if (consentChoice === "DECLINE") {
+    await saveConsent({
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      whatsapp:
+        from,
+      consentStatus:
+        "DECLINED",
+      policyLanguage:
+  "BILINGUAL-EN-ML",
+      source:
+        "WHATSAPP",
+      remarks:
+        "Pilot User Agreement and Privacy Notice declined"
+    });
+
+    userMenus[from].step = null;
+    userMenus[from].updatedAt =
+      Date.now();
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "❌ Registration not started.",
+        "",
+        "You have declined the BhoomiMitra User Agreement & Privacy Notice.",
+        "",
+        "You may start registration again later if you wish."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+ if (consentChoice === "POLICY") {
+  await sendWhatsAppMessage(
+    from,
+    [
+      "📜 BhoomiMitra User Agreement & Privacy Policy",
+      "📜 ഭൂമിമിത്ര ഉപയോക്തൃ കരാറും സ്വകാര്യതാ നയവും",
+      "",
+      "BhoomiMitra is currently operated as a pilot agricultural digital service.",
+      "ഭൂമിമിത്ര നിലവിൽ പരീക്ഷണാടിസ്ഥാനത്തിലുള്ള ഒരു ഡിജിറ്റൽ കാർഷിക സേവനമാണ്.",
+      "",
+      "Information supplied by you may be used to provide agricultural advisory, farm management, GPS/location services, satellite monitoring, soil services, expert support and related BhoomiMitra services.",
+      "",
+      "നിങ്ങൾ നൽകുന്ന വിവരങ്ങൾ കാർഷിക ഉപദേശം, ഫാം മാനേജ്മെന്റ്, GPS/ലൊക്കേഷൻ സേവനങ്ങൾ, സാറ്റലൈറ്റ് നിരീക്ഷണം, മണ്ണ് പരിശോധനാ സേവനങ്ങൾ, വിദഗ്ധ സഹായം തുടങ്ങിയ ഭൂമിമിത്ര സേവനങ്ങൾ നൽകുന്നതിനായി ഉപയോഗിക്കാം.",
+      "",
+      "Personal data will be handled only for authorised, operational, security and lawful purposes. Reasonable safeguards will be used to protect it.",
+      "",
+      "വ്യക്തിഗത വിവരങ്ങൾ അംഗീകൃത സേവനങ്ങൾ, പ്രവർത്തനം, സുരക്ഷ, നിയമാനുസൃത ആവശ്യങ്ങൾ എന്നിവയ്ക്കായി മാത്രം കൈകാര്യം ചെയ്യും. വിവരങ്ങൾ സംരക്ഷിക്കാൻ യുക്തിസഹമായ സുരക്ഷാ നടപടികൾ സ്വീകരിക്കും.",
+      "",
+      "No digital system can eliminate every cyber, network or third-party technology risk. Appropriate protective and corrective measures will be taken if a security issue is identified.",
+      "",
+      "Agricultural, AI, weather, market, GPS and satellite information is decision-support information and may require field or expert verification.",
+      "",
+      "കാർഷിക, AI, കാലാവസ്ഥ, വിപണി, GPS, സാറ്റലൈറ്റ് വിവരങ്ങൾ തീരുമാനസഹായത്തിനായുള്ളതാണ്; ആവശ്യമായിടത്ത് ഫീൽഡ്/വിദഗ്ധ പരിശോധന നടത്തണം.",
+      "",
+      "GPS boundaries and satellite observations are not legal surveys, ownership/title records, official boundary certificates, crop-loss certificates or insurance assessments.",
+      "",
+      "GPS അതിർത്തികളും സാറ്റലൈറ്റ് വിവരങ്ങളും നിയമപരമായ സർവേ, ഉടമസ്ഥാവകാശ രേഖ, ഔദ്യോഗിക അതിർത്തി സർട്ടിഫിക്കറ്റ്, വിളനഷ്ട സർട്ടിഫിക്കറ്റ് അല്ലെങ്കിൽ ഇൻഷുറൻസ് വിലയിരുത്തൽ അല്ല.",
+      "",
+      "VIEW ONLY or FARM MANAGEMENT access does not transfer ownership, possession, tenancy or owner-level rights.",
+      "",
+      "VIEW ONLY അല്ലെങ്കിൽ FARM MANAGEMENT അനുമതി നൽകുന്നത് ഭൂമിയുടെ ഉടമസ്ഥാവകാശം, കൈവശാവകാശം, വാടകാവകാശം തുടങ്ങിയ അവകാശങ്ങൾ കൈമാറുന്നതല്ല.",
+      "",
+      "Users must provide genuine information and must not misuse the service or access another person's information without permission.",
+      "",
+      "Photos or information submitted for advisory are not automatically authorised for publicity or social-media publication.",
+      "",
+      "Where applicable and subject to verification and law, users may request correction, withdrawal of consent or deletion of eligible personal information.",
+      "",
+      "After reading, please reply:",
+      "",
+      "AGREE — I accept / ഞാൻ അംഗീകരിക്കുന്നു",
+      "DECLINE — I do not accept / ഞാൻ അംഗീകരിക്കുന്നില്ല"
+    ].join("\n")
+  );
+
+  return;
+}
+
+await sendWhatsAppMessage(
+  from,
+  [
+    "Please reply AGREE, DECLINE or POLICY.",
+    "AGREE, DECLINE അല്ലെങ്കിൽ POLICY എന്ന് മറുപടി നൽകുക."
+  ].join("\n")
+);
+return;
+}
 if (registrationSelected) {
- const regReply =
-  await registrationModule({
+  const consentResult =
+    await getLatestConsent({
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      whatsapp:
+        from
+    });
+
+  const hasAgreed =
+    consentResult &&
+    consentResult.success &&
+    consentResult.found &&
+    consentResult.consent &&
+    consentResult.consent.consentStatus === "AGREED";
+
+  if (!hasAgreed) {
+    userMenus[from] = {
+      ...(userMenus[from] || {}),
+      step:
+        "privacy_consent_pending",
+      updatedAt:
+        Date.now()
+    };
+
+    await sendWhatsAppMessage(
+      from,
+     [
+  "🔐 BhoomiMitra User Agreement & Privacy Notice",
+  "🔐 ഭൂമിമിത്ര ഉപയോക്തൃ കരാറും സ്വകാര്യതാ അറിയിപ്പും",
+  "",
+  "Please read before registration.",
+  "രജിസ്ട്രേഷൻ ആരംഭിക്കുന്നതിന് മുമ്പ് ദയവായി വായിക്കുക.",
+  "",
+  "BhoomiMitra may use information you provide such as your name, mobile number, farm and crop details, location/GPS, land information, soil-test data, photographs, voice messages, advisory history and satellite observations to provide agricultural and farm-management services.",
+  "",
+  "ഭൂമിമിത്ര കാർഷികവും ഫാം മാനേജ്മെന്റ് സേവനങ്ങളും നൽകുന്നതിനായി നിങ്ങൾ നൽകുന്ന പേര്, മൊബൈൽ നമ്പർ, കൃഷിയിടവും വിളയുമായി ബന്ധപ്പെട്ട വിവരങ്ങൾ, സ്ഥലം/GPS, ഭൂമി വിവരങ്ങൾ, മണ്ണ് പരിശോധനാ വിവരങ്ങൾ, ചിത്രങ്ങൾ, ശബ്ദ സന്ദേശങ്ങൾ, ഉപദേശ ചരിത്രം, സാറ്റലൈറ്റ് നിരീക്ഷണങ്ങൾ തുടങ്ങിയ വിവരങ്ങൾ ഉപയോഗിക്കാം.",
+  "",
+  "Your information will be used only for authorised services, administration, security, service improvement and lawful purposes, and will not be intentionally disclosed to unauthorised persons.",
+  "",
+  "നിങ്ങളുടെ വിവരങ്ങൾ അംഗീകൃത സേവനങ്ങൾ, ഭരണനടപടികൾ, സുരക്ഷ, സേവന മെച്ചപ്പെടുത്തൽ, നിയമാനുസൃത ആവശ്യങ്ങൾ എന്നിവയ്ക്കായി മാത്രം ഉപയോഗിക്കും. അനുമതിയില്ലാത്ത വ്യക്തികൾക്ക് ഉദ്ദേശപൂർവ്വം വെളിപ്പെടുത്തുകയില്ല.",
+  "",
+  "BhoomiMitra uses reasonable security safeguards. Like all digital services, some risks from cyber incidents, network failures or third-party systems may remain. If a security issue is identified, appropriate protective and corrective action will be taken.",
+  "",
+  "ഭൂമിമിത്ര ഉപയോക്തൃ വിവരങ്ങൾ സംരക്ഷിക്കാൻ യുക്തിസഹമായ സുരക്ഷാ നടപടികൾ സ്വീകരിക്കുന്നു. മറ്റ് ഡിജിറ്റൽ സേവനങ്ങളെപ്പോലെ സൈബർ സംഭവങ്ങൾ, നെറ്റ്‌വർക്ക് തകരാറുകൾ, മൂന്നാംകക്ഷി സംവിധാനങ്ങൾ എന്നിവയിൽ നിന്നുള്ള ചില അപകടസാധ്യതകൾ പൂർണ്ണമായി ഒഴിവാക്കാനാവില്ല. സുരക്ഷാ പ്രശ്നം കണ്ടെത്തിയാൽ ആവശ്യമായ സംരക്ഷണവും തിരുത്തൽ നടപടികളും സ്വീകരിക്കും.",
+  "",
+  "Agricultural, AI, weather and market information is decision support and may require expert or field verification. BhoomiMitra does not guarantee yield, profit, crop recovery or prevention of loss.",
+  "",
+  "കാർഷിക, AI, കാലാവസ്ഥ, വിപണി വിവരങ്ങൾ തീരുമാനസഹായത്തിനായുള്ളതാണ്. ആവശ്യമായ സാഹചര്യങ്ങളിൽ വിദഗ്ധന്റെയോ ഫീൽഡ് പരിശോധനയുടെയോ സ്ഥിരീകരണം വോം. വിളവ്, ലാഭം, വിള പുനരുജ്ജീവനം, നഷ്ടം തടയൽ എന്നിവ ഭൂമിമിത്ര ഉറപ്പുനൽകുന്നില്ല.",
+  "",
+  "GPS maps, farm boundaries, NDVI/NDMI and satellite observations are for agricultural management only. They are not legal surveys, ownership records, boundary certificates, crop-loss certificates or official insurance assessments.",
+  "",
+  "GPS മാപ്പുകൾ, ഫാം അതിർത്തികൾ, NDVI/NDMI, സാറ്റലൈറ്റ് നിരീക്ഷണങ്ങൾ എന്നിവ കാർഷിക മാനേജ്മെന്റിനായി മാത്രം ഉപയോഗിക്കേണ്ടതാണ്. അവ നിയമപരമായ സർവേ, ഉടമസ്ഥാവകാശ രേഖ, അതിർത്തി സർട്ടിഫിക്കറ്റ്, വിളനഷ്ട സർട്ടിഫിക്കറ്റ്, ഔദ്യോഗിക ഇൻഷുറൻസ് വിലയിരുത്തൽ എന്നിവയല്ല.",
+  "",
+  "A person given VIEW ONLY or FARM MANAGEMENT permission does not acquire ownership, possession, tenancy or owner-level control.",
+  "",
+  "VIEW ONLY അല്ലെങ്കിൽ FARM MANAGEMENT അനുമതി ലഭിക്കുന്ന വ്യക്തിക്ക് ഉടമസ്ഥാവകാശം, കൈവശാവകാശം, വാടകാവകാശം, അല്ലെങ്കിൽ OWNER തലത്തിലുള്ള നിയന്ത്രണം ലഭിക്കുന്നതല്ല.",
+  "",
+  "Users must provide genuine information and must not misuse BhoomiMitra or access another user's data without permission.",
+  "",
+  "ഉപയോക്താക്കൾ യഥാർത്ഥ വിവരങ്ങൾ നൽകണം. ഭൂമിമിത്ര ദുരുപയോഗം ചെയ്യുകയോ അനുമതിയില്ലാതെ മറ്റൊരാളുടെ വിവരങ്ങൾ ആക്‌സസ് ചെയ്യുകയോ പാടില്ല.",
+  "",
+  "Photos or information submitted for advisory purposes are not automatically authorised for publicity or social-media use.",
+  "",
+  "ഉപദേശത്തിനായി നൽകിയ ചിത്രങ്ങളോ വിവരങ്ങളോ സ്വതവേ പരസ്യത്തിനോ സോഷ്യൽ മീഡിയ പ്രസിദ്ധീകരണത്തിനോ അനുമതി നൽകിയതായി കണക്കാക്കില്ല.",
+  "",
+  "Subject to applicable law and verification, users may request correction of their information, withdrawal of consent and deletion of eligible personal data.",
+  "",
+  "ബാധകമായ നിയമവും ആവശ്യമായ സ്ഥിരീകരണവും അനുസരിച്ച്, ഉപയോക്താക്കൾക്ക് അവരുടെ വിവരങ്ങൾ തിരുത്തൽ, സമ്മതം പിൻവലിക്കൽ, നിയമപരമായി അനുവദനീയമായ വ്യക്തിഗത വിവരങ്ങൾ ഇല്ലാതാക്കൽ എന്നിവ അഭ്യർത്ഥിക്കാം.",
+  "",
+  "Type POLICY to read the full User Agreement & Privacy Policy.",
+  "പൂർണ്ണ ഉപയോക്തൃ കരാറും സ്വകാര്യതാ നയവും വായിക്കാൻ POLICY എന്ന് ടൈപ്പ് ചെയ്യുക.",
+  "",
+  "AGREE — I have read this notice and accept it.",
+  "AGREE — ഞാൻ ഈ അറിയിപ്പ് വായിച്ച് അംഗീകരിക്കുന്നു.",
+  "",
+  "DECLINE — I do not accept.",
+  "DECLINE — ഞാൻ അംഗീകരിക്കുന്നില്ല."
+].join("\n")
+    return;
+  }
+
+  const regReply =
+    await registrationModule({
     text: "start",
     from,
     sheets,
