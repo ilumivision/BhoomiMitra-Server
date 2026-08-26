@@ -5016,7 +5016,9 @@ if (registrationSelected) {
   "DECLINE — I do not accept.",
   "DECLINE — ഞാൻ അംഗീകരിക്കുന്നില്ല."
 ].join("\n")
-    return;
+);
+
+return;
   }
 
   const regReply =
