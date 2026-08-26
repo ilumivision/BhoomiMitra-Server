@@ -1112,7 +1112,174 @@ if (message.type === "text") {
     userText = message.text && message.text.body
         ? message.text.body.trim()
         : "";
-  // =====================================================
+  // ============================================================
+// PRIVACY CONSENT - AGREE / DECLINE
+// ============================================================
+if (
+  userMenus[from] &&
+  userMenus[from].step ===
+    "privacy_consent_pending"
+) {
+  const consentChoice =
+    String(userText || "")
+      .trim()
+      .toUpperCase();
+
+ if (
+  consentChoice === "AGREE" ||
+  consentChoice === "I AGREE" ||
+  consentChoice === "I ACCEPT" ||
+  consentChoice === "ACCEPT" ||
+  consentChoice === "ഞാൻ അംഗീകരിക്കുന്നു" ||
+  consentChoice === "സമ്മതിക്കുന്നു"
+) {
+    const saveResult =
+      await saveConsent({
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        whatsapp:
+          from,
+        consentStatus:
+          "AGREED",
+        policyLanguage:
+  "BILINGUAL-EN-ML",
+          source:
+          "WHATSAPP",
+        remarks:
+          "Pilot User Agreement and Privacy Notice accepted"
+      });
+
+    if (
+      !saveResult ||
+      !saveResult.success
+    ) {
+      await sendWhatsAppMessage(
+        from,
+        "⚠️ Your acceptance could not be recorded. Please try AGREE again."
+      );
+      return;
+    }
+
+    userMenus[from].step = null;
+    userMenus[from].updatedAt =
+      Date.now();
+
+    const regReply =
+      await registrationModule({
+        text: "start",
+        from,
+        sheets,
+        spreadsheetId:
+          GOOGLE_SHEET_ID,
+        language:
+          userLanguagePreferences[from] ||
+          "English"
+      });
+
+    if (regReply) {
+      await sendWhatsAppMessage(
+        from,
+        regReply
+      );
+    }
+
+    return;
+  }
+
+  if (
+  consentChoice === "DECLINE" ||
+  consentChoice === "I DECLINE" ||
+  consentChoice === "I DO NOT ACCEPT" ||
+  consentChoice === "DO NOT ACCEPT" ||
+  consentChoice === "ഞാൻ അംഗീകരിക്കുന്നില്ല" ||
+  consentChoice === "സമ്മതിക്കുന്നില്ല"
+) {
+    await saveConsent({
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      whatsapp:
+        from,
+      consentStatus:
+        "DECLINED",
+      policyLanguage:
+  "BILINGUAL-EN-ML",
+      source:
+        "WHATSAPP",
+      remarks:
+        "Pilot User Agreement and Privacy Notice declined"
+    });
+
+    userMenus[from].step = null;
+    userMenus[from].updatedAt =
+      Date.now();
+
+    await sendWhatsAppMessage(
+      from,
+      [
+        "❌ Registration not started.",
+        "",
+        "You have declined the BhoomiMitra User Agreement & Privacy Notice.",
+        "",
+        "You may start registration again later if you wish."
+      ].join("\n")
+    );
+
+    return;
+  }
+
+ if (consentChoice === "POLICY") {
+  await sendWhatsAppMessage(
+    from,
+    [
+  "🔐 BhoomiMitra User Agreement & Privacy Notice",
+  "🔐 ഭൂമിമിത്ര ഉപയോക്തൃ കരാറും സ്വകാര്യതാ അറിയിപ്പും",
+  "",
+  "Please read before registration.",
+  "രജിസ്ട്രേഷൻ ആരംഭിക്കുന്നതിന് മുമ്പ് ദയവായി വായിക്കുക.",
+  "",
+  "BhoomiMitra may collect and use information you provide, including your name, mobile number, farm/crop details, location/GPS, land details, soil data, photographs, voice messages and satellite information, to provide agricultural and farm-management services.",
+  "",
+  "കാർഷികവും ഫാം മാനേജ്മെന്റ് സേവനങ്ങളും നൽകുന്നതിനായി പേര്, മൊബൈൽ നമ്പർ, കൃഷിയിടം/വിള വിവരങ്ങൾ, GPS/സ്ഥലം, ഭൂമി വിവരങ്ങൾ, മണ്ണ് വിവരങ്ങൾ, ചിത്രങ്ങൾ, ശബ്ദ സന്ദേശങ്ങൾ, സാറ്റലൈറ്റ് വിവരങ്ങൾ എന്നിവ ഭൂമിമിത്ര ഉപയോഗിക്കാം.",
+  "",
+  "Reasonable safeguards are used to protect your information. Some risks inherent in digital, network and third-party systems may remain.",
+  "",
+  "നിങ്ങളുടെ വിവരങ്ങൾ സംരക്ഷിക്കാൻ യുക്തിസഹമായ സുരക്ഷാ നടപടികൾ സ്വീകരിക്കുന്നു. ഡിജിറ്റൽ, നെറ്റ്‌വർക്ക്, മൂന്നാംകക്ഷി സംവിധാനങ്ങളുമായി ബന്ധപ്പെട്ട ചില അപകടസാധ്യതകൾ നിലനിൽക്കാം.",
+  "",
+  "Agricultural, AI, weather, market, GPS and satellite information is decision support and may require expert or field verification.",
+  "",
+  "കാർഷിക, AI, കാലാവസ്ഥ, വിപണി, GPS, സാറ്റലൈറ്റ് വിവരങ്ങൾ തീരുമാനസഹായത്തിനായുള്ളതാണ്; ആവശ്യമായിടത്ത് വിദഗ്ധ/ഫീൽഡ് പരിശോധന വേണം.",
+  "",
+  "GPS boundaries and satellite observations are not legal ownership, survey, boundary, crop-loss or insurance records.",
+  "",
+  "GPS അതിർത്തികളും സാറ്റലൈറ്റ് വിവരങ്ങളും നിയമപരമായ ഉടമസ്ഥാവകാശ, സർവേ, അതിർത്തി, വിളനഷ്ട അല്ലെങ്കിൽ ഇൻഷുറൻസ് രേഖകളല്ല.",
+  "",
+  "You may request correction, withdrawal of consent or deletion of eligible personal data subject to applicable law.",
+  "",
+  "ബാധകമായ നിയമപ്രകാരം വിവര തിരുത്തൽ, സമ്മതം പിൻവലിക്കൽ, അനുവദനീയമായ വ്യക്തിഗത വിവരങ്ങൾ ഇല്ലാതാക്കൽ എന്നിവ അഭ്യർത്ഥിക്കാം.",
+  "",
+  "Type POLICY for the full User Agreement & Privacy Policy.",
+  "പൂർണ്ണ നയം വായിക്കാൻ POLICY എന്ന് ടൈപ്പ് ചെയ്യുക.",
+  "",
+  "AGREE — I accept / ഞാൻ അംഗീകരിക്കുന്നു",
+  "DECLINE — I do not accept / ഞാൻ അംഗീകരിക്കുന്നില്ല"
+].join("\n")
+  );
+
+  return;
+}
+
+await sendWhatsAppMessage(
+  from,
+  [
+    "Please reply AGREE, DECLINE or POLICY.",
+    "AGREE, DECLINE അല്ലെങ്കിൽ POLICY എന്ന് മറുപടി നൽകുക."
+  ].join("\n")
+);
+return;
+}
+   // =====================================================
 // LAND BOUNDARY - COMPLETE WITH DONE
 // =====================================================
 
@@ -4776,173 +4943,7 @@ const registrationSelected =
       );
     }
   );
-// ============================================================
-// PRIVACY CONSENT - AGREE / DECLINE
-// ============================================================
-if (
-  userMenus[from] &&
-  userMenus[from].step ===
-    "privacy_consent_pending"
-) {
-  const consentChoice =
-    String(userText || "")
-      .trim()
-      .toUpperCase();
 
- if (
-  consentChoice === "AGREE" ||
-  consentChoice === "I AGREE" ||
-  consentChoice === "I ACCEPT" ||
-  consentChoice === "ACCEPT" ||
-  consentChoice === "ഞാൻ അംഗീകരിക്കുന്നു" ||
-  consentChoice === "സമ്മതിക്കുന്നു"
-) {
-    const saveResult =
-      await saveConsent({
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        whatsapp:
-          from,
-        consentStatus:
-          "AGREED",
-        policyLanguage:
-  "BILINGUAL-EN-ML",
-          source:
-          "WHATSAPP",
-        remarks:
-          "Pilot User Agreement and Privacy Notice accepted"
-      });
-
-    if (
-      !saveResult ||
-      !saveResult.success
-    ) {
-      await sendWhatsAppMessage(
-        from,
-        "⚠️ Your acceptance could not be recorded. Please try AGREE again."
-      );
-      return;
-    }
-
-    userMenus[from].step = null;
-    userMenus[from].updatedAt =
-      Date.now();
-
-    const regReply =
-      await registrationModule({
-        text: "start",
-        from,
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        language:
-          userLanguagePreferences[from] ||
-          "English"
-      });
-
-    if (regReply) {
-      await sendWhatsAppMessage(
-        from,
-        regReply
-      );
-    }
-
-    return;
-  }
-
-  if (
-  consentChoice === "DECLINE" ||
-  consentChoice === "I DECLINE" ||
-  consentChoice === "I DO NOT ACCEPT" ||
-  consentChoice === "DO NOT ACCEPT" ||
-  consentChoice === "ഞാൻ അംഗീകരിക്കുന്നില്ല" ||
-  consentChoice === "സമ്മതിക്കുന്നില്ല"
-) {
-    await saveConsent({
-      sheets,
-      spreadsheetId:
-        GOOGLE_SHEET_ID,
-      whatsapp:
-        from,
-      consentStatus:
-        "DECLINED",
-      policyLanguage:
-  "BILINGUAL-EN-ML",
-      source:
-        "WHATSAPP",
-      remarks:
-        "Pilot User Agreement and Privacy Notice declined"
-    });
-
-    userMenus[from].step = null;
-    userMenus[from].updatedAt =
-      Date.now();
-
-    await sendWhatsAppMessage(
-      from,
-      [
-        "❌ Registration not started.",
-        "",
-        "You have declined the BhoomiMitra User Agreement & Privacy Notice.",
-        "",
-        "You may start registration again later if you wish."
-      ].join("\n")
-    );
-
-    return;
-  }
-
- if (consentChoice === "POLICY") {
-  await sendWhatsAppMessage(
-    from,
-    [
-  "🔐 BhoomiMitra User Agreement & Privacy Notice",
-  "🔐 ഭൂമിമിത്ര ഉപയോക്തൃ കരാറും സ്വകാര്യതാ അറിയിപ്പും",
-  "",
-  "Please read before registration.",
-  "രജിസ്ട്രേഷൻ ആരംഭിക്കുന്നതിന് മുമ്പ് ദയവായി വായിക്കുക.",
-  "",
-  "BhoomiMitra may collect and use information you provide, including your name, mobile number, farm/crop details, location/GPS, land details, soil data, photographs, voice messages and satellite information, to provide agricultural and farm-management services.",
-  "",
-  "കാർഷികവും ഫാം മാനേജ്മെന്റ് സേവനങ്ങളും നൽകുന്നതിനായി പേര്, മൊബൈൽ നമ്പർ, കൃഷിയിടം/വിള വിവരങ്ങൾ, GPS/സ്ഥലം, ഭൂമി വിവരങ്ങൾ, മണ്ണ് വിവരങ്ങൾ, ചിത്രങ്ങൾ, ശബ്ദ സന്ദേശങ്ങൾ, സാറ്റലൈറ്റ് വിവരങ്ങൾ എന്നിവ ഭൂമിമിത്ര ഉപയോഗിക്കാം.",
-  "",
-  "Reasonable safeguards are used to protect your information. Some risks inherent in digital, network and third-party systems may remain.",
-  "",
-  "നിങ്ങളുടെ വിവരങ്ങൾ സംരക്ഷിക്കാൻ യുക്തിസഹമായ സുരക്ഷാ നടപടികൾ സ്വീകരിക്കുന്നു. ഡിജിറ്റൽ, നെറ്റ്‌വർക്ക്, മൂന്നാംകക്ഷി സംവിധാനങ്ങളുമായി ബന്ധപ്പെട്ട ചില അപകടസാധ്യതകൾ നിലനിൽക്കാം.",
-  "",
-  "Agricultural, AI, weather, market, GPS and satellite information is decision support and may require expert or field verification.",
-  "",
-  "കാർഷിക, AI, കാലാവസ്ഥ, വിപണി, GPS, സാറ്റലൈറ്റ് വിവരങ്ങൾ തീരുമാനസഹായത്തിനായുള്ളതാണ്; ആവശ്യമായിടത്ത് വിദഗ്ധ/ഫീൽഡ് പരിശോധന വേണം.",
-  "",
-  "GPS boundaries and satellite observations are not legal ownership, survey, boundary, crop-loss or insurance records.",
-  "",
-  "GPS അതിർത്തികളും സാറ്റലൈറ്റ് വിവരങ്ങളും നിയമപരമായ ഉടമസ്ഥാവകാശ, സർവേ, അതിർത്തി, വിളനഷ്ട അല്ലെങ്കിൽ ഇൻഷുറൻസ് രേഖകളല്ല.",
-  "",
-  "You may request correction, withdrawal of consent or deletion of eligible personal data subject to applicable law.",
-  "",
-  "ബാധകമായ നിയമപ്രകാരം വിവര തിരുത്തൽ, സമ്മതം പിൻവലിക്കൽ, അനുവദനീയമായ വ്യക്തിഗത വിവരങ്ങൾ ഇല്ലാതാക്കൽ എന്നിവ അഭ്യർത്ഥിക്കാം.",
-  "",
-  "Type POLICY for the full User Agreement & Privacy Policy.",
-  "പൂർണ്ണ നയം വായിക്കാൻ POLICY എന്ന് ടൈപ്പ് ചെയ്യുക.",
-  "",
-  "AGREE — I accept / ഞാൻ അംഗീകരിക്കുന്നു",
-  "DECLINE — I do not accept / ഞാൻ അംഗീകരിക്കുന്നില്ല"
-].join("\n")
-  );
-
-  return;
-}
-
-await sendWhatsAppMessage(
-  from,
-  [
-    "Please reply AGREE, DECLINE or POLICY.",
-    "AGREE, DECLINE അല്ലെങ്കിൽ POLICY എന്ന് മറുപടി നൽകുക."
-  ].join("\n")
-);
-return;
-}
 if (registrationSelected) {
   const consentResult =
     await getLatestConsent({
