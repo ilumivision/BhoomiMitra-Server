@@ -1120,27 +1120,18 @@ if (
   userMenus[from] &&
   userMenus[from].step === "registration_active"
 ) {
-  const registrationReply =
-    await registrationModule({
-      text: userText,
-      from,
-      sheets,
-      spreadsheetId:
-        GOOGLE_SHEET_ID,
-      language:
-        userLanguagePreferences[from] || "English"
-    });
+ const registrationReply =
+  await handleRegistration(
+    from,
+    userText
+  );
 
- if (
-  registrationReply &&
-  registrationReply.reply
-) {
+if (registrationReply) {
   await sendWhatsAppMessage(
     from,
-    registrationReply.reply
+    registrationReply
   );
   return;
-}
 }
   // ============================================================
 // PRIVACY CONSENT - AGREE / DECLINE
@@ -1195,24 +1186,18 @@ if (
     userMenus[from].updatedAt =
       Date.now();
 
-    const regReply =
-      await registrationModule({
-        text: "start",
-        from,
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        language:
-          userLanguagePreferences[from] ||
-          "English"
-      });
+   const regReply =
+  await handleRegistration(
+    from,
+    "register"
+  );
 
-    if (regReply) {
-      await sendWhatsAppMessage(
-        from,
-        regReply
-      );
-    }
+if (regReply) {
+  await sendWhatsAppMessage(
+    from,
+    regReply
+  );
+}
 
     return;
   }
