@@ -1020,16 +1020,30 @@ out center tags 10;
       });
 
   } catch (error) {
-    console.error(
-      "Public provider search error:",
-      error &&
-      error.message
-        ? error.message
-        : error
-    );
+  console.error(
+    "Public provider search error:",
+    {
+      message:
+        error && error.message
+          ? error.message
+          : String(error),
 
-    return [];
-  }
+      url:
+        error &&
+        error.config &&
+        error.config.url
+          ? error.config.url
+          : "unknown",
+
+      code:
+        error && error.code
+          ? error.code
+          : "unknown"
+    }
+  );
+
+  return [];
+}
 }
 // =====================================================
 // MAIN SERVICE FINDER
