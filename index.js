@@ -1112,6 +1112,137 @@ if (message.type === "text") {
     userText = message.text && message.text.body
         ? message.text.body.trim()
         : "";
+  // =====================================================
+// EXPERT WHATSAPP REPLY
+// Format:
+// REPLY BM-EXP-123456789
+// Your recommendation here
+// =====================================================
+
+if (
+  userText &&
+  /^REPLY\s+BM-EXP-\d+/i.test(userText)
+) {
+  const replyMatch =
+  userText.match(
+    /^REPLY\s+(BM-EXP-\d+)\s*([\s\S]*)$/i
+  );
+
+const caseId =
+  replyMatch && replyMatch[1]
+    ? replyMatch[1].trim()
+    : "";
+
+const expertAdvice =
+  replyMatch && replyMatch[2]
+    ? replyMatch[2].trim()
+    : "";
+
+if (!expertAdvice) {
+  await sendWhatsAppMessage(
+    from,
+    "Please send your recommendation after the Case ID.\n\n" +
+    "Example:\n" +
+    "REPLY " +
+    caseId +
+    "\n" +
+    "Your recommendation here."
+  );
+
+  return;
+}
+
+const caseRows =
+  await readSheetRows(
+    "Expert_Cases",
+    "A:T"
+  );
+
+const caseRow =
+  (caseRows || []).find(
+    function (row) {
+      return (
+        String(row[0] || "")
+          .trim()
+          .toUpperCase() ===
+        caseId.toUpperCase()
+      );
+    }
+  );
+
+if (!caseRow) {
+  await sendWhatsAppMessage(
+    from,
+    "❌ Case ID not found: " +
+    caseId
+  );
+
+  return;
+}
+
+const farmerWhatsApp =
+  String(caseRow[3] || "")
+    .replace(/\D/g, "");
+
+const assignedExpertWhatsApp =
+  String(caseRow[13] || "")
+    .replace(/\D/g, "");
+
+const senderWhatsApp =
+  String(from || "")
+    .replace(/\D/g, "");
+
+const senderKey =
+  senderWhatsApp.slice(-10);
+
+const expertKey =
+  assignedExpertWhatsApp.slice(-10);
+
+if (
+  !expertKey ||
+  senderKey !== expertKey
+) {
+  await sendWhatsAppMessage(
+    from,
+    "❌ You are not the assigned expert for Case " +
+    caseId +
+    "."
+  );
+
+  return;
+}
+
+if (!farmerWhatsApp) {
+  await sendWhatsAppMessage(
+    from,
+    "❌ Farmer WhatsApp number is not available for Case " +
+    caseId +
+    "."
+  );
+
+  return;
+}
+
+await sendWhatsAppMessage(
+  farmerWhatsApp,
+  "👨‍🔬 BhoomiMitra Expert Recommendation\n\n" +
+  "Case ID: " +
+  caseId +
+  "\n\n" +
+  expertAdvice +
+  "\n\n" +
+  "This recommendation was provided by the assigned BhoomiMitra expert."
+);
+
+await sendWhatsAppMessage(
+  from,
+  "✅ Your recommendation for " +
+  caseId +
+  " has been sent to the farmer."
+);
+
+return;
+}
   // ============================================================
 // ACTIVE REGISTRATION SESSION
 // ============================================================
