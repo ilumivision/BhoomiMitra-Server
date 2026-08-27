@@ -518,9 +518,9 @@ const status = selectedExpert
 if (selectedExpert) {
   try {
     expertReplyLink = buildExpertReplyLink({
-      baseUrl:
-        process.env.EXPERT_REPLY_URL ||
-        "https://ilumivision.in/expert-reply",
+     baseUrl:
+  process.env.EXPERT_REPLY_URL ||
+  "https://ilumivision.in/bhoomimitra/expert-reply/",
       caseId: preparedCase.caseId,
       expertId: selectedExpert.expertId
     });
