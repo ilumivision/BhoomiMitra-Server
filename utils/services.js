@@ -1,5 +1,7 @@
 "use strict";
-
+const axios = require("axios");
+const GOOGLE_PLACES_API_KEY =
+  process.env.GOOGLE_PLACES_API_KEY || "";
 /*
  * BhoomiMitra Verified Service Finder
  *
@@ -706,7 +708,7 @@ function isVerifiedActive(
 // LOCATION RANKING
 // =====================================================
 
-function getLocationRank(
+district: getvalue(
   record,
   query
 ) {
@@ -730,12 +732,25 @@ function getLocationRank(
       query.district
     );
 
+  const recordState =
+    normalizeText(
+      record.state ||
+      record.workingState ||
+      ""
+    );
+
+  const queryState =
+    normalizeText(
+      query.state ||
+      "Kerala"
+    );
+
+  // 1. Same local body
   if (
     queryLocalBody &&
     recordLocalBody &&
     (
-      queryLocalBody ===
-        recordLocalBody ||
+      queryLocalBody === recordLocalBody ||
       recordLocalBody.includes(
         queryLocalBody
       ) ||
@@ -747,12 +762,12 @@ function getLocationRank(
     return 1;
   }
 
+  // 2. Same district
   if (
     queryDistrict &&
     recordDistrict &&
     (
-      queryDistrict ===
-        recordDistrict ||
+      queryDistrict === recordDistrict ||
       recordDistrict.includes(
         queryDistrict
       ) ||
@@ -764,9 +779,242 @@ function getLocationRank(
     return 2;
   }
 
-  return 3;
+  // 3. Same state
+  if (
+    queryState &&
+    recordState &&
+    (
+      queryState === recordState ||
+      recordState.includes(
+        queryState
+      ) ||
+      queryState.includes(
+        recordState
+      )
+    )
+  ) {
+    return 3;
+  }
+
+  // 4. South India
+  const southIndiaStates = [
+    "kerala",
+    "tamil nadu",
+    "karnataka",
+    "andhra pradesh",
+    "telangana",
+    "puducherry"
+  ];
+
+  if (
+    recordState &&
+    southIndiaStates.includes(
+      recordState
+    )
+  ) {
+    return 4;
+  }
+
+  // 5. Rest of India
+  return 5;
+}
+ async function searchPublicProviders(
+  service,
+  query
+) {
+  if (!GOOGLE_PLACES_API_KEY) {
+    return [];
+  }
+
+  const safeQuery = query || {};
+
+  const locationParts = [
+    safeQuery.localBody,
+    safeQuery.district,
+    safeQuery.state || "Kerala",
+    "India"
+  ].filter(Boolean);
+
+  const textQuery =
+    [
+      service,
+      "service provider",
+      locationParts.join(", ")
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+  try {
+    const response =
+      await axios.post(
+        "https://places.googleapis.com/v1/places:searchText",
+        {
+          textQuery,
+          pageSize: 5,
+          includePureServiceAreaBusinesses: true
+        },
+        {
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            "X-Goog-Api-Key":
+              GOOGLE_PLACES_API_KEY,
+
+           "X-Goog-FieldMask":
+  [
+    "places.id",
+    "places.displayName",
+    "places.formattedAddress",
+    "places.addressComponents",
+    "places.nationalPhoneNumber",
+    "places.websiteUri"
+  ].join(",")
+          },
+          timeout: 10000
+        }
+      );
+
+    const places =
+      response &&
+      response.data &&
+      Array.isArray(
+        response.data.places
+      )
+        ? response.data.places
+        : [];
+
+    return places.map(function (
+      place
+    ) {
+      const components =
+  Array.isArray(
+    place.addressComponents
+  )
+    ? place.addressComponents
+    : [];
+
+function getAddressPart(type) {
+  const item =
+    components.find(function (
+      component
+    ) {
+      return (
+        Array.isArray(
+          component.types
+        ) &&
+        component.types.includes(
+          type
+        )
+      );
+    });
+
+  return item
+    ? (
+        item.longText ||
+        item.shortText ||
+        ""
+      )
+    : "";
 }
 
+const providerLocalBody =
+  getAddressPart("locality") ||
+  getAddressPart(
+    "administrative_area_level_3"
+  ) ||
+  "";
+
+const providerDistrict =
+  getAddressPart(
+    "administrative_area_level_2"
+  ) || "";
+
+const providerState =
+  getAddressPart(
+    "administrative_area_level_1"
+  ) || "";
+      return {
+          directoryType:
+          "Public Internet Provider",
+
+        id:
+          place.id || "",
+
+        name:
+          place.displayName &&
+          place.displayName.text
+            ? place.displayName.text
+            : "",
+
+        mobile:
+          place.nationalPhoneNumber ||
+          "",
+
+        whatsapp: "",
+
+        district:
+  providerDistrict,
+
+state:
+  providerState,
+
+localBody:
+  providerLocalBody,
+
+        service,
+
+        address:
+          place.formattedAddress ||
+          "",
+
+        website:
+          place.websiteUri || "",
+
+        verificationStatus:
+          "Public Listing",
+
+        activeStatus: "",
+
+        status:
+          "Unverified",
+
+        source:
+          "Google Places Public Listing",
+
+        contactNumber:
+          phoneKey(
+            place.nationalPhoneNumber ||
+            ""
+          ),
+
+        locationRank:
+  getLocationRank(
+    {
+      localBody:
+        providerLocalBody,
+      district:
+        providerDistrict,
+      state:
+        providerState
+    },
+    safeQuery
+  )
+      };
+    });
+
+  } catch (error) {
+    console.error(
+      "Public provider search error:",
+      error &&
+      error.message
+        ? error.message
+        : error
+    );
+
+    return [];
+  }
+}
 // =====================================================
 // MAIN SERVICE FINDER
 // =====================================================
@@ -889,7 +1137,16 @@ function createServiceFinder(options) {
                   "Districts Served"
                 ]
               ),
-
+             state:
+  getValue(
+    row,
+    headerMap,
+    [
+      "State",
+      "Working State",
+      "States Served"
+    ]
+  ), 
             block:
               getValue(
                 row,
@@ -1074,7 +1331,16 @@ if (
   requestedCategory ===
     "machinery"
 ) {
-  combined = providerRecords;
+  const publicProviders =
+    await searchPublicProviders(
+      requestedService,
+      safeQuery
+    );
+
+  combined = [
+    ...providerRecords,
+    ...publicProviders
+  ];;
 
 } else if (
   requestedCategory ===
@@ -1119,18 +1385,25 @@ if (
       uniqueRecords.values()
     )
       .filter(function (record) {
-        return (
-          matchesService(
-            requestedService,
-            record.service
-          ) &&
-          isVerifiedActive(
-            record.verificationStatus,
-            record.activeStatus,
-            record.status
-          )
-        );
-      })
+  const isPublicProvider =
+    record.directoryType ===
+    "Public Internet Provider";
+
+  return (
+    matchesService(
+      requestedService,
+      record.service
+    ) &&
+    (
+      isPublicProvider ||
+      isVerifiedActive(
+        record.verificationStatus,
+        record.activeStatus,
+        record.status
+      )
+    )
+  );
+})
       .map(function (record) {
         return {
           ...record,
@@ -1234,8 +1507,8 @@ if (
           "-"
         ),
       "",
-      selected.length +
-        " verified result(s) found."
+     selected.length +
+  " result(s) found."
     ];
 
     selected.forEach(function (
@@ -1277,22 +1550,27 @@ if (
           )
       );
 
-      if (record.charges) {
-        lines.push(
-          "Charges: " +
-            record.charges
-        );
-      }
-
-      lines.push(
-        "Status: Verified & Active"
-      );
+    if (
+  record.directoryType ===
+  "Public Internet Provider"
+) {
+  lines.push(
+    "🌐 Public Internet Listing",
+    "Status: Not verified by BhoomiMitra/KVK",
+    "Availability and service conditions: confirm directly with provider"
+  );
+} else {
+  lines.push(
+    "✅ BhoomiMitra/KVK Verified Provider",
+    "Status: Verified & Active"
+  );
+}
     });
 
     lines.push(
-      "",
-      "Source: BhoomiMitra verified service directory"
-    );
+  "",
+  "Note: BhoomiMitra/KVK does not fix rates. Charges, availability and service conditions shall be confirmed directly with the provider."
+);
 
     return lines.join("\n");
   }
