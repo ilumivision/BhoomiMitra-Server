@@ -854,205 +854,117 @@ function getLocationRank(
       ).trim();
 
     const searchArea = [
-      localBody,
-      district,
-      state,
-      "India"
-    ]
-      .filter(Boolean)
-      .join(", ");
+  requestedService,
+  localBody,
+  district,
+  state,
+  "India"
+]
+  .filter(Boolean)
+  .join(", ");
 
-    const nominatimResponse =
-      await axios.get(
-        "https://nominatim.openstreetmap.org/search",
-        {
-          params: {
-            q: searchArea,
-            format: "json",
-            limit: 1
-          },
-          headers: {
-            "User-Agent":
-              "BhoomiMitra/1.0 agricultural-service-finder"
-          },
-          timeout: 10000
-        }
-      );
-
-    const locations =
-      Array.isArray(
-        nominatimResponse.data
-      )
-        ? nominatimResponse.data
-        : [];
-
-    if (!locations.length) {
-      return [];
+const nominatimResponse =
+  await axios.get(
+    "https://nominatim.openstreetmap.org/search",
+    {
+      params: {
+        q: searchArea,
+        format: "jsonv2",
+        addressdetails: 1,
+        limit: 5,
+        countrycodes: "in"
+      },
+      headers: {
+        "User-Agent":
+          "BhoomiMitra/1.0 agricultural-service-finder"
+      },
+      timeout: 10000
     }
-
-    const lat =
-      Number(locations[0].lat);
-
-    const lon =
-      Number(locations[0].lon);
-
-    if (
-      !Number.isFinite(lat) ||
-      !Number.isFinite(lon)
-    ) {
-      return [];
-    }
-
-   const serviceSearchText =
-  /irrigation/i.test(requestedService)
-    ? "irrigation|drip|sprinkler|water pump|irrigation equipment"
-    : requestedService;
-
-const escapedService =
-  serviceSearchText
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"');
-const searchRadius =
-  safeQuery.searchRadius || 50000;
-   const overpassQuery = `
-[out:json][timeout:12];
-(
-  node(around:${searchRadius},${lat},${lon})
-    ["name"~"${escapedService}",i];
-  way(around:${searchRadius},${lat},${lon})
-    ["name"~"${escapedService}",i];
-);
-out center tags 5;
-`;
-
-   let response = null;
-let lastError = null;
-
-for (const overpassUrl of OVERPASS_API_URLS) {
-  try {
-    response = await axios.post(
-      overpassUrl,
-      overpassQuery,
-      {
-        headers: {
-          "Content-Type":
-            "application/x-www-form-urlencoded",
-          "User-Agent":
-            "BhoomiMitra/1.0 agricultural-service-finder"
-        },
-        timeout: 20000
-      }
-    );
-
-    if (response && response.data) {
-      break;
-    }
-  } catch (error) {
-    lastError = error;
-
-    console.warn(
-      "Overpass endpoint failed:",
-      overpassUrl,
-      error && error.message
-        ? error.message
-        : error
-    );
-  }
-}
-
-if (!response) {
-  throw (
-    lastError ||
-    new Error("All Overpass endpoints failed")
   );
+
+   const locations =
+  Array.isArray(nominatimResponse.data)
+    ? nominatimResponse.data
+    : [];
+
+if (!locations.length) {
+  return [];
 }
-    const elements =
-      response &&
-      response.data &&
-      Array.isArray(
-        response.data.elements
-      )
-        ? response.data.elements
-        : [];
 
-    return elements
-      .map(function (element) {
-        const tags =
-          element.tags || {};
+return locations
+  .map(function (item) {
+    const address =
+      item.address || {};
 
-        const phone =
-          tags.phone ||
-          tags["contact:phone"] ||
-          tags.mobile ||
-          tags["contact:mobile"] ||
-          "";
+    const displayName =
+      String(
+        item.display_name || ""
+      ).trim();
 
-        return {
-          directoryType:
-            "Public Internet Provider",
+    const name =
+      String(
+        item.name ||
+        displayName.split(",")[0] ||
+        ""
+      ).trim();
 
-          id:
-            "OSM-" +
-            String(element.id || ""),
+    return {
+      directoryType:
+        "Public Internet Provider",
 
-          name:
-            tags.name || "",
+      id:
+        "OSM-" +
+        String(item.osm_id || ""),
 
-          mobile: phone,
+      name: name,
 
-          whatsapp:
-            tags["contact:whatsapp"] ||
-            "",
+      mobile: "",
 
-          district:
-            district,
+      whatsapp: "",
 
-          state:
-            state,
+      district:
+        address.state_district ||
+        address.county ||
+        district,
 
-          localBody:
-            localBody,
+      state:
+        address.state ||
+        state,
 
-          service:
-            requestedService,
+      localBody:
+        address.city ||
+        address.town ||
+        address.village ||
+        address.municipality ||
+        localBody,
 
-          address:
-            [
-              tags["addr:housename"],
-              tags["addr:street"],
-              tags["addr:city"],
-              tags["addr:district"],
-              tags["addr:state"]
-            ]
-              .filter(Boolean)
-              .join(", "),
+      service:
+        requestedService,
 
-          website:
-            tags.website ||
-            tags["contact:website"] ||
-            "",
+      address:
+        displayName,
 
-          verificationStatus:
-            "Public Listing",
+      website: "",
 
-          activeStatus: "",
+      verificationStatus:
+        "Public Listing",
 
-          status:
-            "Unverified",
+      activeStatus: "",
 
-          source:
-            "OpenStreetMap Public Listing",
+      status:
+        "Unverified",
 
-          contactNumber:
-            phoneKey(phone),
+      source:
+        "OpenStreetMap Public Listing",
 
-          locationRank:
-            3
-        };
-      })
-      .filter(function (record) {
-        return record.name;
-      });
+      contactNumber: "",
+
+      locationRank: 3
+    };
+  })
+  .filter(function (record) {
+    return record.name;
+  });
 
   } catch (error) {
   console.error(
