@@ -1347,16 +1347,7 @@ if (
   requestedCategory ===
     "machinery"
 ) {
-  const publicProviders =
-    await searchPublicProviders(
-      requestedService,
-      safeQuery
-    );
-
-  combined = [
-    ...providerRecords,
-    ...publicProviders
-  ];;
+  combined = providerRecords;
 
 } else if (
   requestedCategory ===
@@ -1397,70 +1388,99 @@ if (
       }
     });
 
-    return Array.from(
-      uniqueRecords.values()
-    )
-      .filter(function (record) {
-  const isPublicProvider =
-    record.directoryType ===
-    "Public Internet Provider";
-
-  return (
-    matchesService(
-      requestedService,
-      record.service
-    ) &&
-    (
-      isPublicProvider ||
+   const verifiedResults = Array.from(
+  uniqueRecords.values()
+)
+  .filter(function (record) {
+    return (
+      matchesService(
+        requestedService,
+        record.service
+      ) &&
       isVerifiedActive(
         record.verificationStatus,
         record.activeStatus,
         record.status
       )
-    )
+    );
+  })
+  .map(function (record) {
+    return {
+      ...record,
+      locationRank:
+        getLocationRank(
+          record,
+          safeQuery
+        )
+    };
+  })
+  .sort(function (a, b) {
+    if (
+      a.locationRank !==
+      b.locationRank
+    ) {
+      return (
+        a.locationRank -
+        b.locationRank
+      );
+    }
+
+    const typePriority = {
+      "Service Provider": 1,
+      "Skilled Worker": 2,
+      "Expert": 3
+    };
+
+    return (
+      (typePriority[a.directoryType] || 99) -
+      (typePriority[b.directoryType] || 99)
+    );
+  });
+
+if (verifiedResults.length > 0) {
+  return verifiedResults;
+}
+
+/*
+ * Public internet fallback is only
+ * for service providers/machinery.
+ * Individual skilled workers remain
+ * BhoomiMitra/KVK verified only.
+ */
+if (
+  requestedCategory ===
+    "skilled worker" ||
+  requestedCategory ===
+    "worker" ||
+  requestedCategory ===
+    "expert"
+) {
+  return [];
+}
+
+const publicProviders =
+  await searchPublicProviders(
+    requestedService,
+    safeQuery
   );
-})
-      .map(function (record) {
-        return {
-          ...record,
 
-          locationRank:
-            getLocationRank(
-              record,
-              safeQuery
-            )
-        };
-      })
-      .sort(function (a, b) {
-        if (
-          a.locationRank !==
-          b.locationRank
-        ) {
-          return (
-            a.locationRank -
-            b.locationRank
-          );
-        }
-
-        const typePriority = {
-          "Service Provider": 1,
-          "Skilled Worker": 2,
-          Expert: 3
-        };
-
-        return (
-          (
-            typePriority[
-              a.directoryType
-            ] || 9
-          ) -
-          (
-            typePriority[
-              b.directoryType
-            ] || 9
-          )
-        );
-      });
+return publicProviders
+  .map(function (record) {
+    return {
+      ...record,
+      locationRank:
+        getLocationRank(
+          record,
+          safeQuery
+        )
+    };
+  })
+  .sort(function (a, b) {
+    return (
+      a.locationRank -
+      b.locationRank
+    );
+  });
   }
 
   function formatServiceResults(
