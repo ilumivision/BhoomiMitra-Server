@@ -907,16 +907,17 @@ function getLocationRank(
       requestedService
         .replace(/\\/g, "\\\\")
         .replace(/"/g, '\\"');
-
+const searchRadius =
+  safeQuery.searchRadius || 50000;
     const overpassQuery = `
 [out:json][timeout:20];
 (
-  node(around:50000,${lat},${lon})
-    ["name"~"${escapedService}",i];
-  way(around:50000,${lat},${lon})
-    ["name"~"${escapedService}",i];
-  relation(around:50000,${lat},${lon})
-    ["name"~"${escapedService}",i];
+  node(around:${searchRadius},${lat},${lon})
+  ["name"~"${escapedService}",i];
+way(around:${searchRadius},${lat},${lon})
+  ["name"~"${escapedService}",i];
+relation(around:${searchRadius},${lat},${lon})
+  ["name"~"${escapedService}",i];
 );
 out center tags 10;
 `;
