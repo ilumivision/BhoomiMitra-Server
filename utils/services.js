@@ -1,7 +1,7 @@
 "use strict";
 const axios = require("axios");
 const OVERPASS_API_URL =
-  "https://overpass-api.de/api/interpreter";
+  "https://overpass.kumi.systems/api/interpreter";
 /*
  * BhoomiMitra Verified Service Finder
  *
