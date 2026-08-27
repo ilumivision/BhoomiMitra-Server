@@ -708,7 +708,7 @@ function isVerifiedActive(
 // LOCATION RANKING
 // =====================================================
 
-district: getvalue(
+function getLocationRank(
   record,
   query
 ) {
