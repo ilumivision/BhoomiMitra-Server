@@ -1504,11 +1504,33 @@ if (
   return [];
 }
 
-const publicProviders =
-  await searchPublicProviders(
-    requestedService,
-    safeQuery
-  );
+let publicProviders = [];
+
+const searchRadii = [
+  15000,    // Thiruvalla / nearby
+  60000,    // Pathanamthitta district / nearby district area
+  350000,   // Kerala
+  900000,   // South India
+  2500000   // Wider India
+];
+
+for (const searchRadius of searchRadii) {
+  publicProviders =
+    await searchPublicProviders(
+      requestedService,
+      {
+        ...safeQuery,
+        searchRadius
+      }
+    );
+
+  if (
+    publicProviders &&
+    publicProviders.length > 0
+  ) {
+    break;
+  }
+}
 
 return publicProviders
   .map(function (record) {
