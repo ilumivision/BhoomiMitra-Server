@@ -1,7 +1,12 @@
 "use strict";
 const axios = require("axios");
-const OVERPASS_API_URL =
-  "https://overpass.kumi.systems/api/interpreter";
+
+const OVERPASS_API_URLS = [
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.nchc.org.tw/api/interpreter"
+];
+
 /*
  * BhoomiMitra Verified Service Finder
  *
@@ -916,21 +921,47 @@ function getLocationRank(
 out center tags 10;
 `;
 
-    const response =
-      await axios.post(
-        OVERPASS_API_URL,
-        overpassQuery,
-        {
-          headers: {
-            "Content-Type":
-              "application/x-www-form-urlencoded",
-            "User-Agent":
-              "BhoomiMitra/1.0 agricultural-service-finder"
-          },
-          timeout: 20000
-        }
-      );
+   let response = null;
+let lastError = null;
 
+for (const overpassUrl of OVERPASS_API_URLS) {
+  try {
+    response = await axios.post(
+      overpassUrl,
+      overpassQuery,
+      {
+        headers: {
+          "Content-Type":
+            "application/x-www-form-urlencoded",
+          "User-Agent":
+            "BhoomiMitra/1.0 agricultural-service-finder"
+        },
+        timeout: 20000
+      }
+    );
+
+    if (response && response.data) {
+      break;
+    }
+  } catch (error) {
+    lastError = error;
+
+    console.warn(
+      "Overpass endpoint failed:",
+      overpassUrl,
+      error && error.message
+        ? error.message
+        : error
+    );
+  }
+}
+
+if (!response) {
+  throw (
+    lastError ||
+    new Error("All Overpass endpoints failed")
+  );
+}
     const elements =
       response &&
       response.data &&
