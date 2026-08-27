@@ -1507,11 +1507,9 @@ if (
 let publicProviders = [];
 
 const searchRadii = [
-  15000,    // Thiruvalla / nearby
-  60000,    // Pathanamthitta district / nearby district area
-  350000,   // Kerala
-  900000,   // South India
-  2500000   // Wider India
+  15000,   // Thiruvalla / nearby
+  60000,   // Pathanamthitta / nearby
+  200000   // wider Kerala
 ];
 
 for (const searchRadius of searchRadii) {
