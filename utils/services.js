@@ -903,10 +903,15 @@ function getLocationRank(
       return [];
     }
 
-    const escapedService =
-      requestedService
-        .replace(/\\/g, "\\\\")
-        .replace(/"/g, '\\"');
+   const serviceSearchText =
+  /irrigation/i.test(requestedService)
+    ? "irrigation|drip|sprinkler|water pump|irrigation equipment"
+    : requestedService;
+
+const escapedService =
+  serviceSearchText
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
 const searchRadius =
   safeQuery.searchRadius || 50000;
     const overpassQuery = `
