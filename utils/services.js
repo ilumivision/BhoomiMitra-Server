@@ -914,17 +914,15 @@ const escapedService =
     .replace(/"/g, '\\"');
 const searchRadius =
   safeQuery.searchRadius || 50000;
-    const overpassQuery = `
-[out:json][timeout:20];
+   const overpassQuery = `
+[out:json][timeout:12];
 (
   node(around:${searchRadius},${lat},${lon})
-  ["name"~"${escapedService}",i];
-way(around:${searchRadius},${lat},${lon})
-  ["name"~"${escapedService}",i];
-relation(around:${searchRadius},${lat},${lon})
-  ["name"~"${escapedService}",i];
+    ["name"~"${escapedService}",i];
+  way(around:${searchRadius},${lat},${lon})
+    ["name"~"${escapedService}",i];
 );
-out center tags 10;
+out center tags 5;
 `;
 
    let response = null;
