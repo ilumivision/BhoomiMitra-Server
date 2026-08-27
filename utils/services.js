@@ -1,7 +1,7 @@
 "use strict";
 const axios = require("axios");
-const GOOGLE_PLACES_API_KEY =
-  process.env.GOOGLE_PLACES_API_KEY || "";
+const OVERPASS_API_URL =
+  "https://overpass-api.de/api/interpreter";
 /*
  * BhoomiMitra Verified Service Finder
  *
@@ -822,186 +822,202 @@ function getLocationRank(
   service,
   query
 ) {
-  if (!GOOGLE_PLACES_API_KEY) {
-    return [];
-  }
+  try {
+    const safeQuery =
+      query || {};
 
-  const safeQuery = query || {};
+    const requestedService =
+      String(service || "").trim();
 
-  const locationParts = [
-    safeQuery.localBody,
-    safeQuery.district,
-    safeQuery.state || "Kerala",
-    "India"
-  ].filter(Boolean);
+    if (!requestedService) {
+      return [];
+    }
 
-  const textQuery =
-    [
-      service,
-      "service provider",
-      locationParts.join(", ")
+    const district =
+      String(
+        safeQuery.district || ""
+      ).trim();
+
+    const localBody =
+      String(
+        safeQuery.localBody || ""
+      ).trim();
+
+    const state =
+      String(
+        safeQuery.state || "Kerala"
+      ).trim();
+
+    const searchArea = [
+      localBody,
+      district,
+      state,
+      "India"
     ]
       .filter(Boolean)
-      .join(" ");
+      .join(", ");
 
-  try {
-    const response =
-      await axios.post(
-        "https://places.googleapis.com/v1/places:searchText",
+    const nominatimResponse =
+      await axios.get(
+        "https://nominatim.openstreetmap.org/search",
         {
-          textQuery,
-          pageSize: 5,
-          includePureServiceAreaBusinesses: true
-        },
-        {
+          params: {
+            q: searchArea,
+            format: "json",
+            limit: 1
+          },
           headers: {
-            "Content-Type":
-              "application/json",
-
-            "X-Goog-Api-Key":
-              GOOGLE_PLACES_API_KEY,
-
-           "X-Goog-FieldMask":
-  [
-    "places.id",
-    "places.displayName",
-    "places.formattedAddress",
-    "places.addressComponents",
-    "places.nationalPhoneNumber",
-    "places.websiteUri"
-  ].join(",")
+            "User-Agent":
+              "BhoomiMitra/1.0 agricultural-service-finder"
           },
           timeout: 10000
         }
       );
 
-    const places =
+    const locations =
+      Array.isArray(
+        nominatimResponse.data
+      )
+        ? nominatimResponse.data
+        : [];
+
+    if (!locations.length) {
+      return [];
+    }
+
+    const lat =
+      Number(locations[0].lat);
+
+    const lon =
+      Number(locations[0].lon);
+
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon)
+    ) {
+      return [];
+    }
+
+    const escapedService =
+      requestedService
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"');
+
+    const overpassQuery = `
+[out:json][timeout:20];
+(
+  node(around:50000,${lat},${lon})
+    ["name"~"${escapedService}",i];
+  way(around:50000,${lat},${lon})
+    ["name"~"${escapedService}",i];
+  relation(around:50000,${lat},${lon})
+    ["name"~"${escapedService}",i];
+);
+out center tags 10;
+`;
+
+    const response =
+      await axios.post(
+        OVERPASS_API_URL,
+        overpassQuery,
+        {
+          headers: {
+            "Content-Type":
+              "application/x-www-form-urlencoded",
+            "User-Agent":
+              "BhoomiMitra/1.0 agricultural-service-finder"
+          },
+          timeout: 20000
+        }
+      );
+
+    const elements =
       response &&
       response.data &&
       Array.isArray(
-        response.data.places
+        response.data.elements
       )
-        ? response.data.places
+        ? response.data.elements
         : [];
 
-    return places.map(function (
-      place
-    ) {
-      const components =
-  Array.isArray(
-    place.addressComponents
-  )
-    ? place.addressComponents
-    : [];
+    return elements
+      .map(function (element) {
+        const tags =
+          element.tags || {};
 
-function getAddressPart(type) {
-  const item =
-    components.find(function (
-      component
-    ) {
-      return (
-        Array.isArray(
-          component.types
-        ) &&
-        component.types.includes(
-          type
-        )
-      );
-    });
+        const phone =
+          tags.phone ||
+          tags["contact:phone"] ||
+          tags.mobile ||
+          tags["contact:mobile"] ||
+          "";
 
-  return item
-    ? (
-        item.longText ||
-        item.shortText ||
-        ""
-      )
-    : "";
-}
-
-const providerLocalBody =
-  getAddressPart("locality") ||
-  getAddressPart(
-    "administrative_area_level_3"
-  ) ||
-  "";
-
-const providerDistrict =
-  getAddressPart(
-    "administrative_area_level_2"
-  ) || "";
-
-const providerState =
-  getAddressPart(
-    "administrative_area_level_1"
-  ) || "";
-      return {
+        return {
           directoryType:
-          "Public Internet Provider",
+            "Public Internet Provider",
 
-        id:
-          place.id || "",
+          id:
+            "OSM-" +
+            String(element.id || ""),
 
-        name:
-          place.displayName &&
-          place.displayName.text
-            ? place.displayName.text
-            : "",
+          name:
+            tags.name || "",
 
-        mobile:
-          place.nationalPhoneNumber ||
-          "",
+          mobile: phone,
 
-        whatsapp: "",
+          whatsapp:
+            tags["contact:whatsapp"] ||
+            "",
 
-        district:
-  providerDistrict,
+          district:
+            district,
 
-state:
-  providerState,
+          state:
+            state,
 
-localBody:
-  providerLocalBody,
+          localBody:
+            localBody,
 
-        service,
+          service:
+            requestedService,
 
-        address:
-          place.formattedAddress ||
-          "",
+          address:
+            [
+              tags["addr:housename"],
+              tags["addr:street"],
+              tags["addr:city"],
+              tags["addr:district"],
+              tags["addr:state"]
+            ]
+              .filter(Boolean)
+              .join(", "),
 
-        website:
-          place.websiteUri || "",
+          website:
+            tags.website ||
+            tags["contact:website"] ||
+            "",
 
-        verificationStatus:
-          "Public Listing",
+          verificationStatus:
+            "Public Listing",
 
-        activeStatus: "",
+          activeStatus: "",
 
-        status:
-          "Unverified",
+          status:
+            "Unverified",
 
-        source:
-          "Google Places Public Listing",
+          source:
+            "OpenStreetMap Public Listing",
 
-        contactNumber:
-          phoneKey(
-            place.nationalPhoneNumber ||
-            ""
-          ),
+          contactNumber:
+            phoneKey(phone),
 
-        locationRank:
-  getLocationRank(
-    {
-      localBody:
-        providerLocalBody,
-      district:
-        providerDistrict,
-      state:
-        providerState
-    },
-    safeQuery
-  )
-      };
-    });
+          locationRank:
+            3
+        };
+      })
+      .filter(function (record) {
+        return record.name;
+      });
 
   } catch (error) {
     console.error(
