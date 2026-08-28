@@ -2400,12 +2400,9 @@ const languageChangeRequested =
 if (languageChangeRequested) {
   pendingLanguageSelections[from] = true;
 
-  await sendWhatsAppMessage(
-    from,
-    getLanguageSelectionMessage(
-      "Bilingual"
-    )
-  );
+  await bhoomiMitraUI.sendLanguageSelection(
+  from
+);
 
   return;
 }
@@ -2417,12 +2414,9 @@ if (pendingLanguageSelections[from]) {
     );
 
   if (!selectedLanguage) {
-    await sendWhatsAppMessage(
-      from,
-      getLanguageSelectionMessage(
-        "Bilingual"
-      )
-    );
+   await bhoomiMitraUI.sendLanguageSelection(
+  from
+);
 
     return;
   }
@@ -2485,12 +2479,9 @@ if (!userLanguagePreferences[from]) {
   } else {
     pendingLanguageSelections[from] = true;
 
-    await sendWhatsAppMessage(
-      from,
-      getLanguageSelectionMessage(
-        "Bilingual"
-      )
-    );
+   await bhoomiMitraUI.sendLanguageSelection(
+  from
+);
 
     return;
   }
@@ -2569,25 +2560,19 @@ if (
 ) {
   pendingLanguageSelections[from] = true;
 
-  await sendWhatsAppMessage(
-    from,
-    getLanguageSelectionMessage(
-      "Bilingual"
-    )
-  );
-
+  await bhoomiMitraUI.sendLanguageSelection(
+  from
+);
   return;
 }
 if (isMenuCommand(userText)) {
   userMenus[from] =
     createMenuSession();
 
-  await sendWhatsAppMessage(
-    from,
-  getWelcomeMessage(
+ await bhoomiMitraUI.sendMainMenu(
+  from,
   userLanguagePreferences[from] || "English"
-)
-  );
+);
 
   return;
 }
@@ -5363,10 +5348,10 @@ if (
     userMenus[from] =
       createMenuSession();
 
-    await sendWhatsAppMessage(
-      from,
-      getWelcomeMessage()
-    );
+    await bhoomiMitraUI.sendMainMenu(
+  from,
+  userLanguagePreferences[from] || "English"
+);
 
     return;
   }
@@ -5514,10 +5499,10 @@ if (regReply) {
   if (
     selections.length === 0
   ) {
-    await sendWhatsAppMessage(
-      from,
-      getWelcomeMessage()
-    );
+    await bhoomiMitraUI.sendMainMenu(
+  from,
+  userLanguagePreferences[from] || "English"
+);
 
     return;
   }
@@ -7258,8 +7243,12 @@ async function handleRegistration(
       Date.now();
   }
 
-  return getWelcomeMessage();
-}
+await bhoomiMitraUI.sendMainMenu(
+  from,
+  userLanguagePreferences[from] || "English"
+);
+
+return "";
 
 if (
   lower === "cancel" ||
