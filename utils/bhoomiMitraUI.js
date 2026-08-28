@@ -720,10 +720,10 @@ async function sendProfileMenu(
                     ? "🌐 ഭാഷ മാറ്റുക"
                     : "🌐 Change Language",
 
-                description:
-                  isMalayalam
-                    ? "English / മലയാളം / രണ്ട് ഭാഷ"
-                    : "English / Malayalam / Bilingual"
+               description:
+  isMalayalam
+    ? "English / മലയാളം"
+    : "English / Malayalam"
               },
 
               {
