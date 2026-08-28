@@ -82,26 +82,19 @@ function createBhoomiMitraUI(options) {
         action: {
           buttons: [
             {
-              type: "reply",
-              reply: {
-                id: "LANG_ENGLISH",
-                title: "🇬🇧 English"
-              }
-            },
-            {
-              type: "reply",
-              reply: {
-                id: "LANG_MALAYALAM",
-                title: "🌴 മലയാളം"
-              }
-            },
-            {
-              type: "reply",
-              reply: {
-                id: "LANG_BILINGUAL",
-                title: "🌐 Both"
-              }
-            }
+  type: "reply",
+  reply: {
+    id: "LANG_ENGLISH",
+    title: "🌐 English"
+  }
+},
+{
+  type: "reply",
+  reply: {
+    id: "LANG_MALAYALAM",
+    title: "🌴 മലയാളം"
+  }
+}
           ]
         }
       }
@@ -164,11 +157,7 @@ function getLanguageFromSelection(message) {
     return "Malayalam";
   }
 
-  if (selection.id === "LANG_BILINGUAL") {
-    return "Bilingual";
-  }
-
-  return "";
+    return "";
 }
 // ===================================================
 // MAIN MENU
