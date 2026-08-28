@@ -2425,7 +2425,8 @@ if (pendingLanguageSelections[from]) {
   selectedLanguage;
 
 await updateFarmerPreferredLanguage(
-  from,
+  from,message
+  
   selectedLanguage
 );
 
@@ -2449,13 +2450,16 @@ delete pendingLanguageSelections[from];
   }
 
   await sendWhatsAppMessage(
-    from,
-    languageConfirmation +
-      "\n\n" +
-     getWelcomeMessage(selectedLanguage)
-  );
+  from,
+  languageConfirmation
+);
 
-  return;
+await bhoomiMitraUI.sendMainMenu(
+  from,
+  selectedLanguage
+);
+
+return;
 }
 if (!userLanguagePreferences[from]) {
   const existingFarmerForLanguage =
