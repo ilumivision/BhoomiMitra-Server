@@ -837,6 +837,7 @@ const expertCaseManager = createExpertCaseManager({
 });
 const sessions = {};
 const userMenus = {};
+const activeExpertCases = {};
 const pendingLanguageSelections = {};
 const userLanguagePreferences = {};
 const pendingServiceSearches = {};
@@ -1240,12 +1241,118 @@ await sendWhatsAppMessage(
   caseId +
   " has been sent to the farmer."
 );
+activeExpertCases[farmerWhatsApp.slice(-10)] = {
+  caseId: caseId,
+  role: "farmer",
+ counterpart: assignedExpertWhatsApp,
+  updatedAt: Date.now()
+};
 
+activeExpertCases[assignedExpertWhatsApp.slice(-10)] = {
+  caseId: caseId,
+  role: "expert",
+  counterpart: farmerWhatsApp,
+  updatedAt: Date.now()
+};
 return;
 }
-  // ============================================================
+ // =====================================================
+// ACTIVE EXPERT CONSULTATION CHAT
+// =====================================================
+
+if (userText) {
+  const senderKey =
+    String(from || "")
+      .replace(/\D/g, "")
+      .slice(-10);
+
+  const activeCase =
+    activeExpertCases[senderKey];
+
+  if (activeCase) {
+    const upperText =
+      userText.trim().toUpperCase();
+
+    // -----------------------------------------------
+    // EXIT EXPERT CHAT AND RETURN TO NORMAL BHOOMIMITRA
+    // -----------------------------------------------
+    if (upperText === "MENU") {
+      delete activeExpertCases[senderKey];
+
+      await sendWhatsAppMessage(
+        from,
+        "✅ Expert consultation mode exited.\n\n" +
+        "You can now use the normal BhoomiMitra menu."
+      );
+
+      return;
+    }
+
+    // -----------------------------------------------
+    // CLOSE THE EXPERT CONSULTATION
+    // -----------------------------------------------
+    if (upperText === "CLOSE") {
+      const counterpartKey =
+        String(activeCase.counterpart || "")
+          .replace(/\D/g, "")
+          .slice(-10);
+
+      delete activeExpertCases[senderKey];
+
+      if (counterpartKey) {
+        delete activeExpertCases[counterpartKey];
+      }
+
+      await sendWhatsAppMessage(
+        from,
+        "✅ Expert consultation " +
+        activeCase.caseId +
+        " has been closed."
+      );
+
+      if (activeCase.counterpart) {
+        await sendWhatsAppMessage(
+          activeCase.counterpart,
+          "✅ Expert consultation " +
+          activeCase.caseId +
+          " has been closed."
+        );
+      }
+
+      return;
+    }
+
+    // Refresh activity time
+    activeCase.updatedAt = Date.now();
+
+    // -----------------------------------------------
+    // FARMER FOLLOW-UP → ASSIGNED EXPERT
+    // -----------------------------------------------
+    if (activeCase.role === "farmer") {
+      await sendWhatsAppMessage(
+        activeCase.counterpart,
+        "🌾 Farmer follow-up\n\n" +
+        "Case ID: " +
+        activeCase.caseId +
+        "\n\n" +
+        userText +
+        "\n\n" +
+        "Reply using the case reply link or REPLY command."
+      );
+
+      await sendWhatsAppMessage(
+        from,
+        "✅ Your follow-up has been sent to the expert."
+      );
+
+      return;
+    }
+  }
+}
+
+// =====================================================
 // ACTIVE REGISTRATION SESSION
-// ============================================================
+// =====================================================
 if (
   userText &&
   userMenus[from] &&
