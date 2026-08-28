@@ -2425,8 +2425,7 @@ if (pendingLanguageSelections[from]) {
   selectedLanguage;
 
 await updateFarmerPreferredLanguage(
-  from,message
-  
+  from,
   selectedLanguage
 );
 
