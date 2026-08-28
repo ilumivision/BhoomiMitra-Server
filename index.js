@@ -7249,7 +7249,7 @@ await bhoomiMitraUI.sendMainMenu(
 );
 
 return "";
-
+}
 if (
   lower === "cancel" ||
   lower === "stop" ||
