@@ -108,16 +108,7 @@ function createBhoomiMitraUI(options) {
     );
   }
 
-  return {
-    sendInteractiveMessage,
-    sendLanguageSelection
-  };
-}
-
-module.exports = {
-  createBhoomiMitraUI
-};
-// ===================================================
+ // ===================================================
 // READ INTERACTIVE BUTTON / LIST SELECTION
 // ===================================================
 
