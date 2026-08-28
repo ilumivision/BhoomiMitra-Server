@@ -6227,13 +6227,15 @@ const preferredLanguage =
   "English";
 
 const aiReply = await getAIReply(
-  "Saved preferred reply language: " +
-    preferredLanguage +
-    "\n" +
-    "IMPORTANT: Follow this saved language preference even if the user's current message is written in another language." +
-    "\n\n" +
-    userText +
-    caseContext,
+  "The farmer's saved reply language is: " +
+  preferredLanguage +
+  ".\n" +
+  "You MUST reply entirely in that saved language. " +
+  "Ignore the language or script used in the current message. " +
+  "If the saved language is Malayalam, reply in Malayalam script even when the farmer types English or Manglish. " +
+  "If the saved language is English, reply entirely in English.\n\n" +
+  userText +
+  caseContext,
   weatherContext,
   forecastContext
 );
