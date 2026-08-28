@@ -557,10 +557,12 @@ const expertMessage = selectedExpert
         "AI confidence: " +
           (preparedCase.aiConfidence || "Not available"),
         "",
-       "Reply to this case using the secure link:",
-expertReplyLink || "Reply link is temporarily unavailable.",
+     "Reply directly in WhatsApp using:",
 "",
-"Please do not share this link."
+"REPLY " + preparedCase.caseId,
+"Your recommendation here",
+"",
+"You may continue the consultation in WhatsApp after your first reply."
       ].join("\n")
     : "";
   return {
