@@ -513,25 +513,20 @@ const status = selectedExpert
         settings.MSG_EXPERT_REGISTERED
       ) ||
         "നിങ്ങളുടെ കേസ് BhoomiMitra വിദഗ്ധ പരിശോധനയ്ക്കായി രജിസ്റ്റർ ചെയ്തിരിക്കുന്നു. രജിസ്റ്റർ ചെയ്ത അനുയോജ്യനായ വിദഗ്ധൻ പരിശോധിച്ച ശേഷം മറുപടി നൽകുന്നതാണ്.";
-    let expertReplyLink = "";
+  let expertReplyLink = "";
 
 if (selectedExpert) {
-  try {
-    expertReplyLink = buildExpertReplyLink({
-     baseUrl:
-  process.env.EXPERT_REPLY_URL ||
-  "https://ilumivision.in/bhoomimitra/expert-reply/",
-      caseId: preparedCase.caseId,
-      expertId: selectedExpert.expertId
-    });
-  } catch (error) {
-    console.error(
-      "Expert reply link generation failed:",
-      error.message
-    );
-  }
-}
+  const whatsappNumber = "919746689205";
 
+  const replyText =
+    "REPLY " + preparedCase.caseId + "\n";
+
+  expertReplyLink =
+    "https://wa.me/" +
+    whatsappNumber +
+    "?text=" +
+    encodeURIComponent(replyText);
+}
 const expertMessage = selectedExpert
   ? [
         "പുതിയ BhoomiMitra വിദഗ്ധ കേസ് ലഭിച്ചിട്ടുണ്ട്.",
@@ -557,12 +552,15 @@ const expertMessage = selectedExpert
         "AI confidence: " +
           (preparedCase.aiConfidence || "Not available"),
         "",
-     "Reply directly in WhatsApp using:",
+   "Tap the link below to reply:",
+expertReplyLink,
 "",
+"The Case ID will be filled automatically.",
+"Type your recommendation after the Case ID and send.",
+"",
+"If the link does not open, reply manually:",
 "REPLY " + preparedCase.caseId,
-"Your recommendation here",
-"",
-"You may continue the consultation in WhatsApp after your first reply."
+"Your recommendation here"
       ].join("\n")
     : "";
   return {
