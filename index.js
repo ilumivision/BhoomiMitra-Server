@@ -9,6 +9,11 @@ const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
 const soilModule = require("./utils/soil");
 const weatherModule = require("./utils/weather");
+
+const {
+  createBhoomiMitraUI
+} = require("./utils/bhoomiMitraUI");
+
 const {
   registerLand,
   getFarmerLands
@@ -295,6 +300,13 @@ const PORT = process.env.PORT || 10000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+
+const bhoomiMitraUI =
+  createBhoomiMitraUI({
+    axios: axios,
+    phoneNumberId: PHONE_NUMBER_ID,
+    whatsappToken: WHATSAPP_TOKEN
+  });
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.5";
@@ -1109,10 +1121,143 @@ let userText = "";
 const activeFarmMenu =
   userMenus[from];
 
-if (message.type === "text") {
-    userText = message.text && message.text.body
+if (
+  message.type === "text" ||
+  message.type === "interactive"
+) {
+
+  // -----------------------------------------------
+  // NORMAL TEXT MESSAGE
+  // -----------------------------------------------
+
+  if (message.type === "text") {
+    userText =
+      message.text &&
+      message.text.body
         ? message.text.body.trim()
         : "";
+  }
+
+  // -----------------------------------------------
+  // BHOOMIMITRA INTERACTIVE BUTTON / LIST MESSAGE
+  // -----------------------------------------------
+
+  if (message.type === "interactive") {
+    const uiSelection =
+      bhoomiMitraUI.getInteractiveSelection(
+        message
+      );
+
+    if (uiSelection) {
+      const selectedLanguage =
+        bhoomiMitraUI.getLanguageFromSelection(
+          message
+        );
+
+      // Language button
+      if (selectedLanguage) {
+        userText = selectedLanguage;
+      } else {
+        const navigationAction =
+          bhoomiMitraUI.getNavigationAction(
+            uiSelection.id
+          );
+
+        const preferredUiLanguage =
+          userLanguagePreferences[from] ||
+          "English";
+
+        // -----------------------------------------
+        // MAIN NAVIGATION
+        // -----------------------------------------
+
+        if (navigationAction === "ASK_MENU") {
+          await bhoomiMitraUI.sendAskMenu(
+            from,
+            preferredUiLanguage
+          );
+          return;
+        }
+
+        if (navigationAction === "FARM_MENU") {
+          await bhoomiMitraUI.sendFarmMenu(
+            from,
+            preferredUiLanguage
+          );
+          return;
+        }
+
+        if (
+          navigationAction === "EXPERT_MENU"
+        ) {
+          await bhoomiMitraUI.sendExpertMenu(
+            from,
+            preferredUiLanguage
+          );
+          return;
+        }
+
+        if (
+          navigationAction === "MARKET_MENU"
+        ) {
+          await bhoomiMitraUI.sendMarketMenu(
+            from,
+            preferredUiLanguage
+          );
+          return;
+        }
+
+        if (
+          navigationAction === "PROFILE_MENU"
+        ) {
+          await bhoomiMitraUI.sendProfileMenu(
+            from,
+            preferredUiLanguage
+          );
+          return;
+        }
+
+        if (
+          navigationAction === "MAIN_MENU"
+        ) {
+          await bhoomiMitraUI.sendMainMenu(
+            from,
+            preferredUiLanguage
+          );
+          return;
+        }
+
+        if (
+          navigationAction === "LANGUAGE_MENU"
+        ) {
+          pendingLanguageSelections[from] =
+            true;
+
+          await bhoomiMitraUI
+            .sendLanguageSelection(from);
+
+          return;
+        }
+
+        // -----------------------------------------
+        // EXISTING SERVICES 1–11
+        // -----------------------------------------
+
+        const legacyCommand =
+          bhoomiMitraUI
+            .getLegacyServiceCommand(
+              uiSelection.id
+            );
+
+        if (legacyCommand) {
+          userText = legacyCommand;
+        } else {
+          userText =
+            uiSelection.title || "";
+        }
+      }
+    }
+  }
   // =====================================================
 // EXPERT WHATSAPP REPLY
 // Format:
