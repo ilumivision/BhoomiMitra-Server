@@ -746,6 +746,83 @@ async function sendProfileMenu(
     }
   );
 }
+ async function sendPersonalRecordsMenu(
+  to,
+  language
+) {
+  const isMalayalam =
+    String(language || "")
+      .toLowerCase() ===
+    "malayalam";
+
+  return sendInteractiveMessage(
+    to,
+    {
+      type: "list",
+
+      body: {
+        text:
+          isMalayalam
+            ? "👤 എന്റെ വ്യക്തിഗത രേഖകൾ\nആവശ്യമായ ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക."
+            : "👤 My Personal Records\nSelect an option."
+      },
+
+      action: {
+        button:
+          isMalayalam
+            ? "📋 രേഖകൾ"
+            : "📋 My Records",
+
+        sections: [
+          {
+            title:
+              isMalayalam
+                ? "എന്റെ രേഖകൾ"
+                : "My Records",
+
+            rows: [
+              {
+                id: "PERSONAL_DETAILS",
+                title:
+                  isMalayalam
+                    ? "👤 എന്റെ വിവരങ്ങൾ"
+                    : "👤 My Details"
+              },
+              {
+                id: "PERSONAL_FARMER_ID",
+                title:
+                  isMalayalam
+                    ? "🪪 എന്റെ Farmer ID"
+                    : "🪪 My BhoomiMitra Farmer ID"
+              },
+              {
+                id: "PERSONAL_LANDS",
+                title:
+                  isMalayalam
+                    ? "🌾 രജിസ്റ്റർ ചെയ്ത ഭൂമികൾ"
+                    : "🌾 My Registered Lands"
+              },
+              {
+                id: "PERSONAL_ANIMALS",
+                title:
+                  isMalayalam
+                    ? "🐄 രജിസ്റ്റർ ചെയ്ത മൃഗങ്ങൾ"
+                    : "🐄 My Registered Animals"
+              },
+              {
+                id: "NAV_HOME",
+                title:
+                  isMalayalam
+                    ? "↩️ പ്രധാന മെനു"
+                    : "↩️ Main Menu"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  );
+}
 // ===================================================
 // INTERACTIVE SELECTION → EXISTING BHOOMIMITRA COMMAND
 // ===================================================
@@ -769,8 +846,13 @@ function getLegacyServiceCommand(selectionId) {
     SERVICE_8: "8",
     SERVICE_9: "9",
     SERVICE_10: "10",
-    SERVICE_11: "11"
-  };
+    SERVICE_11: "11",
+
+PERSONAL_DETAILS: "my details",
+PERSONAL_FARMER_ID: "my farmer id",
+PERSONAL_LANDS: "my land",
+PERSONAL_ANIMALS: "my animals"
+};
 
   return serviceMap[selectionId] || "";
 }
@@ -808,6 +890,7 @@ return {
   sendExpertMenu,
   sendMarketMenu,
   sendProfileMenu,
+  sendPersonalRecordsMenu,
   getInteractiveSelection,
   getLanguageFromSelection,
   getLegacyServiceCommand,
