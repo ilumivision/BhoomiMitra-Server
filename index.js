@@ -8471,9 +8471,92 @@ async function getAIReply(userText, weatherContext, forecastContext) {
     return "ക്ഷമിക്കണം, ഇപ്പോൾ BhoomiMitra മറുപടി നൽകാൻ കഴിഞ്ഞില്ല. കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക.";
   }
 }
+async function applyPreferredReplyLanguage(
+  to,
+  text
+) {
+  const preferredLanguage =
+    userLanguagePreferences[to] ||
+    "English";
 
-async function sendWhatsAppMessage(to, text) {
-  const url = "https://graph.facebook.com/v25.0/" + PHONE_NUMBER_ID + "/messages";
+  if (
+    String(preferredLanguage)
+      .trim()
+      .toLowerCase() !==
+    "malayalam"
+  ) {
+    return text;
+  }
+
+  const originalText =
+    String(text || "").trim();
+
+  if (!originalText) {
+    return originalText;
+  }
+
+  try {
+    const completion =
+      await openai.chat.completions.create({
+        model: OPENAI_MODEL,
+
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are the Malayalam language layer for BhoomiMitra, " +
+              "an agricultural extension assistant. " +
+              "Convert the supplied farmer-facing message into clear, natural Malayalam. " +
+              "Preserve all Case IDs, Farmer IDs, URLs, phone numbers, prices, quantities, " +
+              "dates, units, scientific names, commands such as MENU, CLOSE and REPLY, " +
+              "and technical abbreviations exactly. " +
+              "Do not add new advice or alter the meaning. " +
+              "Return only the final Malayalam message."
+          },
+          {
+            role: "user",
+            content: originalText
+          }
+        ]
+      });
+
+    const translated =
+      completion &&
+      completion.choices &&
+      completion.choices[0] &&
+      completion.choices[0].message &&
+      completion.choices[0].message.content
+        ? completion.choices[0].message.content.trim()
+        : "";
+
+    return translated || originalText;
+
+  } catch (error) {
+    console.error(
+      "Preferred language conversion error:",
+      error && error.message
+        ? error.message
+        : error
+    );
+
+    // Never stop BhoomiMitra because translation failed.
+    return originalText;
+  }
+}
+async function sendWhatsAppMessage(
+  to,
+  text
+) {
+  const url =
+    "https://graph.facebook.com/v25.0/" +
+    PHONE_NUMBER_ID +
+    "/messages";
+
+  const localizedText =
+    await applyPreferredReplyLanguage(
+      to,
+      text
+    );
 
   await axios.post(
     url,
@@ -8482,20 +8565,26 @@ async function sendWhatsAppMessage(to, text) {
       recipient_type: "individual",
       to: to,
       type: "text",
+
       text: {
         preview_url: false,
-        body: limitWhatsAppText(text)
+        body:
+          limitWhatsAppText(
+            localizedText
+          )
       }
     },
     {
       headers: {
-        Authorization: "Bearer " + WHATSAPP_TOKEN,
-        "Content-Type": "application/json"
+        Authorization:
+          "Bearer " + WHATSAPP_TOKEN,
+
+        "Content-Type":
+          "application/json"
       }
     }
   );
 }
-
 async function appendSafe(sheetName, row) {
   try {
     if (
