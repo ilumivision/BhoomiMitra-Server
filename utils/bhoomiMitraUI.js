@@ -848,10 +848,10 @@ function getLegacyServiceCommand(selectionId) {
     SERVICE_10: "10",
     SERVICE_11: "11",
 
-PERSONAL_DETAILS: "my details",
-PERSONAL_FARMER_ID: "my farmer id",
-PERSONAL_LANDS: "my land",
-PERSONAL_ANIMALS: "my animals"
+PERSONAL_DETAILS: "1",
+PERSONAL_FARMER_ID: "2",
+PERSONAL_LANDS: "3",
+PERSONAL_ANIMALS: "4"
 };
 
   return serviceMap[selectionId] || "";
