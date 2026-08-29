@@ -1243,18 +1243,41 @@ if (
         // EXISTING SERVICES 1–11
         // -----------------------------------------
 if (uiSelection.id === "SERVICE_10") {
+  userMenus[from] =
+    userMenus[from] || createMenuSession();
+
+  userMenus[from].currentService =
+    "personal_records";
+
+  userMenus[from].updatedAt =
+    Date.now();
+
   await bhoomiMitraUI.sendPersonalRecordsMenu(
     from,
     userLanguagePreferences[from] || "English"
   );
+
   return;
 }
 
-const legacyCommand =
-  bhoomiMitraUI
-    .getLegacyServiceCommand(
+if (
+  uiSelection.id === "PERSONAL_DETAILS" ||
+  uiSelection.id === "PERSONAL_FARMER_ID" ||
+  uiSelection.id === "PERSONAL_LANDS" ||
+  uiSelection.id === "PERSONAL_ANIMALS"
+) {
+  const personalCommand =
+    bhoomiMitraUI.getLegacyServiceCommand(
       uiSelection.id
     );
+
+  userText = personalCommand;
+}
+
+const legacyCommand =
+  bhoomiMitraUI.getLegacyServiceCommand(
+    uiSelection.id
+  );
 
         if (legacyCommand) {
           userText = legacyCommand;
