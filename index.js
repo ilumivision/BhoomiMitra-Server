@@ -1242,12 +1242,19 @@ if (
         // -----------------------------------------
         // EXISTING SERVICES 1–11
         // -----------------------------------------
+if (uiSelection.id === "SERVICE_10") {
+  await bhoomiMitraUI.sendPersonalRecordsMenu(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
+  return;
+}
 
-        const legacyCommand =
-          bhoomiMitraUI
-            .getLegacyServiceCommand(
-              uiSelection.id
-            );
+const legacyCommand =
+  bhoomiMitraUI
+    .getLegacyServiceCommand(
+      uiSelection.id
+    );
 
         if (legacyCommand) {
           userText = legacyCommand;
