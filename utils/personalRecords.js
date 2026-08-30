@@ -84,7 +84,6 @@ function isPersonalRecordCommand(userText) {
     "my animals"
   ].includes(text);
 }
-
 async function getMemberByPhone(data) {
   const sheets =
     data && data.sheets;
@@ -151,6 +150,81 @@ async function getMemberByPhone(data) {
   return {
     headers,
     row: memberRow
+  };
+}
+async function getExpertByPhone(data) {
+  const sheets =
+    data && data.sheets;
+
+  const spreadsheetId =
+    data && data.spreadsheetId;
+
+  const phone =
+    normalizePhone(
+      data && data.phone
+    );
+
+  const response =
+    await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range:
+        "Expert_Directory!A:AZ"
+    });
+
+  const rows =
+    response.data.values || [];
+
+  if (rows.length < 2) {
+    return null;
+  }
+
+  const headers =
+    rows[0].map(normalizeHeader);
+
+  const phoneIndexes =
+    findAllHeaderIndexes(
+      headers,
+      [
+        "mobile_no",
+        "mobile",
+        "whatsapp_no",
+        "whatsapp"
+      ]
+    );
+
+  const expertIdIndex =
+    findFirstHeaderIndex(
+      headers,
+      [
+        "expert_id"
+      ]
+    );
+
+  const expertRow =
+    rows
+      .slice(1)
+      .find(function (row) {
+        return phoneIndexes.some(
+          function (index) {
+            return (
+              normalizePhone(
+                row[index]
+              ) === phone
+            );
+          }
+        );
+      });
+
+  if (!expertRow) {
+    return null;
+  }
+
+  return {
+    expertId:
+      getCell(
+        expertRow,
+        expertIdIndex
+      )
   };
 }
 
@@ -398,6 +472,8 @@ function formatMyDetails(member) {
       (member.name || "-"),
     "Farmer ID: " +
       (member.farmerId || "-"),
+    "Expert ID: " +
+  (member.expertId || "-"),
     "Member type: " +
       (member.memberType || "-"),
     "WhatsApp number: " +
@@ -537,12 +613,23 @@ async function handlePersonalRecords(data) {
       normalizeText(userText);
 
     if (command === "my details") {
-      return {
-        handled: true,
-        reply:
-          formatMyDetails(member)
-      };
-    }
+  const expert =
+    await getExpertByPhone(data);
+
+  if (
+    expert &&
+    expert.expertId
+  ) {
+    member.expertId =
+      expert.expertId;
+  }
+
+  return {
+    handled: true,
+    reply:
+      formatMyDetails(member)
+  };
+}
 
     if (
       command ===
