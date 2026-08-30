@@ -97,7 +97,7 @@ async function getMemberByPhone(data) {
     await sheets.spreadsheets.values.get({
       spreadsheetId,
       range:
-        "Master_Member_Registry!A:AZ"
+        "Farmers!A:AZ"
     });
 
   const rows =
