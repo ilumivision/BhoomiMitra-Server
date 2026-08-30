@@ -788,34 +788,34 @@ async function sendProfileMenu(
                     ? "👤 എന്റെ വിവരങ്ങൾ"
                     : "👤 My Details"
               },
+             {
+  id: "PERSONAL_FARMER_ID",
+  title:
+    isMalayalam
+      ? "🪪 Farmer ID"
+      : "🪪 Farmer ID"
+},
+{
+  id: "PERSONAL_LANDS",
+  title:
+    isMalayalam
+      ? "🌾 എന്റെ ഭൂമികൾ"
+      : "🌾 My Lands"
+},
               {
-                id: "PERSONAL_FARMER_ID",
-                title:
-                  isMalayalam
-                    ? "🪪 എന്റെ Farmer ID"
-                    : "🪪 My BhoomiMitra Farmer ID"
-              },
-              {
-                id: "PERSONAL_LANDS",
-                title:
-                  isMalayalam
-                    ? "🌾 രജിസ്റ്റർ ചെയ്ത ഭൂമികൾ"
-                    : "🌾 My Registered Lands"
-              },
-              {
-                id: "PERSONAL_ANIMALS",
-                title:
-                  isMalayalam
-                    ? "🐄 രജിസ്റ്റർ ചെയ്ത മൃഗങ്ങൾ"
-                    : "🐄 My Registered Animals"
-              },
-              {
-                id: "NAV_HOME",
-                title:
-                  isMalayalam
-                    ? "↩️ പ്രധാന മെനു"
-                    : "↩️ Main Menu"
-              }
+  id: "PERSONAL_ANIMALS",
+  title:
+    isMalayalam
+      ? "🐄 എന്റെ മൃഗങ്ങൾ"
+      : "🐄 My Animals"
+},
+{
+  id: "NAV_HOME",
+  title:
+    isMalayalam
+      ? "↩️ പ്രധാന മെനു"
+      : "↩️ Main Menu"
+             }
             ]
           }
         ]
