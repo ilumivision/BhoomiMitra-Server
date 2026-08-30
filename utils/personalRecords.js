@@ -12,9 +12,13 @@ function normalizeText(value) {
 }
 
 function normalizePhone(value) {
-  return String(value || "")
-    .replace(/\D/g, "")
-    .trim();
+  const digits =
+    String(value || "")
+      .replace(/\D/g, "");
+
+  return digits.length > 10
+    ? digits.slice(-10)
+    : digits;
 }
 
 function normalizeHeader(value) {
