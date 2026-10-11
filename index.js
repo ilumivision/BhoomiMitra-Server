@@ -8086,7 +8086,7 @@ if (
       spreadsheetId:
         GOOGLE_SHEET_ID,
       range:
-        SHEETS.weatherData + "!A2:P"
+        SHEETS.weatherForecast + "!A2:M"
     });
 
   rows =
