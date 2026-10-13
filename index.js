@@ -57,6 +57,14 @@ const {
 
 const registrationModule =
   require("./utils/registration");
+const {
+  FARMER_HEADER_ALIASES,
+  normalizeRegistrationHeader,
+  withPreferredLanguage
+} = require("./utils/registrationFields");
+const {
+  upsertMasterMember
+} = require("./utils/masterMemberRegistry");
 
 const {
   createServiceFinder,
@@ -6410,14 +6418,6 @@ function registrationPhoneKey(value) {
   return digits;
 }
 
-function normalizeRegistrationHeader(value) {
-  return String(value || "")
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-}
-
 function makeRegistrationHeaderMap(headers) {
   const map = {};
 
@@ -6510,52 +6510,7 @@ function getRegistrationConfig(category) {
       idPrefix: "BM-",
       sheetName: SHEETS.farmers,
 
-      idHeaders: [
-        "Farmer_ID",
-        "Farmer ID"
-      ],
-
-      nameHeaders: [
-        "Name",
-        "Farmer Name"
-      ],
-
-      mobileHeaders: [
-        "Mobile",
-        "Mobile No",
-        "Mob No"
-      ],
-
-      whatsappHeaders: [
-        "WhatsApp",
-        "WhatsApp No",
-        "WhatsApp_No"
-      ],
-
-      districtHeaders: [
-        "District"
-      ],
-
-      panchayathHeaders: [
-        "Panchayath",
-        "Panchayat"
-      ],
-
-serviceHeaders: [
-  "Main Crop",
-  "Main_Crop",
-  "Crop"
-],
-
-languageHeaders: [
-  "Preferred_Language",
-  "Preferred Language"
-],
-
-statusHeaders: [
-  "Status",
-  "Verification_Status"
-]
+      ...FARMER_HEADER_ALIASES
     };
   }
 
@@ -6926,7 +6881,6 @@ async function updateFarmerPreferredLanguage(
 
     const {
       rows,
-      headers,
       headerMap,
       config
     } = sheetData;
@@ -6970,30 +6924,13 @@ async function updateFarmerPreferredLanguage(
         "Preferred Language"
       ];
 
-    let languageColumnIndex = -1;
-
-    languageHeaders.some(function (header) {
-    const normalizedHeader =
-  String(header || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-      if (
-        Object.prototype.hasOwnProperty.call(
-          headerMap,
-          normalizedHeader
-        )
-      ) {
-        languageColumnIndex =
-          headerMap[normalizedHeader];
-
-        return true;
-      }
-
-      return false;
-    });
+    // Use the same alias lookup as registration reads/writes so
+    // Preferred_Language, Preferred Language, and the live typo all work.
+    const languageColumnIndex =
+      findRegistrationColumn(
+        headerMap,
+        languageHeaders
+      );
 
     if (languageColumnIndex === -1) {
       console.error(
@@ -7027,8 +6964,10 @@ async function updateFarmerPreferredLanguage(
       return letters;
     }
 
+    // rows includes the header at index 0, so the one-based Sheet row is
+    // exactly one greater than the matched array index.
     const sheetRowNumber =
-      rowIndex + 2;
+      rowIndex + 1;
 
     const columnLetter =
       columnNumberToLetter(
@@ -7234,7 +7173,9 @@ async function handleRegistration(
 
       data: {
         whatsapp: from,
-        mobile: from
+        mobile: from,
+        preferredLanguage:
+          userLanguagePreferences[from] || ""
       }
     };
 
@@ -7405,10 +7346,10 @@ if (
     s.data.crop =
       String(text || "").trim();
 
-    const registrationData = {
+    const registrationData = withPreferredLanguage({
       ...s.data,
       service: s.data.crop
-    };
+    }, userLanguagePreferences[from]);
 
     const result =
       await saveRegistration(
@@ -7633,7 +7574,7 @@ async function saveRegistration(data) {
   setRegistrationValue(
     row,
     headerMap,
-    [
+    config.aiRegistrationHeaders || [
       "AI_Registration",
       "AI Registration"
     ],
@@ -7685,6 +7626,13 @@ async function saveRegistration(data) {
    * FARMER-SPECIFIC FIELDS
    */
   if (category === "farmer") {
+    setRegistrationValue(
+      row,
+      headerMap,
+      config.languageHeaders,
+      data.preferredLanguage || ""
+    );
+
     setRegistrationValue(
       row,
       headerMap,
@@ -7949,6 +7897,67 @@ async function saveRegistration(data) {
     };
   }
 
+  let masterSync = null;
+
+  if (category === "farmer") {
+    try {
+      masterSync = await upsertMasterMember({
+        sheets,
+        spreadsheetId: GOOGLE_SHEET_ID,
+        member: {
+          bmId: id,
+          name: data.name || "",
+          memberType: "Farmer",
+          mobile:
+            data.mobile ||
+            data.whatsapp ||
+            "",
+          whatsapp: data.whatsapp || "",
+          district: data.district || "",
+          panchayath:
+            data.panchayath || "",
+          registrationDate: timestamp,
+          verificationStatus: "Approved",
+          activeStatus: "Active",
+          source: "WhatsApp Registration",
+          preferredLanguage:
+            data.preferredLanguage || "",
+          lastUpdated: timestamp
+        }
+      });
+
+      if (!masterSync || !masterSync.success) {
+        console.error(
+          "Master member sync failed after farmer save:",
+          {
+            farmerId: id,
+            code:
+              masterSync && masterSync.code
+                ? masterSync.code
+                : "UNKNOWN_MASTER_SYNC_ERROR",
+            details: masterSync || null
+          }
+        );
+      }
+    } catch (masterSyncError) {
+      masterSync = {
+        success: false,
+        code: "MASTER_SYNC_EXCEPTION"
+      };
+
+      console.error(
+        "Master member sync failed after farmer save:",
+        {
+          farmerId: id,
+          error:
+            masterSyncError && masterSyncError.message
+              ? masterSyncError.message
+              : masterSyncError
+        }
+      );
+    }
+  }
+
   return {
     success: true,
     alreadyRegistered: false,
@@ -7997,7 +8006,9 @@ async function saveRegistration(data) {
     status:
       category === "farmer"
         ? "Approved"
-        : "Pending"
+        : "Pending",
+
+    masterSync
   };
 }
 async function getLatestWeatherContext(userText) {
