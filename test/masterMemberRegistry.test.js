@@ -9,8 +9,18 @@ const {
 const {
   FARMER_HEADER_ALIASES,
   normalizeRegistrationHeader,
+  findFarmerPreferredLanguageColumn,
+  normalizeAiLanguageChoice,
+  getFarmerPreferredLanguage,
+  resolveFarmerPreferredLanguageWrite,
+  setFarmerPreferredLanguage,
   withPreferredLanguage
 } = require("../utils/registrationFields");
+const {
+  normalizePreferredLanguage,
+  parseLanguageSelection,
+  getLanguageSelectionMessage
+} = require("../utils/language");
 
 const HEADERS = [
   "BM_ID",
@@ -107,6 +117,19 @@ function makeRow(values) {
   });
 
   return row;
+}
+
+function makeLiveFarmerLanguageHeaders() {
+  const headers =
+    new Array(columnLetterToIndex("BG") + 1)
+      .fill("");
+
+  headers[columnLetterToIndex("AL")] =
+    "Preferred Language";
+  headers[columnLetterToIndex("BG")] =
+    "Preferred_Language";
+
+  return headers;
 }
 
 function member(overrides) {
@@ -395,5 +418,156 @@ test("preserves the selected WhatsApp language in registration data", function (
       "Malayalam"
     ).preferredLanguage,
     "English"
+  );
+});
+
+test("prioritizes exact Preferred_Language even when it appears later", function () {
+  const headers = makeLiveFarmerLanguageHeaders();
+
+  assert.equal(
+    findFarmerPreferredLanguageColumn(headers),
+    columnLetterToIndex("BG")
+  );
+});
+
+test("falls back through legacy preferred-language headers in order", function () {
+  assert.equal(
+    findFarmerPreferredLanguageColumn([
+      "Prefered Language",
+      "Preferred Language"
+    ]),
+    1
+  );
+  assert.equal(
+    findFarmerPreferredLanguageColumn([
+      "Name",
+      "Prefered Language"
+    ]),
+    1
+  );
+});
+
+test("initial Farmer registration writes English only to Preferred_Language", function () {
+  const headers = makeLiveFarmerLanguageHeaders();
+  const row = new Array(headers.length).fill("");
+
+  assert.equal(
+    setFarmerPreferredLanguage(row, headers, "English"),
+    true
+  );
+  assert.equal(
+    row[columnLetterToIndex("AL")],
+    ""
+  );
+  assert.equal(
+    row[columnLetterToIndex("BG")],
+    "English"
+  );
+});
+
+test("initial Farmer registration writes Malayalam only to Preferred_Language", function () {
+  const headers = makeLiveFarmerLanguageHeaders();
+  const row = new Array(headers.length).fill("");
+
+  assert.equal(
+    setFarmerPreferredLanguage(row, headers, "Malayalam"),
+    true
+  );
+  assert.equal(
+    row[columnLetterToIndex("AL")],
+    ""
+  );
+  assert.equal(
+    row[columnLetterToIndex("BG")],
+    "Malayalam"
+  );
+});
+
+test("language updates select the canonical Preferred_Language column", function () {
+  const headers = makeLiveFarmerLanguageHeaders();
+
+  assert.deepEqual(
+    resolveFarmerPreferredLanguageWrite(
+      headers,
+      "Malayalam"
+    ),
+    {
+      index: columnLetterToIndex("BG"),
+      value: "Malayalam"
+    }
+  );
+});
+
+test("WhatsApp AI language choices are limited to English and Malayalam", function () {
+  assert.equal(parseLanguageSelection("English"), "English");
+  assert.equal(parseLanguageSelection("Malayalam"), "Malayalam");
+  assert.equal(parseLanguageSelection("1"), "English");
+  assert.equal(parseLanguageSelection("2"), "Malayalam");
+
+  for (const value of [
+    "Bilingual",
+    "Both",
+    "English + Malayalam",
+    "3"
+  ]) {
+    assert.equal(parseLanguageSelection(value), "");
+    assert.equal(normalizeAiLanguageChoice(value), "");
+  }
+
+  const selectionMessage =
+    getLanguageSelectionMessage("English");
+
+  assert.equal(
+    selectionMessage.includes("English +"),
+    false
+  );
+  assert.equal(
+    selectionMessage.includes("1, 2 or 3"),
+    false
+  );
+});
+
+test("keeps existing Bilingual Sheet values read-compatible without writing them", function () {
+  const headers = [
+    "Preferred Language",
+    "Preferred_Language"
+  ];
+  const row = ["English", "Bilingual"];
+
+  assert.equal(
+    getFarmerPreferredLanguage(row, headers),
+    "Bilingual"
+  );
+  assert.equal(
+    normalizePreferredLanguage("Bilingual"),
+    "Bilingual"
+  );
+  assert.equal(
+    setFarmerPreferredLanguage(row, headers, "Bilingual"),
+    false
+  );
+  assert.equal(
+    resolveFarmerPreferredLanguageWrite(
+      headers,
+      "Bilingual"
+    ),
+    null
+  );
+  assert.equal(
+    withPreferredLanguage({
+      preferredLanguage: "Bilingual"
+    }).preferredLanguage,
+    ""
+  );
+  assert.deepEqual(row, ["English", "Bilingual"]);
+});
+
+test("ignores blank headers even when their columns have dropdown validation", function () {
+  const headers = makeLiveFarmerLanguageHeaders();
+  headers.push("", "", "");
+
+  assert.equal(
+    findFarmerPreferredLanguageColumn(headers),
+    columnLetterToIndex("BG")
   );
 });

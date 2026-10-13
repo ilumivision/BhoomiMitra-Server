@@ -1,5 +1,11 @@
 "use strict";
 
+const FARMER_PREFERRED_LANGUAGE_HEADERS = Object.freeze([
+  "Preferred_Language",
+  "Preferred Language",
+  "Prefered Language"
+]);
+
 const FARMER_HEADER_ALIASES = Object.freeze({
   idHeaders: Object.freeze([
     "Farmer_ID",
@@ -33,11 +39,7 @@ const FARMER_HEADER_ALIASES = Object.freeze({
     "Main_Crop",
     "Crop"
   ]),
-  languageHeaders: Object.freeze([
-    "Preferred_Language",
-    "Preferred Language",
-    "Prefered Language"
-  ]),
+  languageHeaders: FARMER_PREFERRED_LANGUAGE_HEADERS,
   statusHeaders: Object.freeze([
     "Status",
     "Verification_Status"
@@ -57,21 +59,109 @@ function normalizeRegistrationHeader(value) {
     .replace(/[^a-z0-9]+/g, "");
 }
 
+function findFarmerPreferredLanguageColumn(headers) {
+  const sheetHeaders = Array.isArray(headers)
+    ? headers
+    : [];
+
+  // Match complete header text in priority order. This intentionally does
+  // not use normalized-header matching because spaces and underscores must
+  // remain distinct for the duplicate Farmers language columns.
+  for (const expectedHeader of FARMER_PREFERRED_LANGUAGE_HEADERS) {
+    const index = sheetHeaders.findIndex(function (header) {
+      return String(header || "").trim() === expectedHeader;
+    });
+
+    if (index >= 0) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function normalizeAiLanguageChoice(value) {
+  const normalized =
+    String(value || "").trim().toLowerCase();
+
+  if (normalized === "english") {
+    return "English";
+  }
+
+  if (normalized === "malayalam") {
+    return "Malayalam";
+  }
+
+  return "";
+}
+
+function getFarmerPreferredLanguage(row, headers) {
+  const index =
+    findFarmerPreferredLanguageColumn(headers);
+
+  if (index < 0) {
+    return "";
+  }
+
+  // Reads intentionally preserve administrative values such as Bilingual.
+  return String((row || [])[index] || "").trim();
+}
+
+function resolveFarmerPreferredLanguageWrite(headers, value) {
+  const index =
+    findFarmerPreferredLanguageColumn(headers);
+  const language = normalizeAiLanguageChoice(value);
+
+  if (index < 0 || !language) {
+    return null;
+  }
+
+  return {
+    index,
+    value: language
+  };
+}
+
+function setFarmerPreferredLanguage(row, headers, value) {
+  const write =
+    resolveFarmerPreferredLanguageWrite(
+      headers,
+      value
+    );
+
+  if (!write) {
+    return false;
+  }
+
+  while (row.length <= write.index) {
+    row.push("");
+  }
+
+  row[write.index] = write.value;
+  return true;
+}
+
 function withPreferredLanguage(data, preferredLanguage) {
   const registrationData = {
     ...(data || {})
   };
 
-  if (!registrationData.preferredLanguage) {
-    registrationData.preferredLanguage =
-      String(preferredLanguage || "").trim();
-  }
+  registrationData.preferredLanguage =
+    normalizeAiLanguageChoice(
+      registrationData.preferredLanguage
+    ) || normalizeAiLanguageChoice(preferredLanguage);
 
   return registrationData;
 }
 
 module.exports = {
+  FARMER_PREFERRED_LANGUAGE_HEADERS,
   FARMER_HEADER_ALIASES,
   normalizeRegistrationHeader,
+  findFarmerPreferredLanguageColumn,
+  normalizeAiLanguageChoice,
+  getFarmerPreferredLanguage,
+  resolveFarmerPreferredLanguageWrite,
+  setFarmerPreferredLanguage,
   withPreferredLanguage
 };

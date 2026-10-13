@@ -534,17 +534,6 @@ function parseLanguageSelection(text) {
     return "Malayalam";
   }
 
-  if (
-    normalized === "3" ||
-    normalized === "bilingual" ||
-    normalized === "both" ||
-    normalized === "english + malayalam" ||
-    normalized === "english malayalam" ||
-    normalized === "malayalam + english"
-  ) {
-    return "Bilingual";
-  }
-
   return "";
 }
 
@@ -568,9 +557,8 @@ function getLanguageSelectionMessage(
       "",
       "1️⃣ English",
       "2️⃣ മലയാളം",
-      "3️⃣ English + മലയാളം",
       "",
-      "Reply with 1, 2 or 3."
+      "Reply with 1 or 2."
     ].join("\n");
   }
 
@@ -583,10 +571,9 @@ function getLanguageSelectionMessage(
     "",
     "1️⃣ English",
     "2️⃣ മലയാളം",
-    "3️⃣ English + മലയാളം",
     "",
-    "Reply with 1, 2 or 3.",
-    "1, 2 അല്ലെങ്കിൽ 3 അയയ്ക്കുക."
+    "Reply with 1 or 2.",
+    "1 അല്ലെങ്കിൽ 2 അയയ്ക്കുക."
   ].join("\n");
 }
 

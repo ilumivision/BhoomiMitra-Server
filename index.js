@@ -60,6 +60,9 @@ const registrationModule =
 const {
   FARMER_HEADER_ALIASES,
   normalizeRegistrationHeader,
+  getFarmerPreferredLanguage,
+  resolveFarmerPreferredLanguageWrite,
+  setFarmerPreferredLanguage,
   withPreferredLanguage
 } = require("./utils/registrationFields");
 const {
@@ -2484,11 +2487,6 @@ delete pendingLanguageSelections[from];
   ) {
     languageConfirmation =
       "✅ ഇഷ്ടഭാഷ മലയാളമായി സേവ് ചെയ്തു.";
-  } else {
-    languageConfirmation = [
-      "✅ Preferred language saved as English + Malayalam.",
-      "✅ ഇഷ്ടഭാഷ English + മലയാളം ആയി സേവ് ചെയ്തു."
-    ].join("\n");
   }
 
   await sendWhatsAppMessage(
@@ -6754,6 +6752,7 @@ async function findRegistrationByPhone(
   const {
     config,
     rows,
+    headers,
     headerMap
   } = sheetData;
 
@@ -6851,12 +6850,11 @@ async function findRegistrationByPhone(
         headerMap,
         config.serviceHeaders
       ),
-preferredLanguage:
-  getRegistrationValue(
-    matchedRow,
-    headerMap,
-    config.languageHeaders || []
-  ),
+    preferredLanguage:
+      getFarmerPreferredLanguage(
+        matchedRow,
+        headers
+      ),
     status:
       getRegistrationValue(
         matchedRow,
@@ -6881,9 +6879,24 @@ async function updateFarmerPreferredLanguage(
 
     const {
       rows,
+      headers,
       headerMap,
       config
     } = sheetData;
+
+    const languageWrite =
+      resolveFarmerPreferredLanguageWrite(
+        headers,
+        preferredLanguage
+      );
+
+    if (!languageWrite) {
+      console.error(
+        "Preferred language column missing or WhatsApp AI language unsupported."
+      );
+
+      return false;
+    }
 
     const incomingPhone =
       registrationPhoneKey(phone);
@@ -6918,28 +6931,6 @@ async function updateFarmerPreferredLanguage(
       return false;
     }
 
-    const languageHeaders =
-      config.languageHeaders || [
-        "Preferred_Language",
-        "Preferred Language"
-      ];
-
-    // Use the same alias lookup as registration reads/writes so
-    // Preferred_Language, Preferred Language, and the live typo all work.
-    const languageColumnIndex =
-      findRegistrationColumn(
-        headerMap,
-        languageHeaders
-      );
-
-    if (languageColumnIndex === -1) {
-      console.error(
-        "Preferred language column not found."
-      );
-
-      return false;
-    }
-
     function columnNumberToLetter(
       columnNumber
     ) {
@@ -6971,7 +6962,7 @@ async function updateFarmerPreferredLanguage(
 
     const columnLetter =
       columnNumberToLetter(
-        languageColumnIndex
+        languageWrite.index
       );
 
     await sheets.spreadsheets.values.update({
@@ -6988,7 +6979,7 @@ async function updateFarmerPreferredLanguage(
 
       requestBody: {
         values: [
-          [preferredLanguage]
+          [languageWrite.value]
         ]
       }
     });
@@ -7626,10 +7617,9 @@ async function saveRegistration(data) {
    * FARMER-SPECIFIC FIELDS
    */
   if (category === "farmer") {
-    setRegistrationValue(
+    setFarmerPreferredLanguage(
       row,
-      headerMap,
-      config.languageHeaders,
+      headers,
       data.preferredLanguage || ""
     );
 
