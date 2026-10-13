@@ -9,6 +9,11 @@ const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
 const soilModule = require("./utils/soil");
 const weatherModule = require("./utils/weather");
+const {
+  buildWeatherSheetReply,
+  getWeatherDistrictPrompt,
+  getWeatherUnavailableReply
+} = require("./utils/weatherSheetReply");
 
 const {
   createBhoomiMitraUI
@@ -5588,53 +5593,16 @@ if (
 ) {
   const weatherText =
     String(userText || "").trim();
-
-  const weatherContext =
-    await getLatestWeatherContext(
-      weatherText
-    );
-
-  const forecastContext =
-    await getForecastContext(
-      weatherText
-    );
-
-  const preferredLanguage =
-    userLanguagePreferences[from] ||
-    "English";
-
-  const weatherReply =
-    await getAIReply(
-      [
-        "This is BhoomiMitra Weather service.",
-        "The user has already selected Weather.",
-        "Do NOT ask what help is needed.",
-        "Do NOT show another service menu.",
-        "Immediately provide weather information for the supplied location.",
-        "Show Current Weather first.",
-        "Then show Forecast if available.",
-        "Then give a short farmer advisory based only on the supplied weather data.",
-        "Do not invent any weather values.",
-        "Reply strictly in saved language: " +
-          preferredLanguage,
-        "",
-        "Location:",
-        weatherText
-      ].join("\n"),
-      weatherContext,
-      forecastContext
-    );
-
-  await sendWhatsAppMessage(
+  const needsDistrict = await sendWeatherSheetReply(
     from,
-    weatherReply
+    weatherText,
+    userLanguagePreferences[from] || "English"
   );
 
-  activeWeatherMenu.currentService =
-    null;
-
-  activeWeatherMenu.step =
-    "completed";
+  if (!needsDistrict) {
+    activeWeatherMenu.currentService = null;
+    activeWeatherMenu.step = "completed";
+  }
 
   activeWeatherMenu.updatedAt =
     Date.now();
@@ -5876,6 +5844,22 @@ if (isServiceRequest(userText)) {
 }    
 const detectedIntent = detectIntent(userText);
 console.log("Detected Intent:", detectedIntent);
+
+if (detectedIntent === "weather") {
+  const needsDistrict = await sendWeatherSheetReply(
+    from,
+    userText,
+    userLanguagePreferences[from] || "English"
+  );
+  if (needsDistrict) {
+    userMenus[from] = {
+      ...(userMenus[from] || createMenuSession()),
+      currentService: "weather",
+      updatedAt: Date.now()
+    };
+  }
+  return;
+}
 
 // ================= MARKET MODULE =================
 if (detectedIntent === "market") {
@@ -8064,6 +8048,41 @@ async function getLatestWeatherContext(userText) {
 }
 }
 
+async function sendWeatherSheetReply(from, userText, preferredLanguage) {
+  const district = detectKeralaDistrict(userText);
+  let reply = getWeatherDistrictPrompt(preferredLanguage);
+
+  if (district) {
+    try {
+      const responses = await Promise.all([
+        sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: SHEETS.weatherData + "!A2:P" }),
+        sheets.spreadsheets.values.get({ spreadsheetId: GOOGLE_SHEET_ID, range: SHEETS.weatherForecast + "!A2:M" })
+      ]);
+      reply = buildWeatherSheetReply({
+        currentRows: responses[0].data.values || [],
+        forecastRows: responses[1].data.values || [],
+        district,
+        preferredLanguage,
+        now: Date.now()
+      });
+    } catch (error) {
+      console.error(
+        "Weather sheet reply error:",
+        error && error.message ? error.message : error
+      );
+      await sendWhatsAppMessage(
+        from,
+        getWeatherUnavailableReply(preferredLanguage),
+        { skipPreferredLanguageConversion: true }
+      );
+      return false;
+    }
+  }
+
+  await sendWhatsAppMessage(from, reply, { skipPreferredLanguageConversion: true });
+  return !district;
+}
+
 const WEATHER_CACHE_MS = 10 * 60 * 1000;
 
 const weatherCache = {
@@ -8575,18 +8594,17 @@ async function applyPreferredReplyLanguage(
 }
 async function sendWhatsAppMessage(
   to,
-  text
+  text,
+  options = {}
 ) {
   const url =
     "https://graph.facebook.com/v25.0/" +
     PHONE_NUMBER_ID +
     "/messages";
 
-  const localizedText =
-    await applyPreferredReplyLanguage(
-      to,
-      text
-    );
+  const localizedText = options.skipPreferredLanguageConversion
+    ? text
+    : await applyPreferredReplyLanguage(to, text);
 
   await axios.post(
     url,
