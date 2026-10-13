@@ -63,6 +63,10 @@ const {
   getFarmerPreferredLanguage,
   resolveFarmerPreferredLanguageWrite,
   setFarmerPreferredLanguage,
+  applyNewFarmerStatuses,
+  readFarmerStatuses,
+  formatRegistrationServiceLine,
+  formatFarmerRegistrationConfirmation,
   withPreferredLanguage
 } = require("./utils/registrationFields");
 const {
@@ -6786,6 +6790,27 @@ async function findRegistrationByPhone(
     return null;
   }
 
+  const memberId =
+    getRegistrationValue(
+      matchedRow,
+      headerMap,
+      config.idHeaders
+    );
+  const farmerStatuses =
+    config.category === "farmer"
+      ? readFarmerStatuses(
+          matchedRow,
+          headers,
+          memberId
+        )
+      : null;
+  const legacyStatus =
+    getRegistrationValue(
+      matchedRow,
+      headerMap,
+      config.statusHeaders
+    ) || "Pending";
+
   return {
     success: true,
     alreadyRegistered: true,
@@ -6802,12 +6827,7 @@ async function findRegistrationByPhone(
     idLabel:
       config.idLabel,
 
-    memberId:
-      getRegistrationValue(
-        matchedRow,
-        headerMap,
-        config.idHeaders
-      ),
+    memberId,
 
     name:
       getRegistrationValue(
@@ -6855,12 +6875,22 @@ async function findRegistrationByPhone(
         matchedRow,
         headers
       ),
+    registrationStatus:
+      farmerStatuses
+        ? farmerStatuses.registrationStatus
+        : legacyStatus,
+    verificationStatus:
+      farmerStatuses
+        ? farmerStatuses.verificationStatus
+        : legacyStatus,
+    activeStatus:
+      farmerStatuses
+        ? farmerStatuses.activeStatus
+        : "",
     status:
-      getRegistrationValue(
-        matchedRow,
-        headerMap,
-        config.statusHeaders
-      ) || "Pending"
+      farmerStatuses
+        ? farmerStatuses.registrationStatus
+        : legacyStatus
   };
 }
 async function updateFarmerPreferredLanguage(
@@ -7000,6 +7030,38 @@ function formatExistingRegistration(
   result,
   fallbackPhone
 ) {
+  if (result.category === "farmer") {
+    const language =
+      normalizePreferredLanguage(
+        result.preferredLanguage ||
+        userLanguagePreferences[fallbackPhone]
+      ) || "English";
+
+    if (language === "Bilingual") {
+      return [
+        formatFarmerRegistrationConfirmation({
+          result,
+          fallbackPhone,
+          language: "English",
+          existing: true
+        }),
+        formatFarmerRegistrationConfirmation({
+          result,
+          fallbackPhone,
+          language: "Malayalam",
+          existing: true
+        })
+      ].join("\n\n");
+    }
+
+    return formatFarmerRegistrationConfirmation({
+      result,
+      fallbackPhone,
+      language,
+      existing: true
+    });
+  }
+
   return (
     "✅ നിങ്ങൾ ഇതിനകം BhoomiMitraയിൽ " +
     (result.malayalamLabel ||
@@ -7028,11 +7090,10 @@ function formatExistingRegistration(
     "\nPanchayath: " +
     (result.panchayath || "-") +
 
-    (
-      result.service
-        ? "\nExpertise/Skill/Service: " +
-          result.service
-        : ""
+    formatRegistrationServiceLine(
+      result.category,
+      result.service,
+      "English"
     ) +
 
     "\nStatus: " +
@@ -7046,6 +7107,38 @@ function formatNewRegistration(
   result,
   fallbackPhone
 ) {
+  if (result.category === "farmer") {
+    const language =
+      normalizePreferredLanguage(
+        result.preferredLanguage ||
+        userLanguagePreferences[fallbackPhone]
+      ) || "English";
+
+    if (language === "Bilingual") {
+      return [
+        formatFarmerRegistrationConfirmation({
+          result,
+          fallbackPhone,
+          language: "English",
+          existing: false
+        }),
+        formatFarmerRegistrationConfirmation({
+          result,
+          fallbackPhone,
+          language: "Malayalam",
+          existing: false
+        })
+      ].join("\n\n");
+    }
+
+    return formatFarmerRegistrationConfirmation({
+      result,
+      fallbackPhone,
+      language,
+      existing: false
+    });
+  }
+
   return (
     "✅ " +
     (result.categoryLabel || "Member") +
@@ -7072,11 +7165,10 @@ function formatNewRegistration(
     "\nPanchayath: " +
     (result.panchayath || "-") +
 
-    (
-      result.service
-        ? "\nExpertise/Skill/Service: " +
-          result.service
-        : ""
+    formatRegistrationServiceLine(
+      result.category,
+      result.service,
+      "English"
     ) +
 
     "\nStatus: " +
@@ -7580,9 +7672,7 @@ async function saveRegistration(data) {
       "Verification Status",
       "Verification Level"
     ],
-    category === "farmer"
-      ? "Approved"
-      : "Pending"
+    "Pending"
   );
 
   setRegistrationValue(
@@ -7617,6 +7707,11 @@ async function saveRegistration(data) {
    * FARMER-SPECIFIC FIELDS
    */
   if (category === "farmer") {
+    applyNewFarmerStatuses(
+      row,
+      headers
+    );
+
     setFarmerPreferredLanguage(
       row,
       headers,
@@ -7643,12 +7738,6 @@ async function saveRegistration(data) {
       "WhatsApp Registration"
     );
 
-    setRegistrationValue(
-      row,
-      headerMap,
-      ["Status"],
-      "Approved"
-    );
   }
 
   /*
@@ -7993,9 +8082,21 @@ async function saveRegistration(data) {
       data.crop ||
       "",
 
+    preferredLanguage:
+      data.preferredLanguage || "",
+
+    registrationStatus:
+      category === "farmer"
+        ? "Registered"
+        : "Pending",
+
+    verificationStatus: "Pending",
+
+    activeStatus: "Active",
+
     status:
       category === "farmer"
-        ? "Approved"
+        ? "Registered"
         : "Pending",
 
     masterSync

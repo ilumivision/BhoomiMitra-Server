@@ -14,6 +14,11 @@ const {
   getFarmerPreferredLanguage,
   resolveFarmerPreferredLanguageWrite,
   setFarmerPreferredLanguage,
+  applyNewFarmerStatuses,
+  readFarmerStatuses,
+  meaningfulFarmerCrop,
+  formatRegistrationServiceLine,
+  formatFarmerRegistrationConfirmation,
   withPreferredLanguage
 } = require("../utils/registrationFields");
 const {
@@ -569,5 +574,181 @@ test("ignores blank headers even when their columns have dropdown validation", f
   assert.equal(
     findFarmerPreferredLanguageColumn(headers),
     columnLetterToIndex("BG")
+  );
+});
+
+function farmerConfirmationResult(overrides) {
+  return {
+    category: "farmer",
+    memberId: "BM-1783517586436",
+    name: "Test Farmer",
+    mobile: "9876543210",
+    whatsapp: "919876543210",
+    district: "Kottayam",
+    panchayath: "Example Panchayath",
+    registrationStatus: "Registered",
+    verificationStatus: "Pending",
+    activeStatus: "Active",
+    ...(overrides || {})
+  };
+}
+
+test("Farmer confirmation hides WhatsApp registration source placeholders", function () {
+  const message = formatFarmerRegistrationConfirmation({
+    result: farmerConfirmationResult({
+      service: "WhatsApp Registration"
+    }),
+    language: "English",
+    existing: true
+  });
+
+  assert.equal(message.includes("WhatsApp Registration"), false);
+  assert.equal(message.includes("Expertise/Skill/Service"), false);
+  assert.equal(message.includes("Main Crop:"), false);
+  assert.equal(meaningfulFarmerCrop("WhatsApp"), "");
+  assert.equal(
+    meaningfulFarmerCrop("Registered via WhatsApp"),
+    ""
+  );
+});
+
+test("Farmer confirmation displays a meaningful Main Crop", function () {
+  const message = formatFarmerRegistrationConfirmation({
+    result: farmerConfirmationResult({
+      service: "Coconut"
+    }),
+    language: "English",
+    existing: true
+  });
+
+  assert.equal(message.includes("Main Crop: Coconut"), true);
+  assert.equal(message.includes("Expertise/Skill/Service"), false);
+});
+
+test("Farmer confirmation omits the crop line when no meaningful value exists", function () {
+  const message = formatFarmerRegistrationConfirmation({
+    result: farmerConfirmationResult({
+      service: ""
+    }),
+    language: "English",
+    existing: false
+  });
+
+  assert.equal(message.includes("Main Crop:"), false);
+  assert.equal(message.includes("Expertise/Skill/Service"), false);
+});
+
+test("new Farmer status fields are Registered, Pending, and Active", function () {
+  const headers = [
+    "Status",
+    "Verification_Status",
+    "Active_Status"
+  ];
+  const row = ["", "", ""];
+
+  applyNewFarmerStatuses(row, headers);
+
+  assert.deepEqual(row, [
+    "Registered",
+    "Pending",
+    "Active"
+  ]);
+});
+
+test("new Farmer status defaults preserve meaningful verification and activity states", function () {
+  const headers = [
+    "Status",
+    "Verification_Status",
+    "Active_Status"
+  ];
+  const row = ["", "Verified", "Suspended"];
+
+  applyNewFarmerStatuses(row, headers);
+
+  assert.deepEqual(row, [
+    "Registered",
+    "Verified",
+    "Suspended"
+  ]);
+});
+
+test("existing Farmer ID with Pending verification reads as Registered", function () {
+  const headers = [
+    "Farmer_ID",
+    "Status",
+    "Verification_Status",
+    "Active_Status"
+  ];
+  const row = [
+    "BM-1783517586436",
+    "Pending",
+    "Pending",
+    "Suspended"
+  ];
+
+  assert.deepEqual(
+    readFarmerStatuses(
+      row,
+      headers,
+      row[0]
+    ),
+    {
+      registrationStatus: "Registered",
+      verificationStatus: "Pending",
+      activeStatus: "Suspended"
+    }
+  );
+});
+
+test("English Farmer confirmation separates registration and verification", function () {
+  const message = formatFarmerRegistrationConfirmation({
+    result: farmerConfirmationResult(),
+    language: "English",
+    existing: true
+  });
+
+  assert.equal(
+    message.includes("already registered in BhoomiMitra as a Farmer"),
+    true
+  );
+  assert.equal(
+    message.includes("Registration Status: Registered"),
+    true
+  );
+  assert.equal(message.includes("Verification: Pending"), true);
+  assert.equal(message.includes("Status: Pending"), false);
+});
+
+test("Malayalam Farmer confirmation separates registration and verification", function () {
+  const message = formatFarmerRegistrationConfirmation({
+    result: farmerConfirmationResult({
+      service: "തെങ്ങ്"
+    }),
+    language: "Malayalam",
+    existing: true
+  });
+
+  assert.equal(message.includes("കർഷകനായി രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്"), true);
+  assert.equal(message.includes("പ്രധാന വിള: തെങ്ങ്"), true);
+  assert.equal(message.includes("രജിസ്ട്രേഷൻ നില: രജിസ്റ്റർ ചെയ്തു"), true);
+  assert.equal(message.includes("പരിശോധന: കാത്തിരിക്കുന്നു"), true);
+});
+
+test("Expert and other category service display remains unchanged", function () {
+  assert.equal(
+    formatRegistrationServiceLine(
+      "expert",
+      "Plant Pathology",
+      "English"
+    ),
+    "\nExpertise/Skill/Service: Plant Pathology"
+  );
+  assert.equal(
+    formatRegistrationServiceLine(
+      "service_provider",
+      "Tractor Service",
+      "English"
+    ),
+    "\nExpertise/Skill/Service: Tractor Service"
   );
 });
