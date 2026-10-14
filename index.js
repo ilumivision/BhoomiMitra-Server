@@ -2568,6 +2568,9 @@ if (regReply) {
     from,
     phone: from,
     userText,
+    language:
+      userLanguagePreferences[from] ||
+      "Malayalam",
     sheets,
     spreadsheetId:
       GOOGLE_SHEET_ID
@@ -2581,6 +2584,18 @@ if (
     from,
     personalResult.reply
   );
+
+  if (
+    personalResult.showRegistrationPath
+  ) {
+    await bhoomiMitraUI.sendProfileMenu(
+      from,
+      userLanguagePreferences[from] ===
+        "English"
+        ? "English"
+        : "Malayalam"
+    );
+  }
 
   return;
 }   
@@ -5422,6 +5437,9 @@ if (
       phone: from,
       userText:
         personalCommand,
+      language:
+        userLanguagePreferences[from] ||
+        "Malayalam",
       sheets,
       spreadsheetId:
         GOOGLE_SHEET_ID
@@ -5435,6 +5453,18 @@ if (
       from,
       personalResult.reply
     );
+
+    if (
+      personalResult.showRegistrationPath
+    ) {
+      await bhoomiMitraUI.sendProfileMenu(
+        from,
+        userLanguagePreferences[from] ===
+          "English"
+          ? "English"
+          : "Malayalam"
+      );
+    }
 
     return;
   }

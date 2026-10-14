@@ -430,15 +430,16 @@ if (serviceKey === "farm") {
 }
 if (serviceKey === "personal_records") {
   return [
-    "👤 My Personal Records",
+    "👤 My Records",
     "",
-    "1️⃣ My details",
+    "1️⃣ My Profile",
     "2️⃣ My BhoomiMitra Farmer ID",
-    "3️⃣ My registered lands",
+    "3️⃣ My Lands / Farms",
     "4️⃣ My registered animals",
     "5️⃣ Back to Main Menu",
     "",
-    "Reply with 1, 2, 3, 4 or 5."
+    "Use the interactive menu when available.",
+    "Legacy fallback: reply with 1, 2, 3, 4 or 5."
   ].join("\n");
 }
   return getWelcomeMessage();

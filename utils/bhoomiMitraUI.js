@@ -649,8 +649,8 @@ async function sendProfileMenu(
 ) {
   const isMalayalam =
     String(language || "")
-      .toLowerCase() ===
-    "malayalam";
+      .toLowerCase() !==
+    "english";
 
   return sendInteractiveMessage(
     to,
@@ -752,8 +752,8 @@ async function sendProfileMenu(
 ) {
   const isMalayalam =
     String(language || "")
-      .toLowerCase() ===
-    "malayalam";
+      .toLowerCase() !==
+    "english";
 
   return sendInteractiveMessage(
     to,
@@ -763,8 +763,8 @@ async function sendProfileMenu(
       body: {
         text:
           isMalayalam
-            ? "👤 എന്റെ വ്യക്തിഗത രേഖകൾ\nആവശ്യമായ ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക."
-            : "👤 My Personal Records\nSelect an option."
+            ? "👤 എന്റെ രേഖകൾ\nഒരു ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക."
+            : "👤 My Records\nSelect an option."
       },
 
       action: {
@@ -785,37 +785,37 @@ async function sendProfileMenu(
                 id: "PERSONAL_DETAILS",
                 title:
                   isMalayalam
-                    ? "👤 എന്റെ വിവരങ്ങൾ"
-                    : "👤 My Details"
+                    ? "👤 എന്റെ പ്രൊഫൈൽ"
+                    : "👤 My Profile"
               },
-             {
-  id: "PERSONAL_FARMER_ID",
-  title:
-    isMalayalam
-      ? "🪪 Farmer ID"
-      : "🪪 Farmer ID"
-},
-{
-  id: "PERSONAL_LANDS",
-  title:
-    isMalayalam
-      ? "🌾 എന്റെ ഭൂമികൾ"
-      : "🌾 My Lands"
-},
               {
-  id: "PERSONAL_ANIMALS",
-  title:
-    isMalayalam
-      ? "🐄 എന്റെ മൃഗങ്ങൾ"
-      : "🐄 My Animals"
-},
-{
-  id: "NAV_HOME",
-  title:
-    isMalayalam
-      ? "↩️ പ്രധാന മെനു"
-      : "↩️ Main Menu"
-             }
+                id: "PERSONAL_LANDS",
+                title:
+                  isMalayalam
+                    ? "🌾 എന്റെ ഭൂമി / ഫാം"
+                    : "🌾 My Lands / Farms"
+              },
+              {
+                id: "PERSONAL_ANIMALS",
+                title:
+                  isMalayalam
+                    ? "🐄 എന്റെ മൃഗങ്ങൾ"
+                    : "🐄 My Animals"
+              },
+              {
+                id: "PERSONAL_FARMER_ID",
+                title:
+                  isMalayalam
+                    ? "🪪 കർഷക ഐഡി"
+                    : "🪪 My Farmer ID"
+              },
+              {
+                id: "NAV_HOME",
+                title:
+                  isMalayalam
+                    ? "↩️ പിന്നോട്ട്"
+                    : "↩️ Back"
+              }
             ]
           }
         ]

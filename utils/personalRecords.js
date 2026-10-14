@@ -3,6 +3,10 @@
 const {
   getFarmerAnimals
 } = require("./animalRegistration");
+const {
+  getFarmerPreferredLanguage,
+  readFarmerStatuses
+} = require("./registrationFields");
 
 function normalizeText(value) {
   return String(value || "")
@@ -63,9 +67,14 @@ function findAllHeaderIndexes(
   headers,
   possibleHeaders
 ) {
-  return possibleHeaders
-    .map(function (header) {
-      return headers.indexOf(header);
+  const possibleHeaderSet =
+    new Set(possibleHeaders);
+
+  return headers
+    .map(function (header, index) {
+      return possibleHeaderSet.has(header)
+        ? index
+        : -1;
     })
     .filter(function (index) {
       return index >= 0;
@@ -77,6 +86,7 @@ function isPersonalRecordCommand(userText) {
     normalizeText(userText);
 
   return [
+    "my profile",
     "my details",
     "my farmer id",
     "my land",
@@ -96,22 +106,35 @@ async function getMemberByPhone(data) {
       data && data.phone
     );
 
+  if (!phone) {
+    return {
+      state: "no_match",
+      normalizedPhone: "",
+      matches: []
+    };
+  }
+
   const response =
     await sheets.spreadsheets.values.get({
       spreadsheetId,
       range:
-        "Farmers!A:AZ"
+        "Farmers!A:BG"
     });
 
   const rows =
     response.data.values || [];
 
   if (rows.length < 2) {
-    return null;
+    return {
+      state: "no_match",
+      normalizedPhone: phone,
+      matches: []
+    };
   }
 
+  const rawHeaders = rows[0];
   const headers =
-    rows[0].map(normalizeHeader);
+    rawHeaders.map(normalizeHeader);
 
   const phoneIndexes =
     findAllHeaderIndexes(
@@ -120,6 +143,7 @@ async function getMemberByPhone(data) {
         "mobile_no",
         "mobile_number",
         "mobile",
+        "whatapp",
         "whatsapp_no",
         "whatsapp_number",
         "whatsapp",
@@ -128,28 +152,72 @@ async function getMemberByPhone(data) {
       ]
     );
 
-  const memberRow =
+  const idIndex =
+    findFirstHeaderIndex(
+      headers,
+      [
+        "farmer_id",
+        "farmerid",
+        "bm_id",
+        "member_id"
+      ]
+    );
+
+  const matches =
     rows
       .slice(1)
-      .find(function (row) {
+      .map(function (row, index) {
+        return {
+          row,
+          rowNumber: index + 2,
+          farmerId:
+            getCell(row, idIndex)
+        };
+      })
+      .filter(function (item) {
         return phoneIndexes.some(
           function (index) {
             return (
               normalizePhone(
-                row[index]
+                item.row[index]
               ) === phone
             );
           }
         );
       });
 
-  if (!memberRow) {
-    return null;
+  if (matches.length === 0) {
+    return {
+      state: "no_match",
+      normalizedPhone: phone,
+      matches: []
+    };
+  }
+
+  if (matches.length > 1) {
+    return {
+      state: "multiple_matches",
+      normalizedPhone: phone,
+      matchingFarmerIds:
+        matches.map(function (match) {
+          return match.farmerId || "(missing Farmer_ID)";
+        }),
+      rowNumbers:
+        matches.map(function (match) {
+          return match.rowNumber;
+        }),
+      matches
+    };
   }
 
   return {
+    state: "match",
+    normalizedPhone: phone,
+    rawHeaders,
     headers,
-    row: memberRow
+    row: matches[0].row,
+    rowNumber: matches[0].rowNumber,
+    matches
   };
 }
 async function getExpertByPhone(data) {
@@ -232,6 +300,9 @@ function buildMemberRecord(memberData) {
   const headers =
     memberData.headers;
 
+  const rawHeaders =
+    memberData.rawHeaders || headers;
+
   const row =
     memberData.row;
 
@@ -255,25 +326,20 @@ function buildMemberRecord(memberData) {
       ]
     );
 
-  const memberTypeIndex =
-    findFirstHeaderIndex(
-      headers,
-      [
-        "member_type",
-        "registration_type"
-      ]
-    );
-
   const districtIndex =
     findFirstHeaderIndex(
       headers,
-      ["district"]
+      [
+        "district",
+        "distrct"
+      ]
     );
 
   const panchayatIndex =
     findFirstHeaderIndex(
       headers,
       [
+        "panchayath",
         "panchayat",
         "local_body"
       ]
@@ -283,29 +349,52 @@ function buildMemberRecord(memberData) {
     findFirstHeaderIndex(
       headers,
       [
-        "whatsapp_no",
-        "whatsapp_number",
+        "mobile",
         "mobile_no",
-        "mobile_number"
+        "mobile_number",
+        "mob_no"
       ]
     );
 
+  const whatsappIndex =
+    findFirstHeaderIndex(
+      headers,
+      [
+        "whatapp",
+        "whatsapp",
+        "whatsapp_no",
+        "whatsapp_number"
+      ]
+    );
+
+  const mainCropIndex =
+    findFirstHeaderIndex(
+      headers,
+      [
+        "main_crop",
+        "crop"
+      ]
+    );
+
+  const farmerId =
+    getCell(row, idIndex);
+  const statuses =
+    readFarmerStatuses(
+      row,
+      rawHeaders,
+      farmerId
+    );
+
   return {
-    farmerId:
-      getCell(row, idIndex),
+    farmerId,
     name:
       getCell(row, nameIndex),
-    memberType:
-      getCell(
-        row,
-        memberTypeIndex
-      ),
     district:
       getCell(
         row,
         districtIndex
       ),
-    panchayat:
+    panchayath:
       getCell(
         row,
         panchayatIndex
@@ -314,7 +403,28 @@ function buildMemberRecord(memberData) {
       getCell(
         row,
         mobileIndex
-      )
+      ),
+    whatsapp:
+      getCell(
+        row,
+        whatsappIndex
+      ),
+    mainCrop:
+      getCell(
+        row,
+        mainCropIndex
+      ),
+    preferredLanguage:
+      getFarmerPreferredLanguage(
+        row,
+        rawHeaders
+      ),
+    registrationStatus:
+      statuses.registrationStatus,
+    verificationStatus:
+      statuses.verificationStatus,
+    activeStatus:
+      statuses.activeStatus
   };
 }
 
@@ -464,33 +574,195 @@ async function getLandsByPhone(data) {
     });
 }
 
-function formatMyDetails(member) {
+function normalizeProfileLanguage(value) {
+  const normalized =
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  if (normalized === "english") {
+    return "English";
+  }
+
+  if (normalized === "malayalam") {
+    return "Malayalam";
+  }
+
+  return "";
+}
+
+function resolveProfileLanguage(member, fallbackLanguage) {
+  return (
+    normalizeProfileLanguage(
+      member && member.preferredLanguage
+    ) ||
+    normalizeProfileLanguage(
+      fallbackLanguage
+    ) ||
+    "Malayalam"
+  );
+}
+
+function localizeProfileValue(value, language) {
+  if (language !== "Malayalam") {
+    return value || "-";
+  }
+
+  const translations = {
+    registered: "രജിസ്റ്റർ ചെയ്തു",
+    pending: "പരിശോധന കാത്തിരിക്കുന്നു",
+    verified: "സ്ഥിരീകരിച്ചു",
+    approved: "അംഗീകരിച്ചു",
+    active: "സജീവം",
+    suspended: "സസ്‌പെൻഡ് ചെയ്തു",
+    inactive: "നിഷ്‌ക്രിയം",
+    english: "ഇംഗ്ലീഷ്",
+    malayalam: "മലയാളം",
+    bilingual: "ദ്വിഭാഷ"
+  };
+
+  const normalized =
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  return translations[normalized] || value || "-";
+}
+
+function buildPhoneLines(member, language) {
+  const mobile = String(member.mobile || "").trim();
+  const whatsapp = String(member.whatsapp || "").trim();
+  const samePhone =
+    mobile &&
+    whatsapp &&
+    normalizePhone(mobile) === normalizePhone(whatsapp);
+
+  if (
+    samePhone ||
+    !mobile ||
+    !whatsapp
+  ) {
+    return [
+      (
+        language === "Malayalam"
+          ? "മൊബൈൽ / വാട്സ്ആപ്പ്: "
+          : "Mobile / WhatsApp: "
+      ) + (whatsapp || mobile || "-")
+    ];
+  }
+
   return [
-    "👤 My BhoomiMitra Details",
+    (
+      language === "Malayalam"
+        ? "മൊബൈൽ: "
+        : "Mobile: "
+    ) + mobile,
+    (
+      language === "Malayalam"
+        ? "വാട്സ്ആപ്പ്: "
+        : "WhatsApp: "
+    ) + whatsapp
+  ];
+}
+
+function formatMyProfile(member, language) {
+  const phoneLines =
+    buildPhoneLines(member, language);
+
+  if (language === "Malayalam") {
+    return [
+      "👤 എന്റെ ഭൂമിമിത്ര പ്രൊഫൈൽ",
+      "",
+      "കർഷക ഐഡി: " +
+        (member.farmerId || "-"),
+      "പേര്: " +
+        (member.name || "-"),
+      ...phoneLines,
+      "ജില്ല: " +
+        (member.district || "-"),
+      "പഞ്ചായത്ത്: " +
+        (member.panchayath || "-"),
+      "പ്രധാന വിള: " +
+        (member.mainCrop || "-"),
+      "ഇഷ്ട ഭാഷ: " +
+        localizeProfileValue(
+          member.preferredLanguage,
+          language
+        ),
+      "രജിസ്ട്രേഷൻ നില: " +
+        localizeProfileValue(
+          member.registrationStatus,
+          language
+        ),
+      "പരിശോധന നില: " +
+        localizeProfileValue(
+          member.verificationStatus,
+          language
+        ),
+      "സജീവ നില: " +
+        localizeProfileValue(
+          member.activeStatus,
+          language
+        )
+    ].join("\n");
+  }
+
+  return [
+    "👤 My BhoomiMitra Profile",
     "",
-    "Name: " +
-      (member.name || "-"),
     "Farmer ID: " +
       (member.farmerId || "-"),
-    "Expert ID: " +
-  (member.expertId || "-"),
-    "Member type: " +
-      (member.memberType || "-"),
-    "WhatsApp number: " +
-      (member.mobile || "-"),
+    "Name: " +
+      (member.name || "-"),
+    ...phoneLines,
     "District: " +
       (member.district || "-"),
-    "Panchayat/Local body: " +
-      (member.panchayat || "-")
+    "Panchayath: " +
+      (member.panchayath || "-"),
+    "Main Crop: " +
+      (member.mainCrop || "-"),
+    "Preferred Language: " +
+      (member.preferredLanguage || "-"),
+    "Registration Status: " +
+      (member.registrationStatus || "-"),
+    "Verification Status: " +
+      (member.verificationStatus || "-"),
+    "Active Status: " +
+      (member.activeStatus || "-")
   ].join("\n");
 }
 
-function formatFarmerId(member) {
+function formatMyDetails(member, language) {
+  return formatMyProfile(member, language);
+}
+
+function formatFarmerId(member, language) {
   if (!member.farmerId) {
+    if (language === "Malayalam") {
+      return [
+        "നിങ്ങളുടെ ഭൂമിമിത്ര കർഷക ഐഡി ലഭ്യമല്ല.",
+        "",
+        "ദയവായി കർഷക രജിസ്ട്രേഷൻ പൂർത്തിയാക്കുകയോ തിരുത്തുകയോ ചെയ്യുക."
+      ].join("\n");
+    }
+
     return [
       "Your BhoomiMitra Farmer ID is not available.",
       "",
       "Please complete or correct your farmer registration."
+    ].join("\n");
+  }
+
+  if (language === "Malayalam") {
+    return [
+      "🌾 ഭൂമിമിത്ര കർഷക ഐഡി",
+      "",
+      "കർഷക ഐഡി: " + member.farmerId,
+      "പേര്: " + (member.name || "-"),
+      "ജില്ല: " + (member.district || "-"),
+      "പഞ്ചായത്ത്: " + (member.panchayath || "-"),
+      "",
+      "ഈ ഐഡി നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത വാട്സ്ആപ്പ് നമ്പറുമായി ബന്ധിപ്പിച്ചിരിക്കുന്നു."
     ].join("\n");
   }
 
@@ -504,7 +776,7 @@ function formatFarmerId(member) {
     "District: " +
       (member.district || "-"),
     "Local body: " +
-      (member.panchayat || "-"),
+      (member.panchayath || "-"),
     "",
     "This ID is linked to your registered WhatsApp number."
   ].join("\n");
@@ -574,6 +846,46 @@ function formatLands(lands) {
     .trim();
 }
 
+function formatNoMember(language) {
+  if (language === "Malayalam") {
+    return [
+      "ഈ വാട്സ്ആപ്പ് നമ്പറിന് ഭൂമിമിത്ര കർഷക രജിസ്ട്രേഷൻ കണ്ടെത്താനായില്ല.",
+      "",
+      "രജിസ്റ്റർ ചെയ്യാൻ My BhoomiMitra മെനുവിലെ Membership തിരഞ്ഞെടുക്കുക. തിരുത്തൽ ആവശ്യമെങ്കിൽ ഭൂമിമിത്ര സഹായവുമായി ബന്ധപ്പെടുക."
+    ].join("\n");
+  }
+
+  return [
+    "No BhoomiMitra Farmer registration was found for this WhatsApp number.",
+    "",
+    "To register, choose Membership in the My BhoomiMitra menu. Contact BhoomiMitra support if the record needs correction."
+  ].join("\n");
+}
+
+function formatPhoneAmbiguity(language) {
+  if (language === "Malayalam") {
+    return [
+      "ഈ വാട്സ്ആപ്പ് നമ്പറുമായി ഒന്നിലധികം കർഷക രേഖകൾ ബന്ധിപ്പിച്ചിരിക്കുന്നു.",
+      "",
+      "തെറ്റായ പ്രൊഫൈൽ കാണിക്കാതിരിക്കാൻ വിവരങ്ങൾ ഇപ്പോൾ പ്രദർശിപ്പിക്കുന്നില്ല. ദയവായി ഭൂമിമിത്ര സഹായവുമായി ബന്ധപ്പെടുക."
+    ].join("\n");
+  }
+
+  return [
+    "More than one Farmer record is linked to this WhatsApp number.",
+    "",
+    "Your profile is not being displayed so that the wrong record is not exposed. Please contact BhoomiMitra support for review."
+  ].join("\n");
+}
+
+function formatPersonalRecordsError(language) {
+  if (language === "Malayalam") {
+    return "നിങ്ങളുടെ വ്യക്തിഗത രേഖകൾ ഇപ്പോൾ ലഭ്യമാക്കാനായില്ല. ദയവായി വീണ്ടും ശ്രമിക്കുക.";
+  }
+
+  return "Sorry, your personal records could not be retrieved. Please try again.";
+}
+
 async function handlePersonalRecords(data) {
   const userText =
     data && data.userText;
@@ -590,17 +902,52 @@ async function handlePersonalRecords(data) {
   }
 
   try {
+    const fallbackLanguage =
+      normalizeProfileLanguage(
+        data && data.language
+      ) || "Malayalam";
     const memberData =
       await getMemberByPhone(data);
 
-    if (!memberData) {
+    if (
+      memberData.state ===
+      "no_match"
+    ) {
       return {
         handled: true,
-        reply: [
-          "No BhoomiMitra member record was found for this WhatsApp number.",
-          "",
-          "Please register first or contact BhoomiMitra support for correction."
-        ].join("\n")
+        lookupState: "no_match",
+        showRegistrationPath: true,
+        reply:
+          formatNoMember(
+            fallbackLanguage
+          )
+      };
+    }
+
+    if (
+      memberData.state ===
+      "multiple_matches"
+    ) {
+      console.warn(
+        "Personal records phone ambiguity:",
+        {
+          normalizedPhone:
+            memberData.normalizedPhone,
+          farmerIds:
+            memberData.matchingFarmerIds,
+          rowNumbers:
+            memberData.rowNumbers
+        }
+      );
+
+      return {
+        handled: true,
+        lookupState:
+          "multiple_matches",
+        reply:
+          formatPhoneAmbiguity(
+            fallbackLanguage
+          )
       };
     }
 
@@ -608,28 +955,29 @@ async function handlePersonalRecords(data) {
       buildMemberRecord(
         memberData
       );
+    const language =
+      resolveProfileLanguage(
+        member,
+        data && data.language
+      );
 
     const command =
       normalizeText(userText);
 
-    if (command === "my details") {
-  const expert =
-    await getExpertByPhone(data);
-
-  if (
-    expert &&
-    expert.expertId
-  ) {
-    member.expertId =
-      expert.expertId;
-  }
-
-  return {
-    handled: true,
-    reply:
-      formatMyDetails(member)
-  };
-}
+    if (
+      command === "my profile" ||
+      command === "my details"
+    ) {
+      return {
+        handled: true,
+        lookupState: "match",
+        reply:
+          formatMyDetails(
+            member,
+            language
+          )
+      };
+    }
 
     if (
       command ===
@@ -637,8 +985,12 @@ async function handlePersonalRecords(data) {
     ) {
       return {
         handled: true,
+        lookupState: "match",
         reply:
-          formatFarmerId(member)
+          formatFarmerId(
+            member,
+            language
+          )
       };
     }
 
@@ -651,6 +1003,7 @@ async function handlePersonalRecords(data) {
 
       return {
         handled: true,
+        lookupState: "match",
         reply:
           formatLands(lands)
       };
@@ -774,6 +1127,7 @@ async function handlePersonalRecords(data) {
 
   return {
     handled: true,
+      lookupState: "match",
     reply:
       lines.join("\n").trim()
   };
@@ -795,12 +1149,21 @@ async function handlePersonalRecords(data) {
     return {
       handled: true,
       reply:
-        "Sorry, your personal records could not be retrieved. Please try again."
+        formatPersonalRecordsError(
+          normalizeProfileLanguage(
+            data && data.language
+          ) || "Malayalam"
+        )
     };
   }
 }
 
 module.exports = {
   handlePersonalRecords,
-  isPersonalRecordCommand
+  isPersonalRecordCommand,
+  normalizePhone,
+  getMemberByPhone,
+  buildMemberRecord,
+  formatMyProfile,
+  formatFarmerId
 };
