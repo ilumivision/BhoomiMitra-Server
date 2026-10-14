@@ -594,7 +594,16 @@ async function sendLandManagementMenu(
                   isMalayalam
                     ? "മണ്ണ് പരിശോധന / മണ്ണ് വിവരങ്ങൾ"
                     : "Open the existing soil-information flow"
-              },
+              }
+            ]
+          },
+          {
+            title:
+              isMalayalam
+                ? "കൂടുതൽ ഓപ്ഷനുകൾ"
+                : "More Options",
+
+            rows: [
               {
                 id: "LAND_SATELLITE_GPS",
                 title:

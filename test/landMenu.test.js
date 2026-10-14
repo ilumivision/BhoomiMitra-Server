@@ -44,7 +44,11 @@ function makeUi() {
 }
 
 function rowsFromCall(call) {
-  return call.body.interactive.action.sections[0].rows;
+  return call.body.interactive.action.sections.flatMap(
+    function (section) {
+      return section.rows;
+    }
+  );
 }
 
 test("Malayalam land menu uses interactive selections", async function () {
@@ -115,6 +119,40 @@ test("all land interactive IDs are unique", async function () {
   assert.deepEqual(ids, EXPECTED_IDS);
   assert.equal(new Set(ids).size, ids.length);
   for (const row of rowsFromCall(calls[0])) {
+    assert.ok(row.title.length <= 24);
+    assert.ok(row.description.length <= 72);
+  }
+});
+
+test("final outgoing Land Management payload contains all ten rows", async function () {
+  const { calls, ui } = makeUi();
+
+  await ui.sendLandManagementMenu(
+    "919847298918",
+    "Malayalam"
+  );
+
+  const outgoingBody = calls[0].body;
+  const sections =
+    outgoingBody.interactive.action.sections;
+  const rows = rowsFromCall(calls[0]);
+  const ids = rows.map(function (row) {
+    return row.id;
+  });
+
+  assert.equal(outgoingBody.type, "interactive");
+  assert.deepEqual(
+    sections.map(function (section) {
+      return section.rows.length;
+    }),
+    [8, 2]
+  );
+  assert.equal(rows.length, 10);
+  assert.deepEqual(ids, EXPECTED_IDS);
+  assert.equal(new Set(ids).size, 10);
+  assert.ok(ids.includes("LAND_SATELLITE_GPS"));
+  assert.ok(ids.includes("LAND_BACK"));
+  for (const row of rows) {
     assert.ok(row.title.length <= 24);
     assert.ok(row.description.length <= 72);
   }
@@ -220,20 +258,54 @@ test("Soil click routes to existing soil option 8", function () {
   );
 });
 
-test("Satellite and GPS click routes to existing option 9", function () {
+test("Satellite and GPS click routes to the existing interactive submenu", async function () {
+  const { calls, ui } = makeUi();
+
   assert.equal(
-    makeUi().ui.getLandManagementCommand(
+    ui.getLandManagementCommand(
       "LAND_SATELLITE_GPS"
     ),
     "9"
   );
+
+  await ui.sendSatelliteGpsMenu(
+    "919847298918",
+    "English"
+  );
+
+  assert.equal(
+    calls[0].body.interactive.type,
+    "list"
+  );
+  assert.equal(
+    calls[0].body.interactive.action.sections
+      .flatMap(function (section) {
+        return section.rows;
+      })[0].id,
+    "SAT_GPS_BOUNDARY_MAP"
+  );
 });
 
-test("Back click routes to the parent farm menu action", function () {
+test("Back click routes to the parent My Farm menu", async function () {
+  const { calls, ui } = makeUi();
+
   assert.equal(
-    makeUi().ui.getLandManagementCommand("LAND_BACK"),
+    ui.getLandManagementCommand("LAND_BACK"),
     "back"
   );
+
+  await ui.sendFarmMenu(
+    "919847298918",
+    "English"
+  );
+
+  const parentIds = rowsFromCall(calls[0]).map(
+    function (row) {
+      return row.id;
+    }
+  );
+
+  assert.ok(parentIds.includes("SERVICE_9"));
 });
 
 test("land-menu clicks cannot enter member registration routing", function () {
