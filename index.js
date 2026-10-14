@@ -1291,7 +1291,49 @@ if (
       uiSelection.id
     );
 
-  userText = personalCommand;
+  const personalResult =
+    await handlePersonalRecords({
+      from,
+      phone: from,
+      userText: personalCommand,
+      language:
+        userLanguagePreferences[from] ||
+        "Malayalam",
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID
+    });
+
+  if (
+    personalResult &&
+    personalResult.handled
+  ) {
+    await sendWhatsAppMessage(
+      from,
+      personalResult.reply
+    );
+
+    if (
+      personalResult.showRegistrationPath
+    ) {
+      await bhoomiMitraUI.sendProfileMenu(
+        from,
+        userLanguagePreferences[from] ===
+          "English"
+          ? "English"
+          : "Malayalam"
+      );
+    }
+
+    return;
+  }
+
+  await sendWhatsAppMessage(
+    from,
+    "Sorry, your personal records could not be retrieved."
+  );
+
+  return;
 }
 
 const legacyCommand =

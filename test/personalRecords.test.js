@@ -13,6 +13,8 @@ const {
   createBhoomiMitraUI
 } = require("../utils/bhoomiMitraUI");
 const {
+  SERVICE_OPTIONS,
+  parseServiceSelections,
   getServicePrompt
 } = require("../utils/menu");
 
@@ -127,6 +129,35 @@ function createFakeSheets(options) {
       }
     }
   };
+}
+
+function makeAnimalRows() {
+  return [
+    [
+      "Animal_ID",
+      "WhatsApp_No",
+      "Animal_Type",
+      "Breed",
+      "Sex",
+      "Age",
+      "Tag_Number",
+      "Vaccination_Status",
+      "Health_Status",
+      "Active_Status"
+    ],
+    [
+      "AN-1",
+      "9847298918",
+      "Cow",
+      "Jersey",
+      "Female",
+      "4",
+      "TAG-1",
+      "Current",
+      "Healthy",
+      "Active"
+    ]
+  ];
 }
 
 async function runPersonalCommand(options) {
@@ -411,35 +442,9 @@ test("My Lands route keeps the existing land retrieval behavior", async function
 });
 
 test("My Animals route keeps the existing animal retrieval behavior", async function () {
-  const animals = [
-    [
-      "Animal_ID",
-      "WhatsApp_No",
-      "Animal_Type",
-      "Breed",
-      "Sex",
-      "Age",
-      "Tag_Number",
-      "Vaccination_Status",
-      "Health_Status",
-      "Active_Status"
-    ],
-    [
-      "AN-1",
-      "9847298918",
-      "Cow",
-      "Jersey",
-      "Female",
-      "4",
-      "TAG-1",
-      "Current",
-      "Healthy",
-      "Active"
-    ]
-  ];
   const { result } = await runPersonalCommand({
     userText: "my animals",
-    animals
+    animals: makeAnimalRows()
   });
 
   assert.match(result.reply, /My Registered Animals/);
@@ -475,6 +480,12 @@ test("My Records uses interactive tap/list selections with preserved IDs", async
       "NAV_HOME"
     ]
   );
+  assert.equal(
+    new Set(
+      rows.map(function (row) { return row.id; })
+    ).size,
+    rows.length
+  );
   assert.deepEqual(
     rows.map(function (row) { return row.title; }),
     [
@@ -484,6 +495,10 @@ test("My Records uses interactive tap/list selections with preserved IDs", async
       "🪪 My Farmer ID",
       "↩️ Back"
     ]
+  );
+  assert.equal(
+    ui.getNavigationAction("NAV_HOME"),
+    "MAIN_MENU"
   );
 });
 
@@ -504,6 +519,16 @@ test("Malayalam My Records menu uses natural localized tap labels", async functi
 
   const rows =
     calls[0].body.interactive.action.sections[0].rows;
+  assert.deepEqual(
+    rows.map(function (row) { return row.id; }),
+    [
+      "PERSONAL_DETAILS",
+      "PERSONAL_LANDS",
+      "PERSONAL_ANIMALS",
+      "PERSONAL_FARMER_ID",
+      "NAV_HOME"
+    ]
+  );
   assert.match(calls[0].body.interactive.body.text, /എന്റെ രേഖകൾ/);
   assert.match(rows[0].title, /എന്റെ പ്രൊഫൈൽ/);
   assert.match(rows[1].title, /എന്റെ ഭൂമി/);
@@ -546,7 +571,7 @@ test("Bilingual is not offered and falls back to Malayalam-first navigation", as
   assert.match(recordsPayload.body.text, /എന്റെ രേഖകൾ/);
 });
 
-test("legacy typed menu commands remain explicit fallbacks", function () {
+test("English and Malayalam My Animals taps route to the same animal command", async function () {
   const calls = [];
   const ui = createBhoomiMitraUI({
     axios: {
@@ -559,13 +584,101 @@ test("legacy typed menu commands remain explicit fallbacks", function () {
     whatsappToken: "token"
   });
 
-  assert.equal(ui.getLegacyServiceCommand("PERSONAL_DETAILS"), "1");
-  assert.equal(ui.getLegacyServiceCommand("PERSONAL_FARMER_ID"), "2");
-  assert.equal(ui.getLegacyServiceCommand("PERSONAL_LANDS"), "3");
-  assert.equal(ui.getLegacyServiceCommand("PERSONAL_ANIMALS"), "4");
+  await ui.sendPersonalRecordsMenu("9847298918", "English");
+  await ui.sendPersonalRecordsMenu("9847298918", "Malayalam");
+
+  const englishAnimal =
+    calls[0].body.interactive.action.sections[0].rows
+      .find(function (row) {
+        return row.title.includes("My Animals");
+      });
+  const malayalamAnimal =
+    calls[1].body.interactive.action.sections[0].rows
+      .find(function (row) {
+        return row.title.includes("എന്റെ മൃഗങ്ങൾ");
+      });
+
+  assert.equal(englishAnimal.id, "PERSONAL_ANIMALS");
+  assert.equal(malayalamAnimal.id, "PERSONAL_ANIMALS");
+
+  const command =
+    ui.getLegacyServiceCommand(englishAnimal.id);
+  assert.equal(command, "my animals");
+  assert.notEqual(command, "4");
+
+  const { result } = await runPersonalCommand({
+    userText: command,
+    animals: makeAnimalRows()
+  });
+
+  assert.match(result.reply, /My Registered Animals/);
+  assert.doesNotMatch(result.reply, /BM-SP-|Service Provider/i);
+});
+
+test("My Records selections map to semantic personal-record commands", function () {
+  const calls = [];
+  const ui = createBhoomiMitraUI({
+    axios: {
+      async post(url, body) {
+        calls.push({ url, body });
+        return { data: { ok: true } };
+      }
+    },
+    phoneNumberId: "phone-id",
+    whatsappToken: "token"
+  });
+
+  assert.equal(
+    ui.getLegacyServiceCommand("PERSONAL_DETAILS"),
+    "my details"
+  );
+  assert.equal(
+    ui.getLegacyServiceCommand("PERSONAL_FARMER_ID"),
+    "my farmer id"
+  );
+  assert.equal(
+    ui.getLegacyServiceCommand("PERSONAL_LANDS"),
+    "my land"
+  );
+  assert.equal(
+    ui.getLegacyServiceCommand("PERSONAL_ANIMALS"),
+    "my animals"
+  );
+  assert.notEqual(
+    ui.getLegacyServiceCommand("PERSONAL_ANIMALS"),
+    "4"
+  );
+  assert.equal(
+    isPersonalRecordCommand(
+      ui.getLegacyServiceCommand("PERSONAL_ANIMALS")
+    ),
+    true
+  );
   assert.match(
     getServicePrompt("personal_records"),
     /Legacy fallback/
+  );
+});
+
+test("Service Provider registration entry remains on the Membership route", function () {
+  assert.equal(SERVICE_OPTIONS["11"].key, "registration");
+  assert.deepEqual(
+    parseServiceSelections("11"),
+    [
+      {
+        number: "11",
+        key: "registration",
+        label: "Register as a BhoomiMitra Member"
+      }
+    ]
+  );
+  assert.equal(
+    createBhoomiMitraUI({
+      axios: { post() {} },
+      phoneNumberId: "phone-id",
+      whatsappToken: "token"
+    }).getLegacyServiceCommand("SERVICE_11"),
+    "11"
   );
 });
 
