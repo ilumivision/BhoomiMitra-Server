@@ -624,6 +624,137 @@ async function sendLandManagementMenu(
     }
   );
 }
+
+async function sendSatelliteGpsMenu(
+  to,
+  language
+) {
+  const isMalayalam =
+    String(language || "")
+      .toLowerCase() !==
+    "english";
+
+  return sendInteractiveMessage(
+    to,
+    {
+      type: "list",
+
+      body: {
+        text:
+          isMalayalam
+            ? "🛰️ സാറ്റലൈറ്റ് & GPS\nഒരു ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക."
+            : "🛰️ Satellite & GPS\nSelect an option."
+      },
+
+      action: {
+        button:
+          isMalayalam
+            ? "GPS ഓപ്ഷനുകൾ"
+            : "GPS Options",
+
+        sections: [
+          {
+            title:
+              isMalayalam
+                ? "സാറ്റലൈറ്റ് & GPS"
+                : "Satellite & GPS",
+
+            rows: [
+              {
+                id: "SAT_GPS_BOUNDARY_MAP",
+                title:
+                  isMalayalam
+                    ? "🗺️ ഭൂപടം / അതിർത്തി"
+                    : "🗺️ Map / Boundary",
+                description:
+                  isMalayalam
+                    ? "ഭൂമിയുടെ അതിർത്തി മാപ്പ് ചെയ്യുക"
+                    : "Map or update the land boundary"
+              },
+              {
+                id: "SAT_GPS_MAP",
+                title:
+                  isMalayalam
+                    ? "🗺️ ഭൂമിയുടെ ഭൂപടം"
+                    : "🗺️ View Land Map",
+                description:
+                  isMalayalam
+                    ? "നിലവിലുള്ള ഭൂമി ഭൂപടം കാണുക"
+                    : "View the existing land map"
+              },
+              {
+                id: "SAT_GPS_BOUNDARY_STATUS",
+                title:
+                  isMalayalam
+                    ? "📍 അതിർത്തി നില"
+                    : "📍 Boundary Status",
+                description:
+                  isMalayalam
+                    ? "അതിർത്തി മാപ്പിംഗ് നില കാണുക"
+                    : "View boundary-mapping status"
+              },
+              {
+                id: "SAT_GPS_DETAILS",
+                title:
+                  isMalayalam
+                    ? "📍 GPS വിവരങ്ങൾ"
+                    : "📍 GPS Details",
+                description:
+                  isMalayalam
+                    ? "സംരക്ഷിച്ച GPS പോയിന്റുകൾ കാണുക"
+                    : "View saved boundary GPS points"
+              },
+              {
+                id: "SAT_GPS_CURRENT_STATUS",
+                title:
+                  isMalayalam
+                    ? "🛰️ സാറ്റലൈറ്റ് നില"
+                    : "🛰️ Satellite Status",
+                description:
+                  isMalayalam
+                    ? "നിലവിലെ സാറ്റലൈറ്റ് ഫാം നില കാണുക"
+                    : "View current satellite farm status"
+              },
+              {
+                id: "SAT_GPS_HISTORY",
+                title:
+                  isMalayalam
+                    ? "📊 സാറ്റലൈറ്റ് ചരിത്രം"
+                    : "📊 Satellite History",
+                description:
+                  isMalayalam
+                    ? "സാറ്റലൈറ്റ് നിരീക്ഷണ ചരിത്രം കാണുക"
+                    : "View satellite monitoring history"
+              },
+              {
+                id: "SAT_GPS_ACCESS",
+                title:
+                  isMalayalam
+                    ? "👥 ഭൂമി പ്രവേശനം"
+                    : "👥 Land Access",
+                description:
+                  isMalayalam
+                    ? "ഭൂമിയിലേക്കുള്ള പ്രവേശനം നിയന്ത്രിക്കുക"
+                    : "Manage access to registered land"
+              },
+              {
+                id: "SAT_GPS_BACK",
+                title:
+                  isMalayalam
+                    ? "↩️ പിന്നോട്ട്"
+                    : "↩️ Back",
+                description:
+                  isMalayalam
+                    ? "ഭൂമി മാനേജ്മെന്റ് മെനുവിലേക്ക്"
+                    : "Return to Land Management"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  );
+}
 // ===================================================
 // EXPERT & SERVICES MENU
 // Existing services: 6, 7 and 8
@@ -1031,6 +1162,21 @@ function getLandManagementCommand(selectionId) {
   return landMap[selectionId] || "";
 }
 
+function getSatelliteGpsCommand(selectionId) {
+  const satelliteGpsMap = {
+    SAT_GPS_BOUNDARY_MAP: "1",
+    SAT_GPS_MAP: "2",
+    SAT_GPS_BOUNDARY_STATUS: "3",
+    SAT_GPS_DETAILS: "4",
+    SAT_GPS_CURRENT_STATUS: "5",
+    SAT_GPS_HISTORY: "6",
+    SAT_GPS_ACCESS: "A",
+    SAT_GPS_BACK: "7"
+  };
+
+  return satelliteGpsMap[selectionId] || "";
+}
+
 
 // ===================================================
 // IDENTIFY MAIN MENU NAVIGATION
@@ -1062,6 +1208,7 @@ return {
   sendAskMenu,
   sendFarmMenu,
   sendLandManagementMenu,
+  sendSatelliteGpsMenu,
   sendExpertMenu,
   sendMarketMenu,
   sendProfileMenu,
@@ -1070,6 +1217,7 @@ return {
   getLanguageFromSelection,
   getLegacyServiceCommand,
   getLandManagementCommand,
+  getSatelliteGpsCommand,
   getNavigationAction
 };
 }

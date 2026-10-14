@@ -1315,6 +1315,10 @@ const landManagementCommand =
   bhoomiMitraUI.getLandManagementCommand(
     uiSelection.id
   );
+const satelliteGpsCommand =
+  bhoomiMitraUI.getSatelliteGpsCommand(
+    uiSelection.id
+  );
 
 if (landManagementCommand === "back") {
   userMenus[from] = createMenuSession();
@@ -1337,6 +1341,18 @@ if (landManagementCommand === "back") {
     Date.now();
 
   userText = landManagementCommand;
+} else if (satelliteGpsCommand) {
+  userMenus[from] =
+    userMenus[from] || createMenuSession();
+
+  userMenus[from].step =
+    "satellite_gps_menu";
+  userMenus[from].currentService =
+    "farm";
+  userMenus[from].updatedAt =
+    Date.now();
+
+  userText = satelliteGpsCommand;
 } else if (
   uiSelection.id === "PERSONAL_DETAILS" ||
   uiSelection.id === "PERSONAL_FARMER_ID" ||
@@ -3494,25 +3510,9 @@ activeFarmMenu.updatedAt =
 userMenus[from] =
   activeFarmMenu;
 
-await sendWhatsAppMessage(
+await bhoomiMitraUI.sendSatelliteGpsMenu(
   from,
-  [
-    "🛰️ Satellite, GPS & Land Monitoring",
-    "",
-    "Please select an option:",
-    "",
-    "1️⃣ Map / update land boundary",
-    "2️⃣ View land map",
-    "3️⃣ View boundary status",
-    "4️⃣ View GPS details",
-    "5️⃣ Satellite farm health",
-    "6️⃣ Satellite observation history",
-"",
-"A. Manage land access",
-    "7️⃣ Back",
-"",
-"Reply with one number or A."
-  ].join("\n")
+  userLanguagePreferences[from] || "English"
 );
 
 return;
@@ -3828,7 +3828,10 @@ if (satelliteChoice === "6") {
   // 7 - BACK
   if (satelliteChoice === "7") {
     activeFarmMenu.step =
-      "completed";
+      "processing_services";
+
+    activeFarmMenu.currentService =
+      "farm";
 
     activeFarmMenu.updatedAt =
       Date.now();
@@ -3836,27 +3839,17 @@ if (satelliteChoice === "6") {
     userMenus[from] =
       activeFarmMenu;
 
-    await sendWhatsAppMessage(
+    await bhoomiMitraUI.sendLandManagementMenu(
       from,
-      getServiceMessage("farm")
+      userLanguagePreferences[from] || "English"
     );
 
     return;
   }
 
-  await sendWhatsAppMessage(
+  await bhoomiMitraUI.sendSatelliteGpsMenu(
     from,
-    [
-      "Please select a valid option.",
-      "",
-      "1️⃣ Map / update land boundary",
-      "2️⃣ View land map",
-      "3️⃣ View boundary status",
-      "4️⃣ View GPS details",
-      "5️⃣ Satellite farm health",
-      "6️⃣ Satellite observation history",
-      "7️⃣ Back"
-    ].join("\n")
+    userLanguagePreferences[from] || "English"
   );
 
 return;
@@ -3913,23 +3906,9 @@ if (accessChoice === "A") {
     userMenus[from] =
       activeFarmMenu;
 
-    await sendWhatsAppMessage(
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
       from,
-      [
-        "🛰️ Satellite, GPS & Land Monitoring",
-        "",
-        "1️⃣ Map / update land boundary",
-        "2️⃣ View land map",
-        "3️⃣ View boundary status",
-        "4️⃣ View GPS details",
-        "5️⃣ Satellite farm health",
-        "6️⃣ Satellite observation history",
-        "",
-        "A. Manage land access",
-        "7️⃣ Back",
-        "",
-        "Reply with a number or A."
-      ].join("\n")
+      userLanguagePreferences[from] || "English"
     );
 
     return;
@@ -4388,6 +4367,11 @@ if (
       "❌ Satellite farm health check cancelled."
     );
 
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
+      from,
+      userLanguagePreferences[from] || "English"
+    );
+
     return;
   }
 
@@ -4662,6 +4646,11 @@ const latestSatellite =
     userMenus[from] =
       activeFarmMenu;
 
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
+      from,
+      userLanguagePreferences[from] || "English"
+    );
+
     return;
   } catch (healthError) {
     console.error(
@@ -4708,6 +4697,11 @@ if (
     await sendWhatsAppMessage(
       from,
       "❌ Satellite observation history cancelled."
+    );
+
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
+      from,
+      userLanguagePreferences[from] || "English"
     );
 
     return;
@@ -4877,6 +4871,11 @@ const historyResult =
 
     userMenus[from] =
       activeFarmMenu;
+
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
+      from,
+      userLanguagePreferences[from] || "English"
+    );
 
     return;
   } catch (historyError) {
@@ -5062,24 +5061,10 @@ if (
     userMenus[from] =
       activeFarmMenu;
 
-    await sendWhatsAppMessage(
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
       from,
-             [
-  "🛰️ Satellite, GPS & Land Monitoring",
-  "",
-  "1️⃣ Map / update land boundary",
-  "2️⃣ View land map",
-  "3️⃣ View boundary status",
-  "4️⃣ View GPS details",
-  "5️⃣ Satellite farm health",
-  "6️⃣ Satellite observation history",
-  "",
-  "A. Manage land access",
-  "7️⃣ Back",
-  "",
-  "Reply with a number or A."
-].join("\n")
-         );
+      userLanguagePreferences[from] || "English"
+    );
 
     return;
   }
@@ -5198,6 +5183,11 @@ bhoomiMitraMapUrl,
     userMenus[from] =
       activeFarmMenu;
 
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
+      from,
+      userLanguagePreferences[from] || "English"
+    );
+
     return;
 
   } catch (mapError) {
@@ -5245,6 +5235,11 @@ if (
     await sendWhatsAppMessage(
       from,
       "GPS details cancelled."
+    );
+
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
+      from,
+      userLanguagePreferences[from] || "English"
     );
 
     return;
@@ -5333,6 +5328,11 @@ if (
 
     userMenus[from] =
       activeFarmMenu;
+
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
+      from,
+      userLanguagePreferences[from] || "English"
+    );
 
     return;
 
