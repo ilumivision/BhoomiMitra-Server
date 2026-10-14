@@ -84,6 +84,8 @@ const {
 const {
   isMenuCommand,
   getWelcomeMessage,
+  getServicePrompt,
+  getUnavailableFarmOptionReply,
   parseServiceSelections,
   isPureMenuSelection,
   createMenuSession,
@@ -1272,6 +1274,25 @@ if (
         // -----------------------------------------
         // EXISTING SERVICES 1–11
         // -----------------------------------------
+if (uiSelection.id === "SERVICE_9") {
+  userMenus[from] =
+    userMenus[from] || createMenuSession();
+
+  userMenus[from].step =
+    "processing_services";
+  userMenus[from].currentService =
+    "farm";
+  userMenus[from].updatedAt =
+    Date.now();
+
+  await bhoomiMitraUI.sendLandManagementMenu(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
+
+  return;
+}
+
 if (uiSelection.id === "SERVICE_10") {
   userMenus[from] =
     userMenus[from] || createMenuSession();
@@ -1290,7 +1311,33 @@ if (uiSelection.id === "SERVICE_10") {
   return;
 }
 
-if (
+const landManagementCommand =
+  bhoomiMitraUI.getLandManagementCommand(
+    uiSelection.id
+  );
+
+if (landManagementCommand === "back") {
+  userMenus[from] = createMenuSession();
+
+  await bhoomiMitraUI.sendFarmMenu(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
+
+  return;
+} else if (landManagementCommand) {
+  userMenus[from] =
+    userMenus[from] || createMenuSession();
+
+  userMenus[from].step =
+    "processing_services";
+  userMenus[from].currentService =
+    "farm";
+  userMenus[from].updatedAt =
+    Date.now();
+
+  userText = landManagementCommand;
+} else if (
   uiSelection.id === "PERSONAL_DETAILS" ||
   uiSelection.id === "PERSONAL_FARMER_ID" ||
   uiSelection.id === "PERSONAL_LANDS" ||
@@ -1344,19 +1391,19 @@ if (
   );
 
   return;
+} else {
+  const legacyCommand =
+    bhoomiMitraUI.getLegacyServiceCommand(
+      uiSelection.id
+    );
+
+  if (legacyCommand) {
+    userText = legacyCommand;
+  } else {
+    userText =
+      uiSelection.title || "";
+  }
 }
-
-const legacyCommand =
-  bhoomiMitraUI.getLegacyServiceCommand(
-    uiSelection.id
-  );
-
-        if (legacyCommand) {
-          userText = legacyCommand;
-        } else {
-          userText =
-            uiSelection.title || "";
-        }
       }
     }
   }
@@ -3401,6 +3448,38 @@ lines.push(
   await sendWhatsAppMessage(
     from,
     lines.join("\n").trim()
+  );
+
+  return;
+}
+if (["3", "4", "5", "6", "7"].includes(
+  farmMenuChoice
+)) {
+  await sendWhatsAppMessage(
+    from,
+    getUnavailableFarmOptionReply(
+      farmMenuChoice,
+      userLanguagePreferences[from] ||
+        "Malayalam"
+    )
+  );
+
+  return;
+}
+if (farmMenuChoice === "8") {
+  activeFarmMenu.currentService =
+    "soil";
+  activeFarmMenu.step =
+    "processing_services";
+  activeFarmMenu.updatedAt =
+    Date.now();
+
+  userMenus[from] =
+    activeFarmMenu;
+
+  await sendWhatsAppMessage(
+    from,
+    getServicePrompt("soil")
   );
 
   return;

@@ -80,6 +80,14 @@ const SERVICE_OPTIONS = {
 }
 };
 
+const UNAVAILABLE_FARM_OPTIONS = {
+  "3": "Update land details",
+  "4": "Add crop / farm activity",
+  "5": "Crop history",
+  "6": "BhoomiMitra usage history",
+  "7": "Land summary"
+};
+
 function normalizeMenuText(value) {
   return String(value || "")
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
@@ -413,19 +421,19 @@ if (serviceKey === "farm") {
   return [
     "🌾 Farm & Land Management",
     "",
-    "Please select an option:",
+    "Use the interactive menu when available.",
+    "Legacy numeric fallback:",
     "",
     "1️⃣ Register a new land parcel",
     "2️⃣ View my registered lands",
     "3️⃣ Update land details",
-    "4️⃣ Record a farm activity",
-    "5️⃣ View farm activity history",
-    "6️⃣ View BhoomiMitra advisory history",
+    "4️⃣ Add crop / record a farm activity",
+    "5️⃣ View crop / farm activity history",
+    "6️⃣ View BhoomiMitra usage / advisory history",
     "7️⃣ View land summary",
-    "8️⃣ Add or update soil-test details",
+    "8️⃣ Soil test / soil information",
     "9️⃣ Satellite, GPS & Land Monitoring",
-    "",
-    "Reply with one number."
+    ""
   ].join("\n");
 }
 if (serviceKey === "personal_records") {
@@ -443,6 +451,40 @@ if (serviceKey === "personal_records") {
   ].join("\n");
 }
   return getWelcomeMessage();
+}
+
+function getUnavailableFarmOptionReply(
+  choice,
+  language
+) {
+  const label =
+    UNAVAILABLE_FARM_OPTIONS[
+      String(choice || "").trim()
+    ];
+
+  if (!label) {
+    return "";
+  }
+
+  const useMalayalam =
+    String(language || "").toLowerCase() !==
+    "english";
+
+  if (useMalayalam) {
+    return [
+      "ℹ️ ഈ സൗകര്യം നിലവിലെ പൈലറ്റിൽ ഇതുവരെ ലഭ്യമല്ല.",
+      "",
+      "ഭൂമി രേഖകളിൽ മാറ്റമൊന്നും വരുത്തിയിട്ടില്ല."
+    ].join("\n");
+  }
+
+  return [
+    "ℹ️ " +
+      label +
+      " is not yet available in the current pilot.",
+    "",
+    "No land record was changed."
+  ].join("\n");
 }
 
 function startSelectedServices(
@@ -555,6 +597,7 @@ module.exports = {
   isMenuSessionExpired,
   formatSelectedServices,
   getServicePrompt,
+  getUnavailableFarmOptionReply,
   startSelectedServices,
   advanceMenuSession,
   getCurrentServicePrompt,

@@ -467,6 +467,163 @@ async function sendFarmMenu(
     }
   );
 }
+
+// ===================================================
+// CROP & LAND MANAGEMENT MENU
+// ===================================================
+
+async function sendLandManagementMenu(
+  to,
+  language
+) {
+  const isMalayalam =
+    String(language || "")
+      .toLowerCase() !==
+    "english";
+
+  return sendInteractiveMessage(
+    to,
+    {
+      type: "list",
+
+      body: {
+        text:
+          isMalayalam
+            ? "🌾 വിള & ഭൂമി മാനേജ്മെന്റ്\nഒരു ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക."
+            : "🌾 Crop & Land Management\nSelect an option."
+      },
+
+      action: {
+        button:
+          isMalayalam
+            ? "ഭൂമി ഓപ്ഷനുകൾ"
+            : "Land Options",
+
+        sections: [
+          {
+            title:
+              isMalayalam
+                ? "വിള & ഭൂമി"
+                : "Crop & Land",
+
+            rows: [
+              {
+                id: "LAND_REGISTER",
+                title:
+                  isMalayalam
+                    ? "🌱 പുതിയ ഭൂമി"
+                    : "🌱 Register New Land",
+                description:
+                  isMalayalam
+                    ? "പുതിയ ഭൂമി രജിസ്റ്റർ ചെയ്യുക"
+                    : "Register a new land parcel"
+              },
+              {
+                id: "LAND_VIEW",
+                title:
+                  isMalayalam
+                    ? "🌾 എന്റെ ഭൂമികൾ"
+                    : "🌾 My Registered Lands",
+                description:
+                  isMalayalam
+                    ? "എന്റെ രജിസ്റ്റർ ചെയ്ത ഭൂമികൾ"
+                    : "View registered land parcels"
+              },
+              {
+                id: "LAND_UPDATE",
+                title:
+                  isMalayalam
+                    ? "✏️ ഭൂമി പുതുക്കുക"
+                    : "✏️ Update Land Details",
+                description:
+                  isMalayalam
+                    ? "ഭൂമിയുടെ വിവരങ്ങൾ പുതുക്കുക"
+                    : "Update saved land information"
+              },
+              {
+                id: "LAND_ADD_CROP",
+                title:
+                  isMalayalam
+                    ? "🌱 വിള ചേർക്കുക"
+                    : "🌱 Add Crop / Activity",
+                description:
+                  isMalayalam
+                    ? "കൃഷി / വിള ചേർക്കുക"
+                    : "Add a crop or farm activity"
+              },
+              {
+                id: "LAND_CROP_HISTORY",
+                title:
+                  isMalayalam
+                    ? "📚 വിള ചരിത്രം"
+                    : "📚 Crop History",
+                description:
+                  isMalayalam
+                    ? "കൃഷി ചരിത്രം കാണുക"
+                    : "View crop and activity history"
+              },
+              {
+                id: "LAND_USAGE_HISTORY",
+                title:
+                  isMalayalam
+                    ? "📋 ഉപയോഗ ചരിത്രം"
+                    : "📋 BhoomiMitra History",
+                description:
+                  isMalayalam
+                    ? "BhoomiMitra ഉപയോഗ ചരിത്രം"
+                    : "View advisory and usage history"
+              },
+              {
+                id: "LAND_SUMMARY",
+                title:
+                  isMalayalam
+                    ? "📄 ഭൂമി സംഗ്രഹം"
+                    : "📄 Land Summary",
+                description:
+                  isMalayalam
+                    ? "ഭൂമിയുടെ സംഗ്രഹം കാണുക"
+                    : "View the saved land summary"
+              },
+              {
+                id: "LAND_SOIL",
+                title:
+                  isMalayalam
+                    ? "🧪 മണ്ണ് പരിശോധന"
+                    : "🧪 Soil Test / Info",
+                description:
+                  isMalayalam
+                    ? "മണ്ണ് പരിശോധന / മണ്ണ് വിവരങ്ങൾ"
+                    : "Open the existing soil-information flow"
+              },
+              {
+                id: "LAND_SATELLITE_GPS",
+                title:
+                  isMalayalam
+                    ? "🛰️ സാറ്റലൈറ്റ് & GPS"
+                    : "🛰️ Satellite & GPS",
+                description:
+                  isMalayalam
+                    ? "സാറ്റലൈറ്റ്, GPS & ഭൂമി നിരീക്ഷണം"
+                    : "Boundary, GPS and satellite monitoring"
+              },
+              {
+                id: "LAND_BACK",
+                title:
+                  isMalayalam
+                    ? "↩️ പിന്നോട്ട്"
+                    : "↩️ Back",
+                description:
+                  isMalayalam
+                    ? "എന്റെ കൃഷിയിടം മെനുവിലേക്ക്"
+                    : "Return to the My Farm menu"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  );
+}
 // ===================================================
 // EXPERT & SERVICES MENU
 // Existing services: 6, 7 and 8
@@ -857,6 +1014,23 @@ PERSONAL_ANIMALS: "my animals"
   return serviceMap[selectionId] || "";
 }
 
+function getLandManagementCommand(selectionId) {
+  const landMap = {
+    LAND_REGISTER: "1",
+    LAND_VIEW: "2",
+    LAND_UPDATE: "3",
+    LAND_ADD_CROP: "4",
+    LAND_CROP_HISTORY: "5",
+    LAND_USAGE_HISTORY: "6",
+    LAND_SUMMARY: "7",
+    LAND_SOIL: "8",
+    LAND_SATELLITE_GPS: "9",
+    LAND_BACK: "back"
+  };
+
+  return landMap[selectionId] || "";
+}
+
 
 // ===================================================
 // IDENTIFY MAIN MENU NAVIGATION
@@ -887,6 +1061,7 @@ return {
   sendMainMenu,
   sendAskMenu,
   sendFarmMenu,
+  sendLandManagementMenu,
   sendExpertMenu,
   sendMarketMenu,
   sendProfileMenu,
@@ -894,6 +1069,7 @@ return {
   getInteractiveSelection,
   getLanguageFromSelection,
   getLegacyServiceCommand,
+  getLandManagementCommand,
   getNavigationAction
 };
 }
