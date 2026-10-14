@@ -54,6 +54,9 @@ const {
 const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
+const {
+  closeRegistrationSessionForNavigation
+} = require("./utils/registrationSession");
 
 const registrationModule =
   require("./utils/registration");
@@ -1169,6 +1172,13 @@ if (
       );
 
     if (uiSelection) {
+      closeRegistrationSessionForNavigation({
+        userKey: from,
+        selectionId: uiSelection.id,
+        registrationSessions: sessions,
+        menuSessions: userMenus
+      });
+
       const selectedLanguage =
         bhoomiMitraUI.getLanguageFromSelection(
           message
