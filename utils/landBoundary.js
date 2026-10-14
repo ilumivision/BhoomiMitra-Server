@@ -1,4 +1,7 @@
 const crypto = require("crypto");
+const {
+  checkLandAccess
+} = require("./landAccess");
 
 const LAND_SHEET = "Land_Parcels";
 const BOUNDARY_SHEET = "Land_Boundary_Points";
@@ -611,6 +614,582 @@ boundaryExists: true,
     updatedAt || ""
 };
 }
+
+async function getLandBoundaryStatus({
+  sheets,
+  spreadsheetId,
+  landId,
+  farmerId,
+  whatsapp
+}) {
+  const landResult =
+    await findLand({
+      sheets,
+      spreadsheetId,
+      landId,
+      farmerId,
+      whatsapp
+    });
+
+  if (
+    !landResult ||
+    !landResult.success
+  ) {
+    return landResult || {
+      success: false,
+      error:
+        "Registered land was not found."
+    };
+  }
+
+  const requestedPhone =
+    phoneKey(whatsapp);
+  const requestedFarmerId =
+    String(farmerId || "")
+      .trim()
+      .toLowerCase();
+  const savedPhone =
+    phoneKey(
+      landResult.land.whatsapp
+    );
+  const savedFarmerId =
+    String(
+      landResult.land.farmerId ||
+      ""
+    )
+      .trim()
+      .toLowerCase();
+  const ownershipCheckRequested =
+    Boolean(
+      requestedPhone ||
+      requestedFarmerId
+    );
+  const ownerMatches =
+    Boolean(
+      requestedPhone &&
+      savedPhone &&
+      requestedPhone === savedPhone
+    ) ||
+    Boolean(
+      requestedFarmerId &&
+      savedFarmerId &&
+      requestedFarmerId === savedFarmerId
+    );
+
+  if (
+    ownershipCheckRequested &&
+    !ownerMatches
+  ) {
+    return {
+      success: false,
+      error:
+        "This land does not belong to the current farmer."
+    };
+  }
+
+  const boundaryText =
+    getValue(
+      landResult.row,
+      landResult.headerMap,
+      [
+        "Boundary_GeoJSON",
+        "Boundary GeoJSON"
+      ]
+    );
+
+  let geoJSON = null;
+
+  if (boundaryText) {
+    try {
+      geoJSON =
+        typeof boundaryText === "string"
+          ? JSON.parse(boundaryText)
+          : boundaryText;
+    } catch (error) {
+      geoJSON = null;
+    }
+  }
+
+  const polygonRing =
+    geoJSON &&
+    geoJSON.type === "Polygon" &&
+    Array.isArray(geoJSON.coordinates) &&
+    Array.isArray(geoJSON.coordinates[0])
+      ? geoJSON.coordinates[0]
+      : [];
+
+  const boundaryExists =
+    polygonRing.length >= 4;
+
+  const boundaryRows =
+    await readSheet(
+      sheets,
+      spreadsheetId,
+      BOUNDARY_SHEET,
+      "A:M"
+    );
+
+  const sessionGroups =
+    new Map();
+
+  if (boundaryRows.length) {
+    const boundaryHeaderMap =
+      makeHeaderMap(
+        boundaryRows[0]
+      );
+
+    const requestedLandId =
+      String(
+        landResult.land.landId ||
+        landId ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+    for (
+      let i = 1;
+      i < boundaryRows.length;
+      i += 1
+    ) {
+      const row = boundaryRows[i];
+      const rowLandId =
+        String(
+          getValue(
+            row,
+            boundaryHeaderMap,
+            [
+              "Land_ID",
+              "Land ID"
+            ]
+          )
+        )
+          .trim()
+          .toUpperCase();
+      const status =
+        String(
+          getValue(
+            row,
+            boundaryHeaderMap,
+            ["Status"]
+          )
+        )
+          .trim()
+          .toUpperCase();
+      const latitudeText =
+        String(
+          getValue(
+            row,
+            boundaryHeaderMap,
+            ["Latitude"]
+          )
+        ).trim();
+      const longitudeText =
+        String(
+          getValue(
+            row,
+            boundaryHeaderMap,
+            ["Longitude"]
+          )
+        ).trim();
+      const latitude =
+        latitudeText
+          ? toFiniteNumber(
+              latitudeText
+            )
+          : null;
+      const longitude =
+        longitudeText
+          ? toFiniteNumber(
+              longitudeText
+            )
+          : null;
+
+      if (
+        rowLandId !== requestedLandId ||
+        status === "CANCELLED" ||
+        latitude === null ||
+        longitude === null
+      ) {
+        continue;
+      }
+
+      const sessionId =
+        String(
+          getValue(
+            row,
+            boundaryHeaderMap,
+            [
+              "Boundary_Session_ID",
+              "Boundary Session ID"
+            ]
+          ) ||
+          "LEGACY"
+        ).trim();
+      const group =
+        sessionGroups.get(sessionId) || {
+          lastRowNumber: 0,
+          points: []
+        };
+
+      group.lastRowNumber = i + 1;
+      group.points.push({
+        latitude,
+        longitude
+      });
+      sessionGroups.set(
+        sessionId,
+        group
+      );
+    }
+  }
+
+  const latestSession =
+    Array.from(
+      sessionGroups.values()
+    ).sort(function (a, b) {
+      return (
+        b.lastRowNumber -
+        a.lastRowNumber
+      );
+    })[0] || {
+      points: []
+    };
+
+  const points =
+    boundaryExists
+      ? polygonRing
+          .slice(0, -1)
+          .map(function (coordinate) {
+            return {
+              longitude:
+                Number(coordinate[0]),
+              latitude:
+                Number(coordinate[1])
+            };
+          })
+      : latestSession.points;
+
+  const pointCount =
+    points.length;
+
+  return {
+    success: true,
+    landId:
+      landResult.land.landId ||
+      landId,
+    farmName:
+      landResult.land.farmName ||
+      "",
+    boundaryExists,
+    mappingStatus:
+      boundaryExists
+        ? "COMPLETED"
+        : pointCount > 0
+          ? "IN_PROGRESS"
+          : "NOT_STARTED",
+    pointCount,
+    points,
+    verified:
+      getValue(
+        landResult.row,
+        landResult.headerMap,
+        [
+          "Boundary_Verified",
+          "Boundary Verified"
+        ]
+      ),
+    mappedAt:
+      getValue(
+        landResult.row,
+        landResult.headerMap,
+        [
+          "Updated_At",
+          "Updated At",
+          "Boundary_Updated_At",
+          "Boundary Updated At"
+        ]
+      )
+  };
+}
+
+async function getAccessibleLandBoundaryStatus({
+  sheets,
+  spreadsheetId,
+  landId,
+  farmerId = "",
+  whatsapp = ""
+}) {
+  const ownerStatus =
+    await getLandBoundaryStatus({
+      sheets,
+      spreadsheetId,
+      landId,
+      farmerId,
+      whatsapp
+    });
+
+  if (
+    ownerStatus &&
+    ownerStatus.success
+  ) {
+    return {
+      ...ownerStatus,
+      accessType: "OWNER",
+      accessLevel: "MANAGE"
+    };
+  }
+
+  const sharedAccess =
+    await checkLandAccess({
+      sheets,
+      spreadsheetId,
+      landId,
+      whatsapp,
+      requiredLevel: "VIEW"
+    });
+
+  if (
+    !sharedAccess ||
+    !sharedAccess.success ||
+    !sharedAccess.allowed
+  ) {
+    return {
+      success: false,
+      accessDenied: true,
+      error:
+        "Registered land was not found or you do not have access to it."
+    };
+  }
+
+  const sharedStatus =
+    await getLandBoundaryStatus({
+      sheets,
+      spreadsheetId,
+      landId,
+      farmerId: "",
+      whatsapp: ""
+    });
+
+  if (
+    !sharedStatus ||
+    !sharedStatus.success
+  ) {
+    return sharedStatus || {
+      success: false,
+      error:
+        "Land information could not be loaded."
+    };
+  }
+
+  return {
+    ...sharedStatus,
+    accessType: "AUTHORIZED",
+    accessLevel:
+      sharedAccess.access &&
+      sharedAccess.access.accessLevel
+        ? sharedAccess.access.accessLevel
+        : "VIEW"
+  };
+}
+
+function isBoundaryStatusExit(value) {
+  const normalized =
+    String(value || "")
+      .trim()
+      .toUpperCase();
+
+  return (
+    normalized === "CANCEL" ||
+    normalized === "BACK" ||
+    normalized === "7" ||
+    String(value || "").trim() ===
+      "പിന്നോട്ട്"
+  );
+}
+
+function formatBoundaryStatusReply(
+  status,
+  language,
+  mapBaseUrl
+) {
+  const isEnglish =
+    String(language || "")
+      .trim()
+      .toLowerCase() ===
+    "english";
+  const completed =
+    status.mappingStatus ===
+    "COMPLETED";
+  const hasPoints =
+    Number(status.pointCount) > 0;
+  const baseUrl =
+    String(mapBaseUrl || "")
+      .replace(/\/+$/, "");
+  const mapUrl =
+    completed && baseUrl
+      ? baseUrl +
+        "/land-map/" +
+        encodeURIComponent(
+          status.landId
+        )
+      : "";
+
+  if (isEnglish) {
+    return [
+      "📍 Land Boundary Status",
+      "",
+      "Land ID: " + status.landId,
+      status.farmName
+        ? "Land: " + status.farmName
+        : "",
+      "",
+      "Boundary mapping: " +
+        (completed
+          ? "Completed"
+          : "Not completed"),
+      "Saved GPS boundary points: " +
+        status.pointCount,
+      "",
+      !hasPoints
+        ? "No GPS boundary points have been recorded for this land yet."
+        : !completed
+          ? "Boundary mapping is still incomplete."
+          : "The saved boundary polygon is available.",
+      !completed
+        ? "Select 🗺️ Map / Boundary to start or continue boundary mapping."
+        : "",
+      mapUrl
+        ? "Map: " + mapUrl
+        : ""
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return [
+    "📍 ഭൂമിയുടെ അതിർത്തി നില",
+    "",
+    "ഭൂമി ID: " + status.landId,
+    status.farmName
+      ? "ഭൂമി: " + status.farmName
+      : "",
+    "",
+    "അതിർത്തി മാപ്പിംഗ്: " +
+      (completed
+        ? "പൂർത്തിയായി"
+        : "പൂർത്തിയായിട്ടില്ല"),
+    "രേഖപ്പെടുത്തിയ GPS പോയിന്റുകൾ: " +
+      status.pointCount,
+    "",
+    !hasPoints
+      ? "ഈ ഭൂമിയുടെ അതിർത്തി വിവരങ്ങൾ ഇതുവരെ രേഖപ്പെടുത്തിയിട്ടില്ല."
+      : !completed
+        ? "അതിർത്തി മാപ്പിംഗ് ഇപ്പോഴും പൂർത്തിയായിട്ടില്ല."
+        : "സംരക്ഷിച്ച അതിർത്തി ഭൂപടം ലഭ്യമാണ്.",
+    !completed
+      ? "അതിർത്തി മാപ്പിംഗ് ആരംഭിക്കാനോ തുടരാനോ 🗺️ ഭൂപടം / അതിർത്തി തിരഞ്ഞെടുക്കുക."
+      : "",
+    mapUrl
+      ? "ഭൂപടം: " + mapUrl
+      : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function handleBoundaryStatusSelection({
+  sheets,
+  spreadsheetId,
+  landId,
+  farmerId = "",
+  whatsapp = "",
+  language,
+  mapBaseUrl = ""
+}) {
+  const normalizedLandId =
+    String(landId || "")
+      .trim()
+      .toUpperCase();
+  const isEnglish =
+    String(language || "")
+      .trim()
+      .toLowerCase() ===
+    "english";
+
+  if (
+    isBoundaryStatusExit(
+      normalizedLandId
+    )
+  ) {
+    return {
+      handled: true,
+      returnToMenu: true,
+      cancelled: true,
+      reply: isEnglish
+        ? "Boundary status check cancelled."
+        : "അതിർത്തി നില പരിശോധന റദ്ദാക്കി."
+    };
+  }
+
+  if (!/^BM-L-\d+$/i.test(
+    normalizedLandId
+  )) {
+    return {
+      handled: true,
+      retry: true,
+      reply: isEnglish
+        ? "⚠️ Please enter a valid Land ID, for example BM-L-000003. Type CANCEL or BACK to return."
+        : "⚠️ സാധുവായ ഭൂമി ID നൽകുക. ഉദാഹരണം: BM-L-000003. മടങ്ങാൻ CANCEL അല്ലെങ്കിൽ BACK നൽകുക."
+    };
+  }
+
+  try {
+    const status =
+      await getAccessibleLandBoundaryStatus({
+        sheets,
+        spreadsheetId,
+        landId:
+          normalizedLandId,
+        farmerId,
+        whatsapp
+      });
+
+    if (
+      !status ||
+      !status.success
+    ) {
+      return {
+        handled: true,
+        retry: true,
+        reply: isEnglish
+          ? "⚠️ This registered land was not found or you do not have access to it. Check the Land ID and try again."
+          : "⚠️ ഈ ഭൂമി കണ്ടെത്താനായില്ല അല്ലെങ്കിൽ നിങ്ങൾക്ക് ഇതിലേക്കുള്ള അനുമതിയില്ല. ഭൂമി ID പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കുക."
+      };
+    }
+
+    return {
+      handled: true,
+      returnToMenu: true,
+      status,
+      reply:
+        formatBoundaryStatusReply(
+          status,
+          language,
+          mapBaseUrl
+        )
+    };
+  } catch (error) {
+    return {
+      handled: true,
+      retry: true,
+      reply: isEnglish
+        ? "⚠️ Boundary status could not be loaded. Please try again or type CANCEL."
+        : "⚠️ അതിർത്തി നില ലഭ്യമാക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക അല്ലെങ്കിൽ CANCEL നൽകുക."
+    };
+  }
+}
+
 async function startBoundarySession({
   sheets,
   spreadsheetId,
@@ -1630,5 +2209,10 @@ module.exports = {
   verifyBoundary,
   cancelBoundary,
   getLandBoundaryMapData,
+  getLandBoundaryStatus,
+  getAccessibleLandBoundaryStatus,
+  isBoundaryStatusExit,
+  formatBoundaryStatusReply,
+  handleBoundaryStatusSelection,
   buildPolygonGeoJSON
 };

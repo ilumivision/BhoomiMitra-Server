@@ -31,7 +31,8 @@ const {
   completeBoundary,
   verifyBoundary,
   cancelBoundary,
-  getLandBoundaryMapData
+  getLandBoundaryMapData,
+  handleBoundaryStatusSelection
 } = require("./utils/landBoundary");
 const {
   getLatestSatelliteObservation,
@@ -3719,18 +3720,37 @@ if (satelliteChoice === "3") {
   userMenus[from] =
     activeFarmMenu;
 
+  const boundaryStatusLanguage =
+    userLanguagePreferences[from] ||
+    "English";
+  const boundaryStatusIsEnglish =
+    String(boundaryStatusLanguage)
+      .toLowerCase() ===
+    "english";
+
   await sendWhatsAppMessage(
     from,
-    [
-      "📍 Boundary Status",
-      "",
-      "Please enter the Land ID.",
-      "",
-      "Example:",
-      "BM-L-000003",
-      "",
-      "Type CANCEL to stop."
-    ].join("\n")
+    boundaryStatusIsEnglish
+      ? [
+          "📍 Boundary Status",
+          "",
+          "Please enter the Land ID.",
+          "",
+          "Example:",
+          "BM-L-000003",
+          "",
+          "Type CANCEL or BACK to return."
+        ].join("\n")
+      : [
+          "📍 അതിർത്തി നില",
+          "",
+          "ഭൂമി ID നൽകുക.",
+          "",
+          "ഉദാഹരണം:",
+          "BM-L-000003",
+          "",
+          "മടങ്ങാൻ CANCEL അല്ലെങ്കിൽ BACK നൽകുക."
+        ].join("\n")
   );
 
   return;
@@ -3875,6 +3895,62 @@ if (satelliteChoice === "6") {
   );
 
 return;
+}
+
+// =====================================================
+// BOUNDARY STATUS - SELECT REGISTERED LAND
+// =====================================================
+if (
+  activeFarmMenu &&
+  !isMenuSessionExpired(activeFarmMenu) &&
+  activeFarmMenu.step ===
+    "boundary_status_select_land"
+) {
+  const preferredLanguage =
+    userLanguagePreferences[from] ||
+    "English";
+  const mapBaseUrl =
+    process.env.RENDER_EXTERNAL_HOSTNAME
+      ? "https://" +
+        process.env.RENDER_EXTERNAL_HOSTNAME
+      : "";
+  const boundaryStatusResult =
+    await handleBoundaryStatusSelection({
+      sheets,
+      spreadsheetId:
+        GOOGLE_SHEET_ID,
+      landId: userText,
+      farmerId:
+        activeFarmMenu.farmerId ||
+        "",
+      whatsapp: from,
+      language:
+        preferredLanguage,
+      mapBaseUrl
+    });
+
+  await sendWhatsAppMessage(
+    from,
+    boundaryStatusResult.reply
+  );
+
+  if (
+    boundaryStatusResult.returnToMenu
+  ) {
+    activeFarmMenu.step =
+      "satellite_gps_menu";
+    activeFarmMenu.updatedAt =
+      Date.now();
+    userMenus[from] =
+      activeFarmMenu;
+
+    await bhoomiMitraUI.sendSatelliteGpsMenu(
+      from,
+      preferredLanguage
+    );
+  }
+
+  return;
 }
 // ============================================================
 // LAND ACCESS MANAGEMENT MENU
