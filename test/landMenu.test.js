@@ -27,6 +27,17 @@ const EXPECTED_IDS = [
   "LAND_BACK"
 ];
 
+const EXPECTED_SATELLITE_GPS_IDS = [
+  "SAT_GPS_BOUNDARY_MAP",
+  "SAT_GPS_MAP",
+  "SAT_GPS_BOUNDARY_STATUS",
+  "SAT_GPS_DETAILS",
+  "SAT_GPS_CURRENT_STATUS",
+  "SAT_GPS_HISTORY",
+  "SAT_GPS_ACCESS",
+  "SAT_GPS_BACK"
+];
+
 function makeUi() {
   const calls = [];
   const ui = createBhoomiMitraUI({
@@ -258,32 +269,69 @@ test("Soil click routes to existing soil option 8", function () {
   );
 });
 
-test("Satellite and GPS click routes to the existing interactive submenu", async function () {
+test("Satellite and GPS click directly opens the existing interactive submenu", async function () {
   const { calls, ui } = makeUi();
+
+  const interactiveMessage = {
+    type: "interactive",
+    interactive: {
+      list_reply: {
+        id: "LAND_SATELLITE_GPS",
+        title: "Satellite & GPS"
+      }
+    }
+  };
+
+  const selection =
+    ui.getInteractiveSelection(
+      interactiveMessage
+    );
+
+  assert.equal(
+    ui.getNavigationAction(selection.id),
+    "SATELLITE_GPS_MENU"
+  );
 
   assert.equal(
     ui.getLandManagementCommand(
-      "LAND_SATELLITE_GPS"
+      selection.id
     ),
     "9"
   );
 
-  await ui.sendSatelliteGpsMenu(
-    "919847298918",
+  for (const language of [
+    "Malayalam",
     "English"
-  );
+  ]) {
+    await ui.sendSatelliteGpsMenu(
+      "919847298918",
+      language
+    );
+  }
 
-  assert.equal(
-    calls[0].body.interactive.type,
-    "list"
-  );
-  assert.equal(
-    calls[0].body.interactive.action.sections
-      .flatMap(function (section) {
-        return section.rows;
-      })[0].id,
-    "SAT_GPS_BOUNDARY_MAP"
-  );
+  assert.equal(calls.length, 2);
+
+  for (const call of calls) {
+    const ids = rowsFromCall(call).map(
+      function (row) {
+        return row.id;
+      }
+    );
+
+    assert.equal(call.body.type, "interactive");
+    assert.equal(
+      call.body.interactive.type,
+      "list"
+    );
+    assert.deepEqual(
+      ids,
+      EXPECTED_SATELLITE_GPS_IDS
+    );
+    assert.doesNotMatch(
+      call.body.interactive.body.text,
+      /reply with|1️⃣|2️⃣|3️⃣|4️⃣|5️⃣|6️⃣|7️⃣/i
+    );
+  }
 });
 
 test("Back click routes to the parent My Farm menu", async function () {

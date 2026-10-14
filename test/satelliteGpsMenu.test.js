@@ -49,7 +49,11 @@ function makeUi() {
 }
 
 function rowsFromCall(call) {
-  return call.body.interactive.action.sections[0].rows;
+  return call.body.interactive.action.sections.flatMap(
+    function (section) {
+      return section.rows;
+    }
+  );
 }
 
 test("Malayalam Satellite and GPS menu uses interactive selections", async function () {
@@ -224,11 +228,34 @@ test("land access click routes to existing command A", function () {
   );
 });
 
-test("Back click routes to existing command 7", function () {
+test("Back click returns to interactive Land Management", async function () {
+  const { calls, ui } = makeUi();
+
   assert.equal(
-    makeUi().ui.getSatelliteGpsCommand("SAT_GPS_BACK"),
+    ui.getSatelliteGpsCommand("SAT_GPS_BACK"),
     "7"
   );
+
+  await ui.sendLandManagementMenu(
+    "919847298918",
+    "English"
+  );
+
+  assert.equal(calls[0].body.type, "interactive");
+  assert.equal(
+    calls[0].body.interactive.type,
+    "list"
+  );
+
+  const ids = rowsFromCall(calls[0]).map(
+    function (row) {
+      return row.id;
+    }
+  );
+
+  assert.equal(ids.length, 10);
+  assert.ok(ids.includes("LAND_SATELLITE_GPS"));
+  assert.ok(ids.includes("LAND_BACK"));
 });
 
 test("Satellite and GPS clicks cannot enter registration routing", function () {

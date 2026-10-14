@@ -1220,6 +1220,28 @@ if (
         }
 
         if (
+          navigationAction ===
+          "SATELLITE_GPS_MENU"
+        ) {
+          userMenus[from] =
+            userMenus[from] || createMenuSession();
+
+          userMenus[from].step =
+            "satellite_gps_menu";
+          userMenus[from].currentService =
+            "farm";
+          userMenus[from].updatedAt =
+            Date.now();
+
+          await bhoomiMitraUI.sendSatelliteGpsMenu(
+            from,
+            preferredUiLanguage
+          );
+
+          return;
+        }
+
+        if (
           navigationAction === "EXPERT_MENU"
         ) {
           await bhoomiMitraUI.sendExpertMenu(

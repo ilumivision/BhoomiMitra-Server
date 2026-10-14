@@ -1198,6 +1198,8 @@ function getNavigationAction(selectionId) {
     HOME_EXPERT: "EXPERT_MENU",
     HOME_MARKET: "MARKET_MENU",
     HOME_PROFILE: "PROFILE_MENU",
+    LAND_SATELLITE_GPS:
+      "SATELLITE_GPS_MENU",
 
     NAV_HOME: "MAIN_MENU",
 
