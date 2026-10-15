@@ -32,7 +32,9 @@ const {
   verifyBoundary,
   cancelBoundary,
   getLandBoundaryMapData,
-  handleBoundaryStatusSelection
+  getAccessibleLandBoundaryStatus,
+  handleBoundaryStatusSelection,
+  handleGpsDetailsSelection
 } = require("./utils/landBoundary");
 const {
   getLatestSatelliteObservation,
@@ -40,7 +42,17 @@ const {
   getCopernicusAccessToken,
   getLatestSentinel2Scene,
   getSentinel2Ndvi,
-  saveSatelliteObservation
+  saveSatelliteObservation,
+  isValidLandId,
+  isSatelliteExitCommand,
+  getSatelliteDiagnosticAccess,
+  formatSatelliteSelectionPrompt,
+  formatSatelliteCancelMessage,
+  formatSatelliteValidationMessage,
+  formatSatelliteAccessMessage,
+  formatSatelliteFailureMessage,
+  formatSatelliteHealthReply,
+  formatSatelliteHistoryReply
 } = require("./utils/satellite");
 const {
   checkLandAccess,
@@ -127,7 +139,32 @@ const app = express();
 app.use(express.json());
 app.use(soilTestRoute);
 
-app.get("/test-copernicus", async (req, res) => {
+function requireSatelliteDiagnosticAccess(
+  req,
+  res,
+  next
+) {
+  const access = getSatelliteDiagnosticAccess({
+    nodeEnv: process.env.NODE_ENV,
+    enabled:
+      process.env.ENABLE_SATELLITE_DIAGNOSTICS,
+    expectedToken:
+      process.env.SATELLITE_DIAGNOSTIC_TOKEN,
+    providedToken:
+      req.get("x-bhoomimitra-diagnostic-token")
+  });
+
+  if (!access.allowed) {
+    return res.sendStatus(access.status);
+  }
+
+  return next();
+}
+
+app.get(
+  "/test-copernicus",
+  requireSatelliteDiagnosticAccess,
+  async (req, res) => {
   try {
     const token =
       await getCopernicusAccessToken();
@@ -151,8 +188,12 @@ app.get("/test-copernicus", async (req, res) => {
         error.message
     });
   }
-});
-app.get("/test-sentinel2", async (req, res) => {
+  }
+);
+app.get(
+  "/test-sentinel2",
+  requireSatelliteDiagnosticAccess,
+  async (req, res) => {
   try {
     const landResult =
       await getLandBoundaryMapData({
@@ -206,8 +247,12 @@ app.get("/test-sentinel2", async (req, res) => {
         error.message
     });
   }
-});
-app.get("/test-sentinel2-ndvi", async (req, res) => {
+  }
+);
+app.get(
+  "/test-sentinel2-ndvi",
+  requireSatelliteDiagnosticAccess,
+  async (req, res) => {
   try {
     const landResult =
       await getLandBoundaryMapData({
@@ -239,63 +284,6 @@ app.get("/test-sentinel2-ndvi", async (req, res) => {
         geometry:
           landResult.geoJSON
       });
-   const saveResult =
-  await saveSatelliteObservation({
-    sheets,
-    spreadsheetId:
-      GOOGLE_SHEET_ID,
-
-    landId:
-      landResult.landId,
-
-    farmerId: "",
-
-    farmName:
-      landResult.farmName || "",
-
-    observationDate:
-      new Date().toISOString(),
-
-    satelliteSource:
-      "Sentinel-2 L2A",
-
-    ndvi:
-      ndviResult &&
-      ndviResult.averageNdvi !== undefined
-        ? ndviResult.averageNdvi
-        : "",
-
-    vegetationStatus:
-      ndviResult &&
-      ndviResult.vegetationStatus
-        ? ndviResult.vegetationStatus
-        : "",
-
-    cloudCover: "",
-
-    areaSqM:
-      landResult.measurements
-        ? landResult.measurements.areaSqM || ""
-        : "",
-
-    areaCent:
-      landResult.measurements
-        ? landResult.measurements.cents || ""
-        : "",
-
-    areaAcre:
-      landResult.measurements
-        ? landResult.measurements.acres || ""
-        : "",
-
-    perimeterM:
-      landResult.measurements
-        ? landResult.measurements.perimeterM || ""
-        : "",
-
-    remarks:
-      "Sentinel-2 NDVI observation"
-  });
     res.json({
       success: true,
       landId:
@@ -305,8 +293,7 @@ app.get("/test-sentinel2-ndvi", async (req, res) => {
      ndvi:
   ndviResult,
 
-savedObservation:
-  saveResult
+readOnly: true
     });
   } catch (error) {
     console.error(
@@ -320,7 +307,8 @@ savedObservation:
         error.message
     });
   }
-});
+  }
+);
 const PORT = process.env.PORT || 10000;
 
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
@@ -1039,8 +1027,8 @@ async function getAccessibleLand({
   farmerId = "",
   whatsapp = ""
 }) {
-  const ownerResult =
-    await getLandBoundaryMapData({
+  const accessStatus =
+    await getAccessibleLandBoundaryStatus({
       sheets,
       spreadsheetId,
       landId,
@@ -1049,39 +1037,29 @@ async function getAccessibleLand({
     });
 
   if (
-    ownerResult &&
-    ownerResult.success
-  ) {
-    return {
-      success: true,
-      accessType: "OWNER",
-      accessLevel: "MANAGE",
-      land: ownerResult
-    };
-  }
-
-  const sharedAccess =
-    await checkLandAccess({
-      sheets,
-      spreadsheetId,
-      landId,
-      whatsapp,
-      requiredLevel: "VIEW"
-    });
-
-  if (
-    !sharedAccess ||
-    !sharedAccess.success ||
-    !sharedAccess.allowed
+    !accessStatus ||
+    !accessStatus.success
   ) {
     return {
       success: false,
       error:
-        "You do not have access to this land."
+        accessStatus && accessStatus.error
+          ? accessStatus.error
+          : "You do not have access to this land."
     };
   }
 
-  const sharedLand =
+  if (
+    accessStatus.mappingStatus !== "COMPLETED"
+  ) {
+    return {
+      success: false,
+      error:
+        "Boundary mapping has not yet been completed for this land."
+    };
+  }
+
+  const land =
     await getLandBoundaryMapData({
       sheets,
       spreadsheetId,
@@ -1091,29 +1069,22 @@ async function getAccessibleLand({
     });
 
   if (
-    !sharedLand ||
-    !sharedLand.success
+    !land ||
+    !land.success
   ) {
     return {
       success: false,
-      error:
-        "Land information could not be loaded."
+      error: land && land.error
+        ? land.error
+        : "Land information could not be loaded."
     };
   }
 
   return {
     success: true,
-    accessType:
-      "AUTHORIZED",
-    accessLevel:
-      sharedAccess.access &&
-      sharedAccess.access.accessLevel
-        ? sharedAccess.access.accessLevel
-        : "VIEW",
-    access:
-      sharedAccess.access,
-    land:
-      sharedLand
+    accessType: accessStatus.accessType,
+    accessLevel: accessStatus.accessLevel,
+    land
   };
 }
 app.post("/webhook", async function (req, res) {
@@ -1144,7 +1115,7 @@ console.log("[TEXT TEST] type =", message.type, "text =", message.text && messag
 
 let userText = "";
 
-const activeFarmMenu =
+let activeFarmMenu =
   userMenus[from];
 
 if (
@@ -1446,6 +1417,13 @@ if (landManagementCommand === "back") {
       }
     }
   }
+
+  // Interactive routing can create a fresh menu session
+  // (for example after a server restart). Refresh the local
+  // reference so the selected Satellite/GPS command is handled
+  // by its state-specific branch instead of falling through to
+  // the legacy numeric main-menu router.
+  activeFarmMenu = userMenus[from];
   // =====================================================
 // EXPERT WHATSAPP REPLY
 // Format:
@@ -3760,6 +3738,7 @@ if (satelliteChoice === "3") {
 if (satelliteChoice === "4") {
   activeFarmMenu.step =
     "gps_details_select_land";
+  activeFarmMenu.currentService = "farm";
 
   activeFarmMenu.updatedAt =
     Date.now();
@@ -3767,18 +3746,35 @@ if (satelliteChoice === "4") {
   userMenus[from] =
     activeFarmMenu;
 
+  const gpsDetailsLanguage =
+    userLanguagePreferences[from] || "English";
+  const gpsDetailsIsEnglish =
+    String(gpsDetailsLanguage).toLowerCase() ===
+    "english";
+
   await sendWhatsAppMessage(
     from,
-    [
-      "📍 GPS Details",
-      "",
-      "Please enter the Land ID.",
-      "",
-      "Example:",
-      "BM-L-000003",
-      "",
-      "Type CANCEL to stop."
-    ].join("\n")
+    gpsDetailsIsEnglish
+      ? [
+          "📍 GPS Details",
+          "",
+          "Please enter the registered Land ID.",
+          "",
+          "Example:",
+          "BM-L-000003",
+          "",
+          "Type CANCEL or BACK to return."
+        ].join("\n")
+      : [
+          "📍 GPS വിവരങ്ങൾ",
+          "",
+          "രജിസ്റ്റർ ചെയ്ത ഭൂമി ID നൽകുക.",
+          "",
+          "ഉദാഹരണം:",
+          "BM-L-000003",
+          "",
+          "മടങ്ങാൻ CANCEL അല്ലെങ്കിൽ BACK നൽകുക."
+        ].join("\n")
   );
 
   return;
@@ -3815,6 +3811,7 @@ if (satelliteChoice === "A") {
 if (satelliteChoice === "5") {
   activeFarmMenu.step =
     "satellite_health_select_land";
+  activeFarmMenu.currentService = "farm";
 
   activeFarmMenu.updatedAt =
     Date.now();
@@ -3824,16 +3821,9 @@ if (satelliteChoice === "5") {
 
   await sendWhatsAppMessage(
     from,
-    [
-      "🛰️ Satellite Farm Health",
-      "",
-      "Please enter the Land ID.",
-      "",
-      "Example:",
-      "BM-L-000003",
-      "",
-      "Type CANCEL to stop."
-    ].join("\n")
+    formatSatelliteSelectionPrompt(
+      userLanguagePreferences[from] || "English"
+    )
   );
 
   return;
@@ -3843,6 +3833,7 @@ if (satelliteChoice === "5") {
 if (satelliteChoice === "6") {
   activeFarmMenu.step =
     "satellite_history_select_land";
+  activeFarmMenu.currentService = "farm";
 
   activeFarmMenu.updatedAt =
     Date.now();
@@ -3852,16 +3843,10 @@ if (satelliteChoice === "6") {
 
   await sendWhatsAppMessage(
     from,
-    [
-      "📊 Satellite Observation History",
-      "",
-      "Please enter the Land ID.",
-      "",
-      "Example:",
-      "BM-L-000003",
-      "",
-      "Type CANCEL to stop."
-    ].join("\n")
+    formatSatelliteSelectionPrompt(
+      userLanguagePreferences[from] || "English",
+      true
+    )
   );
 
   return;
@@ -4449,8 +4434,11 @@ if (
     String(userText || "")
       .trim()
       .toUpperCase();
+  const satelliteLanguage =
+    userLanguagePreferences[from] ||
+    "English";
 
-  if (selectedLandId === "CANCEL") {
+  if (isSatelliteExitCommand(selectedLandId)) {
     activeFarmMenu.step =
       "satellite_gps_menu";
 
@@ -4462,31 +4450,27 @@ if (
 
     await sendWhatsAppMessage(
       from,
-      "❌ Satellite farm health check cancelled."
+      formatSatelliteCancelMessage(
+        satelliteLanguage
+      )
     );
 
     await bhoomiMitraUI.sendSatelliteGpsMenu(
       from,
-      userLanguagePreferences[from] || "English"
+      satelliteLanguage
     );
 
     return;
   }
 
   if (
-    !selectedLandId ||
-    !selectedLandId.startsWith("BM-L-")
+    !isValidLandId(selectedLandId)
   ) {
     await sendWhatsAppMessage(
       from,
-      [
-        "Please enter a valid registered Land ID.",
-        "",
-        "Example:",
-        "BM-L-000003",
-        "",
-        "Type CANCEL to stop."
-      ].join("\n")
+      formatSatelliteValidationMessage(
+        satelliteLanguage
+      )
     );
 
     return;
@@ -4512,13 +4496,9 @@ if (
 ) {
   await sendWhatsAppMessage(
     from,
-    "⚠️ " +
-      (
-        accessibleHealth &&
-        accessibleHealth.error
-          ? accessibleHealth.error
-          : "You do not have access to this land."
-      )
+    formatSatelliteAccessMessage(
+      satelliteLanguage
+    )
   );
 
   return;
@@ -4526,16 +4506,28 @@ if (
 
 const healthResult =
   accessibleHealth.land;
-  const liveNdviResult =
+const liveNdviResult =
   await getSentinel2Ndvi({
     geometry:
       healthResult.geoJSON
   });
 
 if (
-  liveNdviResult &&
-  liveNdviResult.success
+  !liveNdviResult ||
+  !liveNdviResult.success
 ) {
+  await sendWhatsAppMessage(
+    from,
+    formatSatelliteFailureMessage(
+      liveNdviResult || {},
+      satelliteLanguage
+    )
+  );
+
+  return;
+}
+
+const saveResult =
   await saveSatelliteObservation({
     sheets,
     spreadsheetId:
@@ -4551,9 +4543,10 @@ if (
       healthResult.farmName || "",
 
     observationDate:
-      new Date().toISOString(),
+      liveNdviResult.observationDate,
 
     satelliteSource:
+      liveNdviResult.satelliteSource ||
       "Sentinel-2 L2A",
 
     ndvi:
@@ -4580,8 +4573,33 @@ cloudCover:
 
     areaSqM:
       healthResult.measurements
-        ? healthResult.measurements.areaSqM || ""
+        ? healthResult.measurements.squareMetres || ""
         : "",
+
+    sceneId:
+      liveNdviResult.sceneId || "",
+
+    catalogCloudCover:
+      liveNdviResult.catalogCloudCover !== undefined
+        ? liveNdviResult.catalogCloudCover
+        : "",
+
+    validPixelPercent:
+      liveNdviResult.validPixelPercent !== undefined
+        ? liveNdviResult.validPixelPercent
+        : "",
+
+    averageNdmi:
+      liveNdviResult.averageNdmi !== undefined &&
+      liveNdviResult.averageNdmi !== null
+        ? liveNdviResult.averageNdmi
+        : "",
+
+    imageQualityStatus:
+      liveNdviResult.imageQualityStatus || "",
+
+    healthSummary:
+      liveNdviResult.healthSummary || "",
 
     areaCent:
       healthResult.measurements
@@ -4595,144 +4613,29 @@ cloudCover:
 
     perimeterM:
       healthResult.measurements
-        ? healthResult.measurements.perimeterM || ""
+        ? healthResult.measurements.perimeterMetres || ""
         : "",
 
-  remarks:
-  [
-    "Sentinel-2 farm health observation from WhatsApp",
-
-    liveNdviResult.averageNdmi !== null &&
-    liveNdviResult.averageNdmi !== undefined
-      ? "NDMI: " +
-        liveNdviResult.averageNdmi
-      : "",
-
-    liveNdviResult.imageQualityStatus
-      ? "Image quality: " +
-        liveNdviResult.imageQualityStatus
-      : "",
-
-    liveNdviResult.healthSummary
-      ? "Health summary: " +
-        liveNdviResult.healthSummary
-      : ""
-  ]
-    .filter(Boolean)
-    .join(" | ")
+    remarks:
+      "Sentinel-2 farm health observation from WhatsApp"
   });
-}  
-const latestSatellite =
-  await getLatestSatelliteObservation({
-    sheets,
-    spreadsheetId:
-      GOOGLE_SHEET_ID,
-    landId:
-      selectedLandId,
-    farmerId:
-      activeFarmMenu.farmerId || ""
-  });
-   await sendWhatsAppMessage(
+
+if (!saveResult || !saveResult.success) {
+  throw new Error(
+    saveResult && saveResult.error
+      ? saveResult.error
+      : "Satellite observation could not be saved."
+  );
+}
+
+await sendWhatsAppMessage(
   from,
-  [
-    "🛰️ Satellite Farm Health",
-    "",
-    "🆔 Land ID: " +
-      healthResult.landId,
-
-    healthResult.farmName
-      ? "🌱 Land: " +
-        healthResult.farmName
-      : "",
-
-    healthResult.measurements
-      ? "📐 GPS area: " +
-        healthResult.measurements.cents +
-        " Cent"
-      : "",
-
-    "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found
-      ? "✅ Latest satellite observation available"
-      : "ℹ️ No satellite observation available yet.",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.observationDate
-      ? "📅 Observation: " +
-        latestSatellite.observation.observationDate
-      : "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.satelliteSource
-      ? "🛰️ Source: " +
-        latestSatellite.observation.satelliteSource
-      : "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.ndvi !== ""
-      ? "🌿 NDVI: " +
-        latestSatellite.observation.ndvi
-      : "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.vegetationStatus
-      ? "🌱 Vegetation: " +
-        latestSatellite.observation.vegetationStatus
-      : "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.moistureStatus
-      ? "💧 Moisture: " +
-        latestSatellite.observation.moistureStatus
-      : "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.waterloggingStatus
-      ? "🌧️ Waterlogging: " +
-        latestSatellite.observation.waterloggingStatus
-      : "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.stressStatus
-      ? "⚠️ Stress: " +
-        latestSatellite.observation.stressStatus
-      : "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.cloudCover !== ""
-      ? "☁️ Cloud cover: " +
-        latestSatellite.observation.cloudCover
-      : "",
-
-    latestSatellite &&
-    latestSatellite.success &&
-    latestSatellite.found &&
-    latestSatellite.observation.remarks
-      ? "📝 Remarks: " +
-        latestSatellite.observation.remarks
-      : ""
-  ]
-    .filter(Boolean)
-    .join("\n")
+  formatSatelliteHealthReply({
+    land: healthResult,
+    result: liveNdviResult,
+    language: satelliteLanguage,
+    duplicate: Boolean(saveResult.duplicate)
+  })
 );
 
     activeFarmMenu.step =
@@ -4746,7 +4649,7 @@ const latestSatellite =
 
     await bhoomiMitraUI.sendSatelliteGpsMenu(
       from,
-      userLanguagePreferences[from] || "English"
+      satelliteLanguage
     );
 
     return;
@@ -4761,7 +4664,10 @@ const latestSatellite =
 
     await sendWhatsAppMessage(
       from,
-      "⚠️ Satellite farm health could not be loaded. Please try again."
+      String(satelliteLanguage).toLowerCase() ===
+        "english"
+        ? "⚠️ Satellite crop health could not be loaded. Please try again."
+        : "⚠️ സാറ്റലൈറ്റ് വിള ആരോഗ്യ വിവരം ലഭ്യമാക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക."
     );
 
     return;
@@ -4781,8 +4687,11 @@ if (
     String(userText || "")
       .trim()
       .toUpperCase();
+  const historyLanguage =
+    userLanguagePreferences[from] ||
+    "English";
 
-  if (selectedLandId === "CANCEL") {
+  if (isSatelliteExitCommand(selectedLandId)) {
     activeFarmMenu.step =
       "satellite_gps_menu";
 
@@ -4794,39 +4703,36 @@ if (
 
     await sendWhatsAppMessage(
       from,
-      "❌ Satellite observation history cancelled."
+      formatSatelliteCancelMessage(
+        historyLanguage,
+        true
+      )
     );
 
     await bhoomiMitraUI.sendSatelliteGpsMenu(
       from,
-      userLanguagePreferences[from] || "English"
+      historyLanguage
     );
 
     return;
   }
 
   if (
-    !selectedLandId ||
-    !selectedLandId.startsWith("BM-L-")
+    !isValidLandId(selectedLandId)
   ) {
     await sendWhatsAppMessage(
       from,
-      [
-        "Please enter a valid registered Land ID.",
-        "",
-        "Example:",
-        "BM-L-000003",
-        "",
-        "Type CANCEL to stop."
-      ].join("\n")
+      formatSatelliteValidationMessage(
+        historyLanguage
+      )
     );
 
     return;
   }
 
   try {
-   const accessibleHistory =
-  await getAccessibleLand({
+   const historyLandResult =
+  await getAccessibleLandBoundaryStatus({
     sheets,
     spreadsheetId:
       GOOGLE_SHEET_ID,
@@ -4839,23 +4745,19 @@ if (
   });
 
 if (
-  !accessibleHistory ||
-  !accessibleHistory.success
+  !historyLandResult ||
+  !historyLandResult.success
 ) {
   await sendWhatsAppMessage(
     from,
-    accessibleHistory &&
-    accessibleHistory.error
-      ? "⚠️ " +
-        accessibleHistory.error
-      : "⚠️ You do not have access to this land."
+    formatSatelliteAccessMessage(
+      historyLanguage
+    )
   );
 
   return;
 }
 
-const historyLandResult =
-  accessibleHistory.land;
 const historyResult =
   await getSatelliteObservationHistory({
     sheets,
@@ -4863,103 +4765,27 @@ const historyResult =
       GOOGLE_SHEET_ID,
     landId:
       selectedLandId,
-    farmerId:
-      activeFarmMenu.farmerId || "",
+    farmerId: "",
     limit: 5
   });
 
 
+    if (!historyResult || !historyResult.success) {
+      throw new Error(
+        historyResult && historyResult.error
+          ? historyResult.error
+          : "Satellite history could not be loaded."
+      );
+    }
+
     await sendWhatsAppMessage(
-  from,
-  [
-    "📊 Satellite Observation History",
-    "",
-    "🆔 Land ID: " +
-      historyLandResult.landId,
-
-    historyLandResult.farmName
-      ? "🌱 Land: " +
-        historyLandResult.farmName
-      : "",
-
-    historyLandResult.measurements
-      ? "📐 GPS area: " +
-        historyLandResult.measurements.cents +
-        " Cent"
-      : "",
-
-    "",
-
-    historyResult &&
-    historyResult.success &&
-    historyResult.found
-      ? "✅ Satellite observation records found: " +
-        historyResult.count
-      : "ℹ️ No satellite observation records are available yet.",
-
-    historyResult &&
-    historyResult.success &&
-    historyResult.found
-      ? historyResult.observations
-          .map(function (observation, index) {
-            return [
-              "",
-              "📌 Observation " + (index + 1),
-
-              observation.observationDate
-                ? "📅 Date: " +
-                  observation.observationDate
-                : "",
-
-              observation.satelliteSource
-                ? "🛰️ Source: " +
-                  observation.satelliteSource
-                : "",
-
-              observation.ndvi !== ""
-                ? "🌿 NDVI: " +
-                  observation.ndvi
-                : "",
-
-              observation.vegetationStatus
-                ? "🌱 Vegetation: " +
-                  observation.vegetationStatus
-                : "",
-
-              observation.moistureStatus
-                ? "💧 Moisture: " +
-                  observation.moistureStatus
-                : "",
-
-              observation.waterloggingStatus
-                ? "🌧️ Waterlogging: " +
-                  observation.waterloggingStatus
-                : "",
-
-              observation.stressStatus
-                ? "⚠️ Stress: " +
-                  observation.stressStatus
-                : "",
-
-              observation.cloudCover !== ""
-                ? "☁️ Cloud cover: " +
-                  observation.cloudCover
-                : "",
-
-              observation.remarks
-                ? "📝 Remarks: " +
-                  observation.remarks
-                : ""
-            ]
-              .filter(Boolean)
-              .join("\n");
-          })
-          .join("\n")
-      : ""
-  ]
-    .filter(Boolean)
-    .join("\n")
-);
+      from,
+      formatSatelliteHistoryReply({
+        land: historyLandResult,
+        history: historyResult,
+        language: historyLanguage
+      })
+    );
 
     activeFarmMenu.step =
       "satellite_gps_menu";
@@ -4972,7 +4798,7 @@ const historyResult =
 
     await bhoomiMitraUI.sendSatelliteGpsMenu(
       from,
-      userLanguagePreferences[from] || "English"
+      historyLanguage
     );
 
     return;
@@ -4987,7 +4813,10 @@ const historyResult =
 
     await sendWhatsAppMessage(
       from,
-      "⚠️ Satellite observation history could not be loaded. Please try again."
+      String(historyLanguage).toLowerCase() ===
+        "english"
+        ? "⚠️ Satellite monitoring history could not be loaded. Please try again."
+        : "⚠️ സാറ്റലൈറ്റ് നിരീക്ഷണ ചരിത്രം ലഭ്യമാക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക."
     );
 
     return;
@@ -5315,141 +5144,47 @@ if (
   activeFarmMenu.step ===
     "gps_details_select_land"
 ) {
-  const selectedLandId =
-    String(userText || "")
-      .trim()
-      .toUpperCase();
+  const gpsDetailsLanguage =
+    userLanguagePreferences[from] ||
+    "English";
+  const mapBaseUrl =
+    process.env.RENDER_EXTERNAL_HOSTNAME
+      ? "https://" +
+        process.env.RENDER_EXTERNAL_HOSTNAME
+      : "";
+  const gpsDetailsResult =
+    await handleGpsDetailsSelection({
+      sheets,
+      spreadsheetId: GOOGLE_SHEET_ID,
+      landId: userText,
+      farmerId:
+        activeFarmMenu.farmerId || "",
+      whatsapp: from,
+      language: gpsDetailsLanguage,
+      mapBaseUrl
+    });
 
-  if (selectedLandId === "CANCEL") {
+  await sendWhatsAppMessage(
+    from,
+    gpsDetailsResult.reply
+  );
+
+  if (gpsDetailsResult.returnToMenu) {
     activeFarmMenu.step =
       "satellite_gps_menu";
-
+    activeFarmMenu.currentService = "farm";
     activeFarmMenu.updatedAt =
       Date.now();
-
-    userMenus[from] =
-      activeFarmMenu;
-
-    await sendWhatsAppMessage(
-      from,
-      "GPS details cancelled."
-    );
-
-    await bhoomiMitraUI.sendSatelliteGpsMenu(
-      from,
-      userLanguagePreferences[from] || "English"
-    );
-
-    return;
-  }
-
-  try {
-    const gpsResult =
-      await getLandBoundaryMapData({
-        sheets,
-        spreadsheetId:
-          GOOGLE_SHEET_ID,
-        landId:
-          selectedLandId,
-        farmerId:
-          activeFarmMenu.farmerId || "",
-        whatsapp:
-          from
-      });
-
-    if (
-      !gpsResult ||
-      !gpsResult.success
-    ) {
-      await sendWhatsAppMessage(
-        from,
-        gpsResult &&
-        gpsResult.error
-          ? "⚠️ " + gpsResult.error
-          : "⚠️ GPS details could not be loaded."
-      );
-
-      return;
-    }
-
-    const uniquePoints =
-      gpsResult.points.slice(
-        0,
-        gpsResult.pointCount
-      );
-
-    const gpsLines =
-      uniquePoints.map(
-        function (point, index) {
-          return (
-            "📍 Point " +
-            (index + 1) +
-            ": " +
-            Number(
-              point.latitude
-            ).toFixed(7) +
-            ", " +
-            Number(
-              point.longitude
-            ).toFixed(7)
-          );
-        }
-      );
-
-    await sendWhatsAppMessage(
-      from,
-      [
-        "📍 Land GPS Details",
-        "",
-        "🆔 Land ID: " +
-          gpsResult.landId,
-        "",
-        gpsResult.farmName
-          ? "🌱 Land: " +
-            gpsResult.farmName
-          : "",
-        "",
-        "Total boundary points: " +
-          gpsResult.pointCount,
-        "",
-        ...gpsLines
-      ]
-        .filter(Boolean)
-        .join("\n")
-    );
-
-    activeFarmMenu.step =
-      "satellite_gps_menu";
-
-    activeFarmMenu.updatedAt =
-      Date.now();
-
     userMenus[from] =
       activeFarmMenu;
 
     await bhoomiMitraUI.sendSatelliteGpsMenu(
       from,
-      userLanguagePreferences[from] || "English"
+      gpsDetailsLanguage
     );
-
-    return;
-
-  } catch (gpsError) {
-    console.error(
-      "GPS details error:",
-      gpsError &&
-      gpsError.message
-        ? gpsError.message
-        : gpsError
-    );
-
-    await sendWhatsAppMessage(
-      from,
-      "⚠️ GPS details could not be loaded."
-    );
-
-    return;
   }
+
+  return;
 }  
 // =====================================================
 // LAND BOUNDARY - SELECT REGISTERED LAND

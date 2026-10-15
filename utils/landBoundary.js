@@ -99,6 +99,12 @@ function phoneKey(value) {
   return digits;
 }
 
+function isValidLandId(value) {
+  return /^BM-L-\d{6}$/i.test(
+    String(value || "").trim()
+  );
+}
+
 function makeId(prefix) {
   if (
     typeof crypto.randomUUID ===
@@ -899,6 +905,36 @@ async function getLandBoundaryStatus({
           "Boundary Verified"
         ]
       ),
+    registeredLatitude:
+      getValue(
+        landResult.row,
+        landResult.headerMap,
+        ["Latitude", "GPS_Latitude", "GPS Latitude"]
+      ),
+    registeredLongitude:
+      getValue(
+        landResult.row,
+        landResult.headerMap,
+        ["Longitude", "GPS_Longitude", "GPS Longitude"]
+      ),
+    gpsCalculatedArea:
+      getValue(
+        landResult.row,
+        landResult.headerMap,
+        [
+          "GPS_Calculated_Area",
+          "GPS Calculated Area"
+        ]
+      ),
+    gpsCalculatedAreaUnit:
+      getValue(
+        landResult.row,
+        landResult.headerMap,
+        [
+          "GPS_Calculated_Area_Unit",
+          "GPS Calculated Area Unit"
+        ]
+      ),
     mappedAt:
       getValue(
         landResult.row,
@@ -911,6 +947,203 @@ async function getLandBoundaryStatus({
         ]
       )
   };
+}
+
+function formatCoordinate(latitude, longitude) {
+  const lat = toFiniteNumber(latitude);
+  const lng = toFiniteNumber(longitude);
+
+  if (lat === null || lng === null) {
+    return "";
+  }
+
+  return lat.toFixed(7) + ", " + lng.toFixed(7);
+}
+
+function formatGpsDetailsReply(
+  status,
+  language,
+  mapBaseUrl
+) {
+  const isEnglish =
+    String(language || "")
+      .trim()
+      .toLowerCase() === "english";
+  const completed =
+    status.mappingStatus === "COMPLETED";
+  const baseUrl = String(mapBaseUrl || "")
+    .replace(/\/+$/, "");
+  const mapUrl = completed && baseUrl
+    ? baseUrl +
+      "/land-map/" +
+      encodeURIComponent(status.landId)
+    : "";
+  const registeredCoordinate = formatCoordinate(
+    status.registeredLatitude,
+    status.registeredLongitude
+  );
+  const points = Array.isArray(status.points)
+    ? status.points
+    : [];
+  const pointLines = points.map(function (
+    point,
+    index
+  ) {
+    const coordinate = formatCoordinate(
+      point && point.latitude,
+      point && point.longitude
+    );
+
+    if (isEnglish) {
+      return "Point " + (index + 1) + ": " + coordinate;
+    }
+
+    return "പോയിന്റ് " + (index + 1) + ": " + coordinate;
+  }).filter(function (line) {
+    return !line.endsWith(": ");
+  });
+  const area = String(
+    status.gpsCalculatedArea || ""
+  ).trim();
+  const areaUnit = String(
+    status.gpsCalculatedAreaUnit || ""
+  ).trim();
+
+  if (isEnglish) {
+    return [
+      "📍 Land GPS Details",
+      "",
+      "Land ID: " + status.landId,
+      status.farmName ? "Land: " + status.farmName : "",
+      registeredCoordinate
+        ? "Registered GPS coordinates: " + registeredCoordinate
+        : "Registered GPS coordinates: Not available",
+      "Saved boundary points: " + status.pointCount,
+      ...pointLines,
+      area
+        ? "Verified GPS area: " + [area, areaUnit].filter(Boolean).join(" ")
+        : "Verified GPS area: Not available",
+      "Boundary status: " +
+        (completed
+          ? "Completed"
+          : status.mappingStatus === "IN_PROGRESS"
+            ? "Incomplete"
+            : "Not started"),
+      !completed && status.pointCount > 0
+        ? "⚠️ The saved boundary is incomplete."
+        : "",
+      status.pointCount === 0
+        ? "No boundary points have been saved yet."
+        : "",
+      mapUrl ? "Map: " + mapUrl : ""
+    ].filter(Boolean).join("\n");
+  }
+
+  return [
+    "📍 ഭൂമിയുടെ GPS വിവരങ്ങൾ",
+    "",
+    "ഭൂമി ID: " + status.landId,
+    status.farmName ? "ഭൂമി: " + status.farmName : "",
+    registeredCoordinate
+      ? "രജിസ്റ്റർ ചെയ്ത GPS കോർഡിനേറ്റുകൾ: " + registeredCoordinate
+      : "രജിസ്റ്റർ ചെയ്ത GPS കോർഡിനേറ്റുകൾ: ലഭ്യമല്ല",
+    "സംഭരിച്ച അതിർത്തി പോയിന്റുകൾ: " + status.pointCount,
+    ...pointLines,
+    area
+      ? "സ്ഥിരീകരിച്ച GPS വിസ്തീർണ്ണം: " + [area, areaUnit].filter(Boolean).join(" ")
+      : "സ്ഥിരീകരിച്ച GPS വിസ്തീർണ്ണം: ലഭ്യമല്ല",
+    "അതിർത്തി നില: " +
+      (completed
+        ? "പൂർത്തിയായി"
+        : status.mappingStatus === "IN_PROGRESS"
+          ? "പൂർത്തിയായിട്ടില്ല"
+          : "ആരംഭിച്ചിട്ടില്ല"),
+    !completed && status.pointCount > 0
+      ? "⚠️ സംഭരിച്ച അതിർത്തി അപൂർണ്ണമാണ്."
+      : "",
+    status.pointCount === 0
+      ? "അതിർത്തി പോയിന്റുകൾ ഇതുവരെ സംഭരിച്ചിട്ടില്ല."
+      : "",
+    mapUrl ? "ഭൂപടം: " + mapUrl : ""
+  ].filter(Boolean).join("\n");
+}
+
+async function handleGpsDetailsSelection({
+  sheets,
+  spreadsheetId,
+  landId,
+  farmerId = "",
+  whatsapp = "",
+  language,
+  mapBaseUrl = ""
+}) {
+  const normalizedLandId =
+    String(landId || "").trim().toUpperCase();
+  const isEnglish =
+    String(language || "")
+      .trim()
+      .toLowerCase() === "english";
+
+  if (isBoundaryStatusExit(normalizedLandId)) {
+    return {
+      handled: true,
+      returnToMenu: true,
+      cancelled: true,
+      reply: isEnglish
+        ? "GPS details check cancelled."
+        : "GPS വിവര പരിശോധന റദ്ദാക്കി."
+    };
+  }
+
+  if (!isValidLandId(normalizedLandId)) {
+    return {
+      handled: true,
+      retry: true,
+      reply: isEnglish
+        ? "⚠️ Enter a valid Land ID, for example BM-L-000003. Type CANCEL or BACK to return."
+        : "⚠️ സാധുവായ ഭൂമി ID നൽകുക. ഉദാഹരണം: BM-L-000003. മടങ്ങാൻ CANCEL അല്ലെങ്കിൽ BACK നൽകുക."
+    };
+  }
+
+  try {
+    const status =
+      await getAccessibleLandBoundaryStatus({
+        sheets,
+        spreadsheetId,
+        landId: normalizedLandId,
+        farmerId,
+        whatsapp
+      });
+
+    if (!status || !status.success) {
+      return {
+        handled: true,
+        retry: true,
+        reply: isEnglish
+          ? "⚠️ This registered land was not found or you do not have authorized access. Check the Land ID and try again."
+          : "⚠️ ഈ ഭൂമി കണ്ടെത്താനായില്ല അല്ലെങ്കിൽ നിങ്ങൾക്ക് അംഗീകൃത പ്രവേശനമില്ല. ഭൂമി ID പരിശോധിച്ച് വീണ്ടും ശ്രമിക്കുക."
+      };
+    }
+
+    return {
+      handled: true,
+      returnToMenu: true,
+      status,
+      reply: formatGpsDetailsReply(
+        status,
+        language,
+        mapBaseUrl
+      )
+    };
+  } catch (error) {
+    return {
+      handled: true,
+      retry: true,
+      reply: isEnglish
+        ? "⚠️ GPS details could not be loaded. Please try again or type CANCEL."
+        : "⚠️ GPS വിവരങ്ങൾ ലഭ്യമാക്കാനായില്ല. വീണ്ടും ശ്രമിക്കുക അല്ലെങ്കിൽ CANCEL നൽകുക."
+    };
+  }
 }
 
 async function getAccessibleLandBoundaryStatus({
@@ -1132,9 +1365,7 @@ async function handleBoundaryStatusSelection({
     };
   }
 
-  if (!/^BM-L-\d+$/i.test(
-    normalizedLandId
-  )) {
+  if (!isValidLandId(normalizedLandId)) {
     return {
       handled: true,
       retry: true,
@@ -2211,8 +2442,11 @@ module.exports = {
   getLandBoundaryMapData,
   getLandBoundaryStatus,
   getAccessibleLandBoundaryStatus,
+  isValidLandId,
   isBoundaryStatusExit,
   formatBoundaryStatusReply,
   handleBoundaryStatusSelection,
+  formatGpsDetailsReply,
+  handleGpsDetailsSelection,
   buildPolygonGeoJSON
 };
