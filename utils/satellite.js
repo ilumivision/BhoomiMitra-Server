@@ -1243,6 +1243,12 @@ function buildObservation(
         "Scene ID"
       ),
 
+    catalogCloudCover:
+      getRemarkValue(
+        remarks,
+        "Catalog cloud cover"
+      ),
+
     imageQualityStatus:
       getRemarkValue(
         remarks,
@@ -1313,11 +1319,94 @@ function numericNdvi(value) {
 function hasReliableAcquisitionDate(
   observation
 ) {
+  const acquisitionTime = new Date(
+    observation && observation.observationDate
+  ).getTime();
+
   return Boolean(
     observation &&
     normalizeText(observation.sceneId) &&
-    observationTime(observation) > 0
+    Number.isFinite(acquisitionTime)
   );
+}
+
+function observationMeasurementSignature(
+  observation
+) {
+  const fields = [
+    "satelliteSource",
+    "ndvi",
+    "vegetationStatus",
+    "moistureStatus",
+    "waterloggingStatus",
+    "stressStatus",
+    "cloudCover",
+    "catalogCloudCover",
+    "imageQualityStatus",
+    "validPixelPercent",
+    "averageNdmi",
+    "healthSummary"
+  ];
+
+  return fields.map(function (field) {
+    const value =
+      observation && observation[field];
+
+    return String(
+      value === undefined || value === null
+        ? ""
+        : value
+    ).trim().toLowerCase();
+  }).join("|");
+}
+
+function deduplicateSatelliteObservations(
+  observations
+) {
+  const unique = [];
+  const seen = new Map();
+
+  for (const observation of
+    Array.isArray(observations)
+      ? observations
+      : []) {
+    const sceneId = normalizeText(
+      observation && observation.sceneId
+    );
+    const key = sceneId
+      ? "scene:" + normalizeText(
+          sceneId
+        )
+      : "legacy:" +
+        observationMeasurementSignature(
+          observation
+        );
+    const existing = seen.get(key);
+
+    if (existing) {
+      existing.duplicateCount += 1;
+      if (normalizeText(observation.observationId)) {
+        existing.duplicateObservationIds.push(
+          observation.observationId
+        );
+      }
+      continue;
+    }
+
+    const retained = {
+      ...observation,
+      duplicateCount: 1,
+      duplicateObservationIds:
+        normalizeText(observation.observationId)
+          ? [observation.observationId]
+          : []
+    };
+
+    seen.set(key, retained);
+    unique.push(retained);
+  }
+
+  return unique;
 }
 
 function addNdviComparisons(observations) {
@@ -1686,7 +1775,7 @@ async function getSatelliteObservationHistory({
       .trim()
       .toUpperCase();
 
-  let observations =
+  const matchingObservations =
     result.observations
       .filter(function (
         observation
@@ -1727,6 +1816,17 @@ async function getSatelliteObservationHistory({
         );
       });
 
+  const rawCount =
+    matchingObservations.length;
+  let observations =
+    deduplicateSatelliteObservations(
+      matchingObservations
+    );
+  const uniqueCount =
+    observations.length;
+  const collapsedCount =
+    rawCount - uniqueCount;
+
   observations =
     addNdviComparisons(observations);
 
@@ -1750,6 +1850,9 @@ async function getSatelliteObservationHistory({
       observations.length > 0,
     count:
       observations.length,
+    rawCount,
+    uniqueCount,
+    collapsedCount,
     observations
   };
 }
@@ -2126,14 +2229,34 @@ function formatSatelliteHistoryReply({
       : "ലഭ്യമായ രേഖകൾ: " + observations.length
   );
 
+  const collapsedCount = Number(
+    history && history.collapsedCount
+  ) || 0;
+
+  if (collapsedCount > 0) {
+    header.push(
+      english
+        ? "Duplicate-like stored rows collapsed: " +
+          collapsedCount
+        : "ആവർത്തനസാദൃശ്യമുള്ള സംഭരിച്ച രേഖകൾ ഒന്നാക്കിയതു: " +
+          collapsedCount
+    );
+  }
+
   const entries = observations.map(function (
     observation,
     index
   ) {
     const reliable =
       hasReliableAcquisitionDate(observation);
+    const displayedDateValue = reliable
+      ? observation.observationDate
+      : observation.observationDate ||
+        observation.createdAt ||
+        observation.updatedAt ||
+        "";
     const date = formatObservationDate(
-      observation.observationDate
+      displayedDateValue
     );
     const age = reliable
       ? getImageryAgeDays(
@@ -2150,6 +2273,24 @@ function formatSatelliteHistoryReply({
       observation,
       language
     );
+    const duplicateCount = Math.max(
+      1,
+      Number(observation.duplicateCount) || 1
+    );
+    const hasNdvi =
+      observation.ndvi !== undefined &&
+      observation.ndvi !== null &&
+      String(observation.ndvi).trim() !== "";
+    const hasLocalCloud =
+      observation.cloudCover !== undefined &&
+      observation.cloudCover !== null &&
+      String(observation.cloudCover).trim() !== "";
+    const hasCatalogCloud =
+      observation.catalogCloudCover !== undefined &&
+      observation.catalogCloudCover !== null &&
+      String(
+        observation.catalogCloudCover
+      ).trim() !== "";
 
     if (english) {
       return [
@@ -2160,18 +2301,43 @@ function formatSatelliteHistoryReply({
           : "Recorded date (legacy/unverified): " + date,
         age !== null ? "Imagery age: " + age + " day(s)" : "",
         stale ? "⚠️ Older imagery" : "",
-        observation.ndvi !== ""
-          ? "NDVI: " + observation.ndvi
+        hasNdvi
+          ? reliable
+            ? "NDVI: " + observation.ndvi
+            : "Stored NDVI (legacy/unverified): " +
+              observation.ndvi
           : "",
         trend ? "NDVI trend: " + trend : "",
-        observation.cloudCover !== ""
-          ? "Cloud cover: " + observation.cloudCover + "%"
+        hasLocalCloud
+          ? reliable
+            ? "Local cloud estimate: " +
+              observation.cloudCover + "%"
+            : "Stored cloud estimate (legacy/unverified): " +
+              observation.cloudCover + "%"
+          : "",
+        reliable && hasCatalogCloud
+          ? "Catalog scene cloud cover: " +
+            observation.catalogCloudCover + "%"
           : "",
         observation.imageQualityStatus
-          ? "Image quality: " + observation.imageQualityStatus
+          ? reliable
+            ? "Image quality: " +
+              observation.imageQualityStatus
+            : "Stored image quality (legacy/unverified): " +
+              observation.imageQualityStatus
           : "",
         observation.satelliteSource
-          ? "Source: " + observation.satelliteSource
+          ? reliable
+            ? "Source: " + observation.satelliteSource
+            : "Stored source label (legacy/unverified): " +
+              observation.satelliteSource
+          : "",
+        !reliable
+          ? "⚠️ No scene ID or verified acquisition timestamp is available; this is not proof of an independent satellite acquisition."
+          : "",
+        duplicateCount > 1
+          ? "Equivalent stored rows: " + duplicateCount +
+            " (shown once)"
           : ""
       ].filter(Boolean).join("\n");
     }
@@ -2184,22 +2350,49 @@ function formatSatelliteHistoryReply({
         : "രേഖപ്പെടുത്തിയ തീയതി (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " + date,
       age !== null ? "ചിത്രത്തിന്റെ പ്രായം: " + age + " ദിവസം" : "",
       stale ? "⚠️ പഴയ ചിത്രം" : "",
-      observation.ndvi !== ""
-        ? "NDVI: " + observation.ndvi
+      hasNdvi
+        ? reliable
+          ? "NDVI: " + observation.ndvi
+          : "സംഭരിച്ച NDVI (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " +
+            observation.ndvi
         : "",
       trend ? "NDVI പ്രവണത: " + trend : "",
-      observation.cloudCover !== ""
-        ? "മേഘാവരണം: " + observation.cloudCover + "%"
+      hasLocalCloud
+        ? reliable
+          ? "പ്രാദേശിക മേഘാവരണ കണക്ക്: " +
+            observation.cloudCover + "%"
+          : "സംഭരിച്ച മേഘാവരണ കണക്ക് (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " +
+            observation.cloudCover + "%"
+        : "",
+      reliable && hasCatalogCloud
+        ? "കാറ്റലോഗ് സീൻ മേഘാവരണം: " +
+          observation.catalogCloudCover + "%"
         : "",
       observation.imageQualityStatus
-        ? "ചിത്ര ഗുണനിലവാരം: " +
-          localizeSatelliteStatus(
-            observation.imageQualityStatus,
-            language
-          )
+        ? reliable
+          ? "ചിത്ര ഗുണനിലവാരം: " +
+            localizeSatelliteStatus(
+              observation.imageQualityStatus,
+              language
+            )
+          : "സംഭരിച്ച ചിത്ര ഗുണനിലവാരം (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " +
+            localizeSatelliteStatus(
+              observation.imageQualityStatus,
+              language
+            )
         : "",
       observation.satelliteSource
-        ? "ഉറവിടം: " + observation.satelliteSource
+        ? reliable
+          ? "ഉറവിടം: " + observation.satelliteSource
+          : "സംഭരിച്ച ഉറവിട ലേബൽ (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " +
+            observation.satelliteSource
+        : "",
+      !reliable
+        ? "⚠️ സീൻ ID അല്ലെങ്കിൽ സ്ഥിരീകരിച്ച ചിത്രീകരണ സമയം ലഭ്യമല്ല; ഇത് സ്വതന്ത്രമായ ഒരു സാറ്റലൈറ്റ് ചിത്രീകരണത്തിന്റെ തെളിവല്ല."
+        : "",
+      duplicateCount > 1
+        ? "സമാനമായ സംഭരിച്ച രേഖകൾ: " + duplicateCount +
+          " (ഒരിക്കൽ മാത്രം കാണിക്കുന്നു)"
         : ""
     ].filter(Boolean).join("\n");
   });
@@ -2217,6 +2410,7 @@ module.exports = {
   isValidLandId,
   isSatelliteExitCommand,
   getSatelliteDiagnosticAccess,
+  deduplicateSatelliteObservations,
   selectSuitableSentinel2Scenes,
   getSuitableSentinel2Scenes,
   getLatestSatelliteObservation,

@@ -4,6 +4,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  getLandBoundaryMapData,
   handleGpsDetailsSelection
 } = require("../utils/landBoundary");
 
@@ -168,7 +169,7 @@ function request(sheets, overrides = {}) {
   };
 }
 
-test("GPS Details accepts an owned registered Land ID and returns all saved GPS fields", async function () {
+test("GPS Details accepts an owned registered Land ID and returns all GPS fields", async function () {
   const fixture = makeSheets({
     landRows: [landRow()]
   });
@@ -183,10 +184,53 @@ test("GPS Details accepts an owned registered Land ID and returns all saved GPS 
   assert.match(result.reply, /Land: Home Farm/);
   assert.match(result.reply, /9\.2648000, 76\.7870000/);
   assert.match(result.reply, /Saved boundary points: 3/);
-  assert.match(result.reply, /Verified GPS area: 24\.75 Cent/);
+  assert.match(result.reply, /Verified GPS area: [0-9.]+ Cent/);
   assert.match(
     result.reply,
     /https:\/\/bhoomimitra\.example\/land-map\/BM-L-000003/
+  );
+});
+
+test("GPS Details derives a missing area from the same completed polygon used by Land Map", async function () {
+  const fixture = makeSheets({
+    landRows: [
+      landRow({ area: "", areaUnit: "" })
+    ]
+  });
+  const mapResult =
+    await getLandBoundaryMapData({
+      sheets: fixture.sheets,
+      spreadsheetId: "sheet-id",
+      landId: "BM-L-000003",
+      farmerId: "BM-F-000001",
+      whatsapp: "919876543210"
+    });
+  const detailsResult =
+    await handleGpsDetailsSelection(
+      request(fixture.sheets)
+    );
+
+  assert.equal(mapResult.success, true);
+  assert.equal(detailsResult.status.mappingStatus, "COMPLETED");
+  assert.equal(
+    detailsResult.status.gpsCalculatedArea,
+    mapResult.measurements.cents
+  );
+  assert.equal(
+    detailsResult.status.gpsCalculatedAreaUnit,
+    "Cent"
+  );
+  assert.match(
+    detailsResult.reply,
+    new RegExp(
+      "Verified GPS area: " +
+      mapResult.measurements.cents +
+      " Cent"
+    )
+  );
+  assert.doesNotMatch(
+    detailsResult.reply,
+    /Verified GPS area: Not available/
   );
 });
 

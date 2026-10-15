@@ -879,6 +879,43 @@ async function getLandBoundaryStatus({
   const pointCount =
     points.length;
 
+  const storedGpsCalculatedArea =
+    getValue(
+      landResult.row,
+      landResult.headerMap,
+      [
+        "GPS_Calculated_Area",
+        "GPS Calculated Area"
+      ]
+    );
+  const storedGpsCalculatedAreaUnit =
+    getValue(
+      landResult.row,
+      landResult.headerMap,
+      [
+        "GPS_Calculated_Area_Unit",
+        "GPS Calculated Area Unit"
+      ]
+    );
+  const polygonMeasurements =
+    boundaryExists
+      ? calculateLandMeasurements(
+          polygonRing.map(function (coordinate) {
+            return {
+              longitude: Number(coordinate[0]),
+              latitude: Number(coordinate[1])
+            };
+          })
+        )
+      : null;
+  const hasStoredGpsArea =
+    String(
+      storedGpsCalculatedArea === undefined ||
+      storedGpsCalculatedArea === null
+        ? ""
+        : storedGpsCalculatedArea
+    ).trim() !== "";
+
   return {
     success: true,
     landId:
@@ -918,23 +955,17 @@ async function getLandBoundaryStatus({
         ["Longitude", "GPS_Longitude", "GPS Longitude"]
       ),
     gpsCalculatedArea:
-      getValue(
-        landResult.row,
-        landResult.headerMap,
-        [
-          "GPS_Calculated_Area",
-          "GPS Calculated Area"
-        ]
-      ),
+      polygonMeasurements
+        ? polygonMeasurements.cents
+        : hasStoredGpsArea
+          ? storedGpsCalculatedArea
+          : "",
     gpsCalculatedAreaUnit:
-      getValue(
-        landResult.row,
-        landResult.headerMap,
-        [
-          "GPS_Calculated_Area_Unit",
-          "GPS Calculated Area Unit"
-        ]
-      ),
+      polygonMeasurements
+        ? "Cent"
+        : hasStoredGpsArea
+          ? storedGpsCalculatedAreaUnit
+          : "",
     mappedAt:
       getValue(
         landResult.row,

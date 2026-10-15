@@ -15,7 +15,8 @@ const {
   isStaleObservation,
   formatSatelliteFailureMessage,
   formatSatelliteHealthReply,
-  formatSatelliteHistoryReply
+  formatSatelliteHistoryReply,
+  deduplicateSatelliteObservations
 } = require("../utils/satellite");
 
 const HEADERS = [
@@ -356,6 +357,127 @@ test("satellite history compares NDVI only for reliable acquisition dates", asyn
   assert.equal(history.observations[0].ndviChange, 0.15);
   assert.equal(history.observations[0].ndviTrend, "IMPROVING");
   assert.equal(history.observations[2].ndviChange, null);
+});
+
+test("satellite history collapses repeated legacy mosaic rows without treating them as independent acquisitions", async function () {
+  const legacyRows = [
+    "2026-08-25T10:00:00.000Z",
+    "2026-08-26T10:00:00.000Z",
+    "2026-08-27T10:00:00.000Z",
+    "2026-08-29T10:00:00.000Z",
+    "2026-08-30T10:00:00.000Z"
+  ].map(function (date, index) {
+    const row = observationRow({
+      id: "SAT-LEGACY-" + index,
+      sceneId: "",
+      date,
+      ndvi: 0.517,
+      createdAt: date
+    });
+    row[11] = 0;
+    row[16] =
+      "Image quality: Moderate | legacy observation";
+    return row;
+  });
+  const fixture = makeSatelliteSheets(legacyRows);
+  const history = await getSatelliteObservationHistory({
+    sheets: fixture.sheets,
+    spreadsheetId: "sheet-id",
+    landId: "BM-L-000003",
+    farmerId: "",
+    limit: 5
+  });
+
+  assert.equal(history.rawCount, 5);
+  assert.equal(history.uniqueCount, 1);
+  assert.equal(history.collapsedCount, 4);
+  assert.equal(history.count, 1);
+  assert.equal(history.observations[0].duplicateCount, 5);
+  assert.equal(
+    history.observations[0].observationDate,
+    "2026-08-30T10:00:00.000Z"
+  );
+
+  const reply = formatSatelliteHistoryReply({
+    land: {
+      landId: "BM-L-000003",
+      farmName: "Manjadi home land"
+    },
+    history,
+    language: "English"
+  });
+
+  assert.match(reply, /Duplicate-like stored rows collapsed: 4/);
+  assert.match(reply, /Stored NDVI \(legacy\/unverified\): 0\.517/);
+  assert.match(reply, /Equivalent stored rows: 5 \(shown once\)/);
+  assert.match(reply, /not proof of an independent satellite acquisition/i);
+  assert.doesNotMatch(reply, /Acquisition date: 2026-08/);
+});
+
+test("history deduplication uses scene identity for reliable observations and preserves distinct legacy measurements", function () {
+  const reliable = {
+    observationId: "SAT-NEW-1",
+    observationDate: "2026-10-10T05:30:00.000Z",
+    sceneId: "S2-SCENE-A",
+    ndvi: 0.55
+  };
+  const rows = deduplicateSatelliteObservations([
+    reliable,
+    { ...reliable, observationId: "SAT-NEW-2", ndvi: 0.56 },
+    {
+      observationId: "SAT-LEGACY-1",
+      observationDate: "2026-08-30T10:00:00.000Z",
+      sceneId: "",
+      satelliteSource: "Sentinel-2 L2A",
+      ndvi: 0.517,
+      cloudCover: 0,
+      imageQualityStatus: "Moderate"
+    },
+    {
+      observationId: "SAT-LEGACY-2",
+      observationDate: "2026-08-29T10:00:00.000Z",
+      sceneId: "",
+      satelliteSource: "Sentinel-2 L2A",
+      ndvi: 0.518,
+      cloudCover: 0,
+      imageQualityStatus: "Moderate"
+    }
+  ]);
+
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0].duplicateCount, 2);
+  assert.equal(rows[1].duplicateCount, 1);
+  assert.equal(rows[2].duplicateCount, 1);
+});
+
+test("processing timestamps cannot make a missing acquisition date reliable", function () {
+  const reply = formatSatelliteHistoryReply({
+    land: {
+      landId: "BM-L-000003",
+      farmName: "Manjadi home land"
+    },
+    history: {
+      observations: [
+        {
+          observationDate: "",
+          createdAt: "2026-08-30T10:00:00.000Z",
+          sceneId: "S2-WITHOUT-ACQUISITION-DATE",
+          ndvi: 0.517,
+          cloudCover: 0,
+          imageQualityStatus: "Moderate",
+          satelliteSource: "Sentinel-2 L2A"
+        }
+      ]
+    },
+    language: "English"
+  });
+
+  assert.match(
+    reply,
+    /Recorded date \(legacy\/unverified\): 2026-08-30/
+  );
+  assert.doesNotMatch(reply, /Acquisition date:/);
+  assert.match(reply, /Stored NDVI \(legacy\/unverified\)/);
 });
 
 test("stale imagery and live failures are disclosed without presenting stored data as current", function () {
