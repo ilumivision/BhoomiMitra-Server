@@ -1009,30 +1009,6 @@ function formatGpsDetailsReply(
       "/land-map/" +
       encodeURIComponent(status.landId)
     : "";
-  const registeredCoordinate = formatCoordinate(
-    status.registeredLatitude,
-    status.registeredLongitude
-  );
-  const points = Array.isArray(status.points)
-    ? status.points
-    : [];
-  const pointLines = points.map(function (
-    point,
-    index
-  ) {
-    const coordinate = formatCoordinate(
-      point && point.latitude,
-      point && point.longitude
-    );
-
-    if (isEnglish) {
-      return "Point " + (index + 1) + ": " + coordinate;
-    }
-
-    return "പോയിന്റ് " + (index + 1) + ": " + coordinate;
-  }).filter(function (line) {
-    return !line.endsWith(": ");
-  });
   const area = String(
     status.gpsCalculatedArea || ""
   ).trim();
@@ -1042,24 +1018,20 @@ function formatGpsDetailsReply(
 
   if (isEnglish) {
     return [
-      "📍 Land GPS Details",
+      "📍 Land GPS Summary",
       "",
-      "Land ID: " + status.landId,
       status.farmName ? "Land: " + status.farmName : "",
-      registeredCoordinate
-        ? "Registered GPS coordinates: " + registeredCoordinate
-        : "Registered GPS coordinates: Not available",
-      "Saved boundary points: " + status.pointCount,
-      ...pointLines,
+      "Land ID: " + status.landId,
       area
-        ? "Verified GPS area: " + [area, areaUnit].filter(Boolean).join(" ")
-        : "Verified GPS area: Not available",
-      "Boundary status: " +
+        ? "Verified area: " + [area, areaUnit].filter(Boolean).join(" ")
+        : "Verified area: Not available",
+      "Boundary: " +
         (completed
           ? "Completed"
           : status.mappingStatus === "IN_PROGRESS"
             ? "Incomplete"
             : "Not started"),
+      "Boundary points saved: " + status.pointCount,
       !completed && status.pointCount > 0
         ? "⚠️ The saved boundary is incomplete."
         : "",
@@ -1071,24 +1043,20 @@ function formatGpsDetailsReply(
   }
 
   return [
-    "📍 ഭൂമിയുടെ GPS വിവരങ്ങൾ",
+    "📍 ഭൂമിയുടെ GPS സംഗ്രഹം",
     "",
-    "ഭൂമി ID: " + status.landId,
     status.farmName ? "ഭൂമി: " + status.farmName : "",
-    registeredCoordinate
-      ? "രജിസ്റ്റർ ചെയ്ത GPS കോർഡിനേറ്റുകൾ: " + registeredCoordinate
-      : "രജിസ്റ്റർ ചെയ്ത GPS കോർഡിനേറ്റുകൾ: ലഭ്യമല്ല",
-    "സംഭരിച്ച അതിർത്തി പോയിന്റുകൾ: " + status.pointCount,
-    ...pointLines,
+    "ഭൂമി ID: " + status.landId,
     area
-      ? "സ്ഥിരീകരിച്ച GPS വിസ്തീർണ്ണം: " + [area, areaUnit].filter(Boolean).join(" ")
-      : "സ്ഥിരീകരിച്ച GPS വിസ്തീർണ്ണം: ലഭ്യമല്ല",
-    "അതിർത്തി നില: " +
+      ? "സ്ഥിരീകരിച്ച വിസ്തീർണ്ണം: " + [area, areaUnit].filter(Boolean).join(" ")
+      : "സ്ഥിരീകരിച്ച വിസ്തീർണ്ണം: ലഭ്യമല്ല",
+    "അതിർത്തി: " +
       (completed
         ? "പൂർത്തിയായി"
         : status.mappingStatus === "IN_PROGRESS"
           ? "പൂർത്തിയായിട്ടില്ല"
           : "ആരംഭിച്ചിട്ടില്ല"),
+    "സംഭരിച്ച അതിർത്തി പോയിന്റുകൾ: " + status.pointCount,
     !completed && status.pointCount > 0
       ? "⚠️ സംഭരിച്ച അതിർത്തി അപൂർണ്ണമാണ്."
       : "",

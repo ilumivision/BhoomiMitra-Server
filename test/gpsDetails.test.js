@@ -180,11 +180,15 @@ test("GPS Details accepts an owned registered Land ID and returns all GPS fields
   assert.equal(result.handled, true);
   assert.equal(result.returnToMenu, true);
   assert.equal(result.status.accessType, "OWNER");
+  assert.equal(result.status.points.length, 3);
+  assert.match(result.reply, /Land GPS Summary/);
   assert.match(result.reply, /Land ID: BM-L-000003/);
   assert.match(result.reply, /Land: Home Farm/);
-  assert.match(result.reply, /9\.2648000, 76\.7870000/);
-  assert.match(result.reply, /Saved boundary points: 3/);
-  assert.match(result.reply, /Verified GPS area: [0-9.]+ Cent/);
+  assert.match(result.reply, /Boundary points saved: 3/);
+  assert.match(result.reply, /Verified area: [0-9.]+ Cent/);
+  assert.match(result.reply, /Boundary: Completed/);
+  assert.doesNotMatch(result.reply, /9\.2648000, 76\.7870000/);
+  assert.doesNotMatch(result.reply, /Point 1:/);
   assert.match(
     result.reply,
     /https:\/\/bhoomimitra\.example\/land-map\/BM-L-000003/
@@ -223,14 +227,14 @@ test("GPS Details derives a missing area from the same completed polygon used by
   assert.match(
     detailsResult.reply,
     new RegExp(
-      "Verified GPS area: " +
+      "Verified area: " +
       mapResult.measurements.cents +
       " Cent"
     )
   );
   assert.doesNotMatch(
     detailsResult.reply,
-    /Verified GPS area: Not available/
+    /Verified area: Not available/
   );
 });
 
@@ -253,7 +257,7 @@ test("authorized VIEW user can retrieve GPS details", async function () {
 
   assert.equal(result.status.accessType, "AUTHORIZED");
   assert.equal(result.status.accessLevel, "VIEW");
-  assert.match(result.reply, /Land GPS Details/);
+  assert.match(result.reply, /Land GPS Summary/);
 });
 
 test("unauthorized GPS Details access is denied", async function () {
@@ -310,7 +314,7 @@ test("Malayalam GPS Details response follows the saved language", async function
     request(fixture.sheets, { language: "Malayalam" })
   );
 
-  assert.match(result.reply, /ഭൂമിയുടെ GPS വിവരങ്ങൾ/);
+  assert.match(result.reply, /ഭൂമിയുടെ GPS സംഗ്രഹം/);
   assert.match(result.reply, /സംഭരിച്ച അതിർത്തി പോയിന്റുകൾ/);
 });
 

@@ -2071,6 +2071,102 @@ function formatSatelliteFailureMessage(
   ].filter(Boolean).join("\n");
 }
 
+function simpleNdviInterpretation(value, language) {
+  const ndvi = numericNdvi(value);
+
+  if (ndvi === null) {
+    return "";
+  }
+
+  if (isEnglishLanguage(language)) {
+    if (ndvi < 0.2) {
+      return "Very low vegetation / bare or severely stressed";
+    }
+    if (ndvi < 0.4) {
+      return "Low vegetation / possible stress";
+    }
+    if (ndvi < 0.6) {
+      return "Moderate vegetation";
+    }
+    if (ndvi < 0.8) {
+      return "Good vegetation";
+    }
+    return "Very dense vegetation";
+  }
+
+  if (ndvi < 0.2) {
+    return "വളരെ കുറഞ്ഞ സസ്യവളർച്ച / തുറന്ന മണ്ണ് അല്ലെങ്കിൽ കടുത്ത സമ്മർദ്ദം";
+  }
+  if (ndvi < 0.4) {
+    return "കുറഞ്ഞ സസ്യവളർച്ച / സമ്മർദ്ദ സാധ്യത";
+  }
+  if (ndvi < 0.6) {
+    return "മിതമായ സസ്യവളർച്ച";
+  }
+  if (ndvi < 0.8) {
+    return "നല്ല സസ്യവളർച്ച";
+  }
+  return "വളരെ സാന്ദ്രമായ സസ്യവളർച്ച";
+}
+
+function simpleFarmerAdvice(value, language) {
+  const ndvi = numericNdvi(value);
+  const english = isEnglishLanguage(language);
+
+  if (ndvi === null) {
+    return english
+      ? "Observe the crop directly in the field before taking action."
+      : "നടപടി സ്വീകരിക്കുന്നതിന് മുമ്പ് വിള നേരിട്ട് വയലിൽ പരിശോധിക്കുക.";
+  }
+
+  if (ndvi < 0.2) {
+    return english
+      ? "Check the field for bare patches, crop establishment, water availability, or severe stress."
+      : "തുറന്ന ഭാഗങ്ങൾ, വിളയുടെ വളർച്ച, ജലലഭ്യത, അല്ലെങ്കിൽ കടുത്ത സമ്മർദ്ദം എന്നിവ വയലിൽ പരിശോധിക്കുക.";
+  }
+  if (ndvi < 0.4) {
+    return english
+      ? "Inspect the field for moisture or crop stress and monitor changes."
+      : "ഈർപ്പം അല്ലെങ്കിൽ വിള സമ്മർദ്ദം വയലിൽ പരിശോധിച്ച് മാറ്റങ്ങൾ നിരീക്ഷിക്കുക.";
+  }
+  if (ndvi < 0.6) {
+    return english
+      ? "Vegetation appears moderate; continue normal field monitoring."
+      : "സസ്യവളർച്ച മിതമാണ്; സാധാരണ വയൽ നിരീക്ഷണം തുടരുക.";
+  }
+  if (ndvi < 0.8) {
+    return english
+      ? "Vegetation appears good; continue regular crop care and field checks."
+      : "സസ്യവളർച്ച നല്ലതാണ്; പതിവ് വിളപരിചരണവും വയൽ പരിശോധനയും തുടരുക.";
+  }
+
+  return english
+    ? "Vegetation is very dense; check field conditions and continue regular monitoring."
+    : "സസ്യവളർച്ച വളരെ സാന്ദ്രമാണ്; വയലിലെ സ്ഥിതി പരിശോധിച്ച് പതിവ് നിരീക്ഷണം തുടരുക.";
+}
+
+function simpleCloudInterference(value, language) {
+  const cloud = Number(value);
+
+  if (!Number.isFinite(cloud)) {
+    return "";
+  }
+
+  const label = isEnglishLanguage(language)
+    ? cloud <= 10
+      ? "Low"
+      : cloud <= 30
+        ? "Moderate"
+        : "High"
+    : cloud <= 10
+      ? "കുറവ്"
+      : cloud <= 30
+        ? "മിതം"
+        : "കൂടുതൽ";
+
+  return label + " (" + cloud + "%)";
+}
+
 function formatSatelliteHealthReply({
   land,
   result,
@@ -2082,79 +2178,88 @@ function formatSatelliteHealthReply({
   const date = formatObservationDate(
     result.observationDate
   );
-  const age = getImageryAgeDays(
+  const reliable =
+    hasReliableAcquisitionDate(result);
+  const stale = reliable && isStaleObservation(
     result.observationDate,
     now
   );
-  const stale = isStaleObservation(
-    result.observationDate,
-    now
-  );
-  const localized = function (value) {
-    return localizeSatelliteStatus(
-      value,
+  const interpretation =
+    simpleNdviInterpretation(
+      result.averageNdvi,
+      language
+    ) || localizeSatelliteStatus(
+      result.vegetationStatus,
       language
     );
-  };
+  const cloudInterference =
+    simpleCloudInterference(
+      result.cloudCover,
+      language
+    );
+  const advice = simpleFarmerAdvice(
+    result.averageNdvi,
+    language
+  );
 
   if (english) {
     return [
-      "🛰️ Satellite Crop Health",
+      "🛰️ Satellite Crop Status",
       "",
-      "Land ID: " + land.landId,
       land.farmName ? "Land: " + land.farmName : "",
-      "Observation date: " + date,
-      age !== null ? "Imagery age: " + age + " day(s)" : "",
+      "Land ID: " + land.landId,
+      date ? "Latest observation: " + date : "Latest observation: Not available",
+      interpretation
+        ? "Vegetation status: " + interpretation
+        : "Vegetation status: Not available",
+      result.averageNdvi !== undefined &&
+      result.averageNdvi !== null
+        ? "NDVI: " + result.averageNdvi
+        : "",
+      cloudInterference
+        ? "Cloud interference: " + cloudInterference
+        : "",
       stale
-        ? "⚠️ Older imagery: use this result cautiously."
-        : "✅ Recent imagery",
-      "Source: " + (result.satelliteSource || "Sentinel-2 L2A"),
-      result.sceneId ? "Scene ID: " + result.sceneId : "",
+        ? "⚠️ This imagery is older than 14 days."
+        : "",
+      !reliable
+        ? "ℹ️ This satellite reading is from stored historical data and is not independently verified."
+        : "",
       "",
-      "NDVI: " + result.averageNdvi,
-      "Vegetation: " + localized(result.vegetationStatus),
-      "Moisture: " + localized(result.moistureStatus),
-      "Waterlogging: " + localized(result.waterloggingStatus),
-      "Stress: " + localized(result.stressStatus),
-      "Cloud cover: " + result.cloudCover + "%",
-      "Valid pixels: " + result.validPixelPercent + "%",
-      "Image quality: " + localized(result.imageQualityStatus),
-      "Summary: " + localized(result.healthSummary),
-      duplicate
-        ? "This scene was already stored; no duplicate record was created."
-        : "Observation saved to satellite history.",
+      "Farmer advice:",
+      advice,
       "",
-      "Advisory only: satellite indices support field monitoring and are not a crop diagnosis."
+      "Note: Satellite information is a supporting indicator and should be combined with field observation."
     ].filter(Boolean).join("\n");
   }
 
   return [
-    "🛰️ സാറ്റലൈറ്റ് വിള ആരോഗ്യ നില",
+    "🛰️ സാറ്റലൈറ്റ് വിള നില",
     "",
-    "ഭൂമി ID: " + land.landId,
     land.farmName ? "ഭൂമി: " + land.farmName : "",
-    "നിരീക്ഷണ തീയതി: " + date,
-    age !== null ? "ചിത്രത്തിന്റെ പ്രായം: " + age + " ദിവസം" : "",
+    "ഭൂമി ID: " + land.landId,
+    date ? "ഏറ്റവും പുതിയ നിരീക്ഷണം: " + date : "ഏറ്റവും പുതിയ നിരീക്ഷണം: ലഭ്യമല്ല",
+    interpretation
+      ? "സസ്യവളർച്ചയുടെ നില: " + interpretation
+      : "സസ്യവളർച്ചയുടെ നില: ലഭ്യമല്ല",
+    result.averageNdvi !== undefined &&
+    result.averageNdvi !== null
+      ? "NDVI: " + result.averageNdvi
+      : "",
+    cloudInterference
+      ? "മേഘ തടസ്സം: " + cloudInterference
+      : "",
     stale
-      ? "⚠️ പഴയ ചിത്രം: ഈ ഫലം ജാഗ്രതയോടെ ഉപയോഗിക്കുക."
-      : "✅ പുതിയ ചിത്രം",
-    "ഉറവിടം: " + (result.satelliteSource || "Sentinel-2 L2A"),
-    result.sceneId ? "സീൻ ID: " + result.sceneId : "",
+      ? "⚠️ ഈ ചിത്രം 14 ദിവസത്തിൽ കൂടുതൽ പഴക്കമുള്ളതാണ്."
+      : "",
+    !reliable
+      ? "ℹ️ ഈ സാറ്റലൈറ്റ് വിവരം സംഭരിച്ച പഴയ ഡാറ്റയിൽ നിന്നുള്ളതാണ്; ഇത് സ്വതന്ത്രമായി സ്ഥിരീകരിച്ചതല്ല."
+      : "",
     "",
-    "NDVI: " + result.averageNdvi,
-    "സസ്യവളർച്ച: " + localized(result.vegetationStatus),
-    "ഈർപ്പം: " + localized(result.moistureStatus),
-    "വെള്ളക്കെട്ട്: " + localized(result.waterloggingStatus),
-    "സമ്മർദ്ദം: " + localized(result.stressStatus),
-    "മേഘാവരണം: " + result.cloudCover + "%",
-    "സാധുവായ പിക്സലുകൾ: " + result.validPixelPercent + "%",
-    "ചിത്ര ഗുണനിലവാരം: " + localized(result.imageQualityStatus),
-    "സംഗ്രഹം: " + localized(result.healthSummary),
-    duplicate
-      ? "ഈ സീൻ മുമ്പേ സംഭരിച്ചിട്ടുണ്ട്; പകർപ്പ് രേഖ സൃഷ്ടിച്ചില്ല."
-      : "നിരീക്ഷണം സാറ്റലൈറ്റ് ചരിത്രത്തിൽ സംഭരിച്ചു.",
+    "കർഷകനുള്ള നിർദേശം:",
+    advice,
     "",
-    "ഉപദേശപരമായ വിവരം മാത്രം: സാറ്റലൈറ്റ് സൂചികകൾ കൃഷിയിട നിരീക്ഷണത്തിന് സഹായകരമാണ്; ഇത് വിള രോഗനിർണയം അല്ല."
+    "കുറിപ്പ്: സാറ്റലൈറ്റ് വിവരം ഒരു സഹായ സൂചിക മാത്രമാണ്; വയൽ നിരീക്ഷണത്തോടൊപ്പം ഇത് ഉപയോഗിക്കുക."
   ].filter(Boolean).join("\n");
 }
 
@@ -2187,6 +2292,61 @@ function formatNdviTrend(observation, language) {
     " (" + sign + observation.ndviChange + ")";
 }
 
+function formatCompactDate(value) {
+  const date = formatObservationDate(value);
+
+  if (!date) {
+    return "";
+  }
+
+  const parts = date.split("-");
+
+  return parts.length === 3
+    ? parts[2] + "-" + parts[1] + "-" + parts[0]
+    : date;
+}
+
+function summarizeHistoryTrend(observations, language) {
+  const comparable = (
+    Array.isArray(observations)
+      ? observations
+      : []
+  ).filter(function (observation) {
+    return hasReliableAcquisitionDate(observation) &&
+      numericNdvi(observation.ndvi) !== null;
+  });
+
+  if (comparable.length < 2) {
+    return "";
+  }
+
+  const latest = numericNdvi(comparable[0].ndvi);
+  const oldest = numericNdvi(
+    comparable[comparable.length - 1].ndvi
+  );
+  const change = Number(
+    (latest - oldest).toFixed(3)
+  );
+
+  if (change === 0) {
+    return "";
+  }
+
+  if (isEnglishLanguage(language)) {
+    return change > 0.03
+      ? "Improving"
+      : change < -0.03
+        ? "Declining"
+        : "Stable";
+  }
+
+  return change > 0.03
+    ? "മെച്ചപ്പെടുന്നു"
+    : change < -0.03
+      ? "കുറയുന്നു"
+      : "സ്ഥിരം";
+}
+
 function formatSatelliteHistoryReply({
   land,
   history,
@@ -2196,210 +2356,79 @@ function formatSatelliteHistoryReply({
   const english = isEnglishLanguage(language);
   const observations =
     history && Array.isArray(history.observations)
-      ? history.observations
+      ? history.observations.slice(0, 3)
       : [];
   const header = english
     ? [
-        "📊 Satellite Monitoring History",
+        "📊 Satellite History",
         "",
-        "Land ID: " + land.landId,
         land.farmName ? "Land: " + land.farmName : "",
+        "Land ID: " + land.landId,
         ""
       ]
     : [
-        "📊 സാറ്റലൈറ്റ് നിരീക്ഷണ ചരിത്രം",
+        "📊 സാറ്റലൈറ്റ് ചരിത്രം",
         "",
-        "ഭൂമി ID: " + land.landId,
         land.farmName ? "ഭൂമി: " + land.farmName : "",
+        "ഭൂമി ID: " + land.landId,
         ""
       ];
 
   if (!observations.length) {
     header.push(
       english
-        ? "No satellite observation records are available yet."
-        : "സാറ്റലൈറ്റ് നിരീക്ഷണ രേഖകൾ ഇതുവരെ ലഭ്യമല്ല."
+        ? "No satellite observations are available yet."
+        : "സാറ്റലൈറ്റ് നിരീക്ഷണങ്ങൾ ഇതുവരെ ലഭ്യമല്ല."
     );
     return header.filter(Boolean).join("\n");
   }
 
-  header.push(
-    english
-      ? "Records found: " + observations.length
-      : "ലഭ്യമായ രേഖകൾ: " + observations.length
-  );
-
-  const collapsedCount = Number(
-    history && history.collapsedCount
-  ) || 0;
-
-  if (collapsedCount > 0) {
-    header.push(
-      english
-        ? "Duplicate-like stored rows collapsed: " +
-          collapsedCount
-        : "ആവർത്തനസാദൃശ്യമുള്ള സംഭരിച്ച രേഖകൾ ഒന്നാക്കിയതു: " +
-          collapsedCount
-    );
-  }
-
-  const entries = observations.map(function (
-    observation,
-    index
-  ) {
-    const reliable =
-      hasReliableAcquisitionDate(observation);
-    const displayedDateValue = reliable
-      ? observation.observationDate
-      : observation.observationDate ||
-        observation.createdAt ||
-        observation.updatedAt ||
-        "";
-    const date = formatObservationDate(
+  const entries = observations.map(function (observation) {
+    const displayedDateValue =
+      observation.observationDate ||
+      observation.createdAt ||
+      observation.updatedAt ||
+      "";
+    const date = formatCompactDate(
       displayedDateValue
-    );
-    const age = reliable
-      ? getImageryAgeDays(
-          observation.observationDate,
-          now
-        )
-      : null;
-    const stale = reliable &&
-      isStaleObservation(
-        observation.observationDate,
-        now
-      );
-    const trend = formatNdviTrend(
-      observation,
+    ) || (english ? "Date unavailable" : "തീയതി ലഭ്യമല്ല");
+    const ndvi = numericNdvi(observation.ndvi);
+    const ndviText = ndvi === null
+      ? (english ? "NDVI unavailable" : "NDVI ലഭ്യമല്ല")
+      : String(observation.ndvi);
+    const status = simpleNdviInterpretation(
+      observation.ndvi,
       language
-    );
-    const duplicateCount = Math.max(
-      1,
-      Number(observation.duplicateCount) || 1
-    );
-    const hasNdvi =
-      observation.ndvi !== undefined &&
-      observation.ndvi !== null &&
-      String(observation.ndvi).trim() !== "";
-    const hasLocalCloud =
-      observation.cloudCover !== undefined &&
-      observation.cloudCover !== null &&
-      String(observation.cloudCover).trim() !== "";
-    const hasCatalogCloud =
-      observation.catalogCloudCover !== undefined &&
-      observation.catalogCloudCover !== null &&
-      String(
-        observation.catalogCloudCover
-      ).trim() !== "";
+    ) || (english ? "Status unavailable" : "നില ലഭ്യമല്ല");
 
-    if (english) {
-      return [
-        "",
-        "Observation " + (index + 1),
-        reliable
-          ? "Acquisition date: " + date
-          : "Recorded date (legacy/unverified): " + date,
-        age !== null ? "Imagery age: " + age + " day(s)" : "",
-        stale ? "⚠️ Older imagery" : "",
-        hasNdvi
-          ? reliable
-            ? "NDVI: " + observation.ndvi
-            : "Stored NDVI (legacy/unverified): " +
-              observation.ndvi
-          : "",
-        trend ? "NDVI trend: " + trend : "",
-        hasLocalCloud
-          ? reliable
-            ? "Local cloud estimate: " +
-              observation.cloudCover + "%"
-            : "Stored cloud estimate (legacy/unverified): " +
-              observation.cloudCover + "%"
-          : "",
-        reliable && hasCatalogCloud
-          ? "Catalog scene cloud cover: " +
-            observation.catalogCloudCover + "%"
-          : "",
-        observation.imageQualityStatus
-          ? reliable
-            ? "Image quality: " +
-              observation.imageQualityStatus
-            : "Stored image quality (legacy/unverified): " +
-              observation.imageQualityStatus
-          : "",
-        observation.satelliteSource
-          ? reliable
-            ? "Source: " + observation.satelliteSource
-            : "Stored source label (legacy/unverified): " +
-              observation.satelliteSource
-          : "",
-        !reliable
-          ? "⚠️ No scene ID or verified acquisition timestamp is available; this is not proof of an independent satellite acquisition."
-          : "",
-        duplicateCount > 1
-          ? "Equivalent stored rows: " + duplicateCount +
-            " (shown once)"
-          : ""
-      ].filter(Boolean).join("\n");
-    }
-
-    return [
-      "",
-      "നിരീക്ഷണം " + (index + 1),
-      reliable
-        ? "ചിത്രീകരണ തീയതി: " + date
-        : "രേഖപ്പെടുത്തിയ തീയതി (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " + date,
-      age !== null ? "ചിത്രത്തിന്റെ പ്രായം: " + age + " ദിവസം" : "",
-      stale ? "⚠️ പഴയ ചിത്രം" : "",
-      hasNdvi
-        ? reliable
-          ? "NDVI: " + observation.ndvi
-          : "സംഭരിച്ച NDVI (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " +
-            observation.ndvi
-        : "",
-      trend ? "NDVI പ്രവണത: " + trend : "",
-      hasLocalCloud
-        ? reliable
-          ? "പ്രാദേശിക മേഘാവരണ കണക്ക്: " +
-            observation.cloudCover + "%"
-          : "സംഭരിച്ച മേഘാവരണ കണക്ക് (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " +
-            observation.cloudCover + "%"
-        : "",
-      reliable && hasCatalogCloud
-        ? "കാറ്റലോഗ് സീൻ മേഘാവരണം: " +
-          observation.catalogCloudCover + "%"
-        : "",
-      observation.imageQualityStatus
-        ? reliable
-          ? "ചിത്ര ഗുണനിലവാരം: " +
-            localizeSatelliteStatus(
-              observation.imageQualityStatus,
-              language
-            )
-          : "സംഭരിച്ച ചിത്ര ഗുണനിലവാരം (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " +
-            localizeSatelliteStatus(
-              observation.imageQualityStatus,
-              language
-            )
-        : "",
-      observation.satelliteSource
-        ? reliable
-          ? "ഉറവിടം: " + observation.satelliteSource
-          : "സംഭരിച്ച ഉറവിട ലേബൽ (പഴയത്/സ്ഥിരീകരിക്കാത്തത്): " +
-            observation.satelliteSource
-        : "",
-      !reliable
-        ? "⚠️ സീൻ ID അല്ലെങ്കിൽ സ്ഥിരീകരിച്ച ചിത്രീകരണ സമയം ലഭ്യമല്ല; ഇത് സ്വതന്ത്രമായ ഒരു സാറ്റലൈറ്റ് ചിത്രീകരണത്തിന്റെ തെളിവല്ല."
-        : "",
-      duplicateCount > 1
-        ? "സമാനമായ സംഭരിച്ച രേഖകൾ: " + duplicateCount +
-          " (ഒരിക്കൽ മാത്രം കാണിക്കുന്നു)"
-        : ""
-    ].filter(Boolean).join("\n");
+    return date + " — " + ndviText + " — " + status;
   });
+  const trend = summarizeHistoryTrend(
+    observations,
+    language
+  );
+  const hasLegacyObservation =
+    observations.some(function (observation) {
+      return !hasReliableAcquisitionDate(observation);
+    });
 
-  return header.concat(entries)
-    .filter(Boolean)
-    .join("\n");
+  return header.concat(
+    entries,
+    [
+      trend
+        ? (english ? "Trend: " : "പ്രവണത: ") + trend
+        : "",
+      hasLegacyObservation
+        ? english
+          ? "ℹ️ This satellite reading is from stored historical data and is not independently verified."
+          : "ℹ️ ഈ സാറ്റലൈറ്റ് വിവരം സംഭരിച്ച പഴയ ഡാറ്റയിൽ നിന്നുള്ളതാണ്; ഇത് സ്വതന്ത്രമായി സ്ഥിരീകരിച്ചതല്ല."
+        : "",
+      "",
+      english
+        ? "Note: Satellite information is a supporting indicator and should be combined with field observation."
+        : "കുറിപ്പ്: സാറ്റലൈറ്റ് വിവരം ഒരു സഹായ സൂചിക മാത്രമാണ്; വയൽ നിരീക്ഷണത്തോടൊപ്പം ഇത് ഉപയോഗിക്കുക."
+    ]
+  ).filter(Boolean).join("\n");
 }
 
 module.exports = {

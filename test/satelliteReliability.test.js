@@ -407,11 +407,14 @@ test("satellite history collapses repeated legacy mosaic rows without treating t
     language: "English"
   });
 
-  assert.match(reply, /Duplicate-like stored rows collapsed: 4/);
-  assert.match(reply, /Stored NDVI \(legacy\/unverified\): 0\.517/);
-  assert.match(reply, /Equivalent stored rows: 5 \(shown once\)/);
-  assert.match(reply, /not proof of an independent satellite acquisition/i);
-  assert.doesNotMatch(reply, /Acquisition date: 2026-08/);
+  assert.match(
+    reply,
+    /30-08-2026 — 0\.517 — Moderate vegetation/
+  );
+  assert.match(reply, /stored historical data/i);
+  assert.doesNotMatch(reply, /Duplicate-like/);
+  assert.doesNotMatch(reply, /Equivalent stored rows/);
+  assert.doesNotMatch(reply, /Scene ID/);
 });
 
 test("history deduplication uses scene identity for reliable observations and preserves distinct legacy measurements", function () {
@@ -472,12 +475,9 @@ test("processing timestamps cannot make a missing acquisition date reliable", fu
     language: "English"
   });
 
-  assert.match(
-    reply,
-    /Recorded date \(legacy\/unverified\): 2026-08-30/
-  );
+  assert.match(reply, /30-08-2026 — 0\.517 — Moderate vegetation/);
+  assert.match(reply, /stored historical data/i);
   assert.doesNotMatch(reply, /Acquisition date:/);
-  assert.match(reply, /Stored NDVI \(legacy\/unverified\)/);
 });
 
 test("stale imagery and live failures are disclosed without presenting stored data as current", function () {
@@ -498,7 +498,7 @@ test("stale imagery and live failures are disclosed without presenting stored da
   assert.match(failure, /No older stored observation has been shown as current/i);
 });
 
-test("English and Malayalam health replies show acquisition age, quality and advisory wording", function () {
+test("English and Malayalam health replies show a simple farmer summary and cautious advice", function () {
   const input = {
     land: { landId: "BM-L-000003", farmName: "Home Farm" },
     result: {
@@ -526,37 +526,81 @@ test("English and Malayalam health replies show acquisition age, quality and adv
     language: "Malayalam"
   });
 
-  assert.match(english, /Observation date: 2026-09-01/);
-  assert.match(english, /Imagery age: 44 day/);
-  assert.match(english, /Older imagery/);
-  assert.match(english, /Image quality: Good/);
-  assert.match(english, /not a crop diagnosis/i);
-  assert.match(malayalam, /നിരീക്ഷണ തീയതി: 2026-09-01/);
-  assert.match(malayalam, /ചിത്രത്തിന്റെ പ്രായം: 44 ദിവസം/);
-  assert.match(malayalam, /ഉപദേശപരമായ വിവരം മാത്രം/);
+  assert.match(english, /Satellite Crop Status/);
+  assert.match(english, /Latest observation: 2026-09-01/);
+  assert.match(english, /Vegetation status: Good vegetation/);
+  assert.match(english, /NDVI: 0\.61/);
+  assert.match(english, /Cloud interference: Low \(3%\)/);
+  assert.match(english, /Farmer advice:/);
+  assert.match(english, /supporting indicator/i);
+  assert.doesNotMatch(english, /Scene ID|Valid pixels|Source:/);
+  assert.match(malayalam, /സാറ്റലൈറ്റ് വിള നില/);
+  assert.match(malayalam, /ഏറ്റവും പുതിയ നിരീക്ഷണം: 2026-09-01/);
+  assert.match(malayalam, /സസ്യവളർച്ചയുടെ നില: നല്ല സസ്യവളർച്ച/);
+  assert.match(malayalam, /കർഷകനുള്ള നിർദേശം:/);
+  assert.match(malayalam, /സഹായ സൂചിക/);
 });
 
-test("history reply labels legacy dates as unverified and includes reliable NDVI trend", function () {
+test("farmer summary uses the cautious NDVI interpretation bands", function () {
+  const cases = [
+    [0.19, "Very low vegetation / bare or severely stressed"],
+    [0.2, "Low vegetation / possible stress"],
+    [0.39, "Low vegetation / possible stress"],
+    [0.4, "Moderate vegetation"],
+    [0.59, "Moderate vegetation"],
+    [0.6, "Good vegetation"],
+    [0.79, "Good vegetation"],
+    [0.8, "Very dense vegetation"]
+  ];
+
+  for (const [ndvi, expected] of cases) {
+    const reply = formatSatelliteHealthReply({
+      land: {
+        landId: "BM-L-000003",
+        farmName: "Home Farm"
+      },
+      result: {
+        observationDate: "2026-10-10T00:00:00.000Z",
+        sceneId: "S2-" + ndvi,
+        averageNdvi: ndvi,
+        cloudCover: 5
+      },
+      language: "English",
+      now: new Date("2026-10-15T00:00:00.000Z")
+    });
+
+    assert.match(
+      reply,
+      new RegExp("Vegetation status: " + expected.replace("/", "\\/"))
+    );
+    assert.doesNotMatch(reply, /disease/i);
+  }
+});
+
+test("history reply shows at most three compact records and a supported trend", function () {
   const reply = formatSatelliteHistoryReply({
     land: { landId: "BM-L-000003", farmName: "Home Farm" },
     history: {
       observations: [
         {
-          observationDate: "2026-10-10T00:00:00.000Z",
+          observationDate: "2026-10-12T00:00:00.000Z",
           sceneId: "S2-NEW",
-          ndvi: 0.55,
-          ndviChange: 0.15,
-          ndviTrend: "IMPROVING",
-          cloudCover: 5,
-          imageQualityStatus: "Good",
-          satelliteSource: "Sentinel-2 L2A"
+          ndvi: 0.65
         },
         {
-          observationDate: "2026-09-01T00:00:00.000Z",
-          sceneId: "",
-          ndvi: 0.8,
-          ndviChange: null,
-          ndviTrend: ""
+          observationDate: "2026-10-10T00:00:00.000Z",
+          sceneId: "S2-MIDDLE",
+          ndvi: 0.55
+        },
+        {
+          observationDate: "2026-10-08T00:00:00.000Z",
+          sceneId: "S2-OLD",
+          ndvi: 0.45
+        },
+        {
+          observationDate: "2026-10-06T00:00:00.000Z",
+          sceneId: "S2-OLDER",
+          ndvi: 0.35
         }
       ]
     },
@@ -564,6 +608,36 @@ test("history reply labels legacy dates as unverified and includes reliable NDVI
     now: new Date("2026-10-15T00:00:00.000Z")
   });
 
-  assert.match(reply, /NDVI trend: Improving \(\+0\.15\)/);
-  assert.match(reply, /legacy\/unverified/);
+  assert.match(reply, /12-10-2026 — 0\.65 — Good vegetation/);
+  assert.match(reply, /10-10-2026 — 0\.55 — Moderate vegetation/);
+  assert.match(reply, /08-10-2026 — 0\.45 — Moderate vegetation/);
+  assert.doesNotMatch(reply, /06-10-2026/);
+  assert.match(reply, /Trend: Improving/);
+  assert.doesNotMatch(reply, /Scene ID|Source:|Image quality/);
+});
+
+test("history does not invent a trend for identical NDVI values", function () {
+  const reply = formatSatelliteHistoryReply({
+    land: {
+      landId: "BM-L-000003",
+      farmName: "Home Farm"
+    },
+    history: {
+      observations: [
+        {
+          observationDate: "2026-10-12T00:00:00.000Z",
+          sceneId: "S2-A",
+          ndvi: 0.52
+        },
+        {
+          observationDate: "2026-10-10T00:00:00.000Z",
+          sceneId: "S2-B",
+          ndvi: 0.52
+        }
+      ]
+    },
+    language: "English"
+  });
+
+  assert.doesNotMatch(reply, /Trend:/);
 });
