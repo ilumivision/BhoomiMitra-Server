@@ -260,91 +260,292 @@ function getProblemCategory(problemText) {
   return "General Agriculture";
 }
 
-function scoreExpert(expert, caseData) {
-  let score = 0;
+const MIN_EXPERT_SEMANTIC_SCORE = 60;
+const EXPERT_SEMANTIC_TIER = Object.freeze({
+  NONE: 0,
+  CROP: 1,
+  DOMAIN: 2,
+  SUBJECT_SPECIALIZATION: 3
+});
+const GENERIC_EXPERT_TERMS = new Set([
+  "advice",
+  "agriculture",
+  "agricultural",
+  "crop",
+  "expert",
+  "farm",
+  "farming",
+  "general",
+  "help",
+  "management",
+  "plant",
+  "production",
+  "service",
+  "services"
+]);
 
-  function normalize(value) {
-    return lower(value)
-      .replace(/\bgoats\b/g, "goat")
-      .replace(/\bcows\b/g, "cow")
-      .replace(/\bchickens\b/g, "chicken")
-      .replace(/\bducks\b/g, "duck")
-      .replace(/\bfishes\b/g, "fish")
-      .replace(/[^a-z0-9\u0D00-\u0D7F\s]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+function normalizeExpertRoutingText(value) {
+  let normalized = lower(value)
+    .normalize("NFKC")
+    .replace(/\bgoats\b/g, "goat")
+    .replace(/\bcows\b/g, "cow")
+    .replace(/\bchickens\b/g, "chicken")
+    .replace(/\bducks\b/g, "duck")
+    .replace(/\bfishes\b/g, "fish")
+    .replace(/\bmycorrhiza(?:e|l)?\b/g, "mycorrhiza")
+    .replace(/\bbiofertilisers?\b/g, "biofertilizer")
+    .replace(/\bbiofertilizers?\b/g, "biofertilizer")
+    .replace(/[^a-z0-9\u0D00-\u0D7F\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (/\b(?:amf|mycorrhiza)\b/.test(normalized)) {
+    normalized += " arbuscular mycorrhiza fungi amf";
   }
 
-  const farmerText = normalize([
-    caseData.crop,
-    caseData.problem,
-    caseData.problemCategory,
-    caseData.caseSummary
-  ].join(" "));
-  const expertGroup = normalize(expert.expertGroup);
-  const specializationKeywords = clean(expert.specialisation)
-    .split(/[,;|/]+/)
-    .map(normalize)
-    .filter(Boolean);
+  return normalized.replace(/\s+/g, " ").trim();
+}
 
-  expertGroup
-    .split(" ")
-    .filter(function (word) {
-      return word.length >= 4;
-    })
-    .forEach(function (word) {
-      if (farmerText.includes(word)) {
-        score += 20;
-      }
-    });
+function uniqueRoutingPhrases(value) {
+  return Array.from(new Set(
+    clean(value)
+      .split(/[,;|/]+/)
+      .map(normalizeExpertRoutingText)
+      .filter(Boolean)
+  ));
+}
 
-  specializationKeywords.forEach(function (keyword) {
-    if (farmerText.includes(keyword)) {
-      score += 60;
+function meaningfulRoutingTokens(value) {
+  return Array.from(new Set(
+    normalizeExpertRoutingText(value)
+      .split(" ")
+      .filter(function (word) {
+        return (
+          word.length >= 3 &&
+          !GENERIC_EXPERT_TERMS.has(word)
+        );
+      })
+  ));
+}
+
+function includesRoutingPhrase(text, phrase) {
+  return (" " + text + " ").includes(
+    " " + phrase + " "
+  );
+}
+
+function scoreTextAgainstPhrases(
+  text,
+  phrases,
+  phraseScore,
+  tokenScore
+) {
+  if (!text) {
+    return 0;
+  }
+
+  const textTokens = new Set(
+    meaningfulRoutingTokens(text)
+  );
+  let bestScore = 0;
+  let exactPhraseMatches = 0;
+
+  phrases.forEach(function (phrase) {
+    const phraseTokens =
+      meaningfulRoutingTokens(phrase);
+
+    if (phraseTokens.length === 0) {
       return;
     }
 
-    keyword
-      .split(" ")
-      .filter(function (word) {
-        return word.length >= 3;
-      })
-      .forEach(function (word) {
-        if (farmerText.includes(word)) {
-          score += 12;
-        }
-      });
+    if (includesRoutingPhrase(text, phrase)) {
+      exactPhraseMatches += 1;
+      bestScore = Math.max(
+        bestScore,
+        phraseScore
+      );
+      return;
+    }
+
+    const overlapCount = phraseTokens.filter(
+      function (word) {
+        return textTokens.has(word);
+      }
+    ).length;
+
+    if (overlapCount > 0) {
+      bestScore = Math.max(
+        bestScore,
+        tokenScore + Math.min(
+          10,
+          (overlapCount - 1) * 5
+        )
+      );
+    }
   });
+
+  if (exactPhraseMatches > 1) {
+    bestScore += Math.min(
+      20,
+      (exactPhraseMatches - 1) * 10
+    );
+  }
+
+  return bestScore;
+}
+
+function isUsableRoutingProblem(value) {
+  const problem = clean(value);
+
+  return Boolean(
+    problem &&
+    !isEscalationOnlyMessage(problem) &&
+    !/^expert assistance requested;/i.test(problem)
+  );
+}
+
+function scoreExpertDetails(expert, caseData) {
+  const input = caseData || {};
+  const hasUsableProblem =
+    isUsableRoutingProblem(input.problem);
+  const subjectText = hasUsableProblem
+    ? normalizeExpertRoutingText([
+        input.problem,
+        input.problemCategory,
+        input.caseSummary
+      ].join(" "))
+    : "";
+  const cropText = hasUsableProblem
+    ? normalizeExpertRoutingText(input.crop)
+    : "";
+  const specializationPhrases =
+    uniqueRoutingPhrases(expert.specialisation);
+  const groupPhrases =
+    uniqueRoutingPhrases(expert.expertGroup);
+  const subjectSpecializationScore =
+    scoreTextAgainstPhrases(
+      subjectText,
+      specializationPhrases,
+      100,
+      75
+    );
+  const subjectDomainScore =
+    scoreTextAgainstPhrases(
+      subjectText,
+      groupPhrases,
+      85,
+      65
+    );
+  const cropSpecializationScore =
+    scoreTextAgainstPhrases(
+      cropText,
+      specializationPhrases,
+      60,
+      45
+    );
+  const cropDomainScore =
+    scoreTextAgainstPhrases(
+      cropText,
+      groupPhrases,
+      50,
+      35
+    );
+  const cropScore = Math.max(
+    cropSpecializationScore,
+    cropDomainScore
+  );
+  let semanticTier =
+    EXPERT_SEMANTIC_TIER.NONE;
+  let semanticScore = 0;
+
+  if (
+    subjectSpecializationScore >=
+    MIN_EXPERT_SEMANTIC_SCORE
+  ) {
+    semanticTier =
+      EXPERT_SEMANTIC_TIER.SUBJECT_SPECIALIZATION;
+    semanticScore =
+      subjectSpecializationScore;
+  } else if (
+    subjectDomainScore >=
+    MIN_EXPERT_SEMANTIC_SCORE
+  ) {
+    semanticTier =
+      EXPERT_SEMANTIC_TIER.DOMAIN;
+    semanticScore = subjectDomainScore;
+  } else if (
+    cropScore >=
+    MIN_EXPERT_SEMANTIC_SCORE
+  ) {
+    semanticTier =
+      EXPERT_SEMANTIC_TIER.CROP;
+    semanticScore = cropScore;
+  }
+  let operationalScore = 0;
 
   if (
     lower(expert.district) &&
-    lower(caseData.district) &&
-    lower(expert.district) === lower(caseData.district)
+    lower(input.district) &&
+    lower(expert.district) === lower(input.district)
   ) {
-    score += 10;
+    operationalScore += 10;
   }
 
   if (["available", "yes", "active"].includes(lower(expert.availability))) {
-    score += 10;
+    operationalScore += 10;
   }
 
   const rating = Number(expert.averageRating || 0);
   if (rating >= 4.5) {
-    score += 10;
+    operationalScore += 10;
   } else if (rating >= 4) {
-    score += 5;
+    operationalScore += 5;
   }
 
-  const openCases = Number(expert.openCases || 0);
-  if (openCases === 0) {
-    score += 10;
-  } else if (openCases <= 3) {
-    score += 5;
-  } else if (openCases > 5) {
-    score -= 10;
+  const currentConsultationCount =
+    expert.currentConsultationCount;
+  if (
+    Number.isFinite(currentConsultationCount) &&
+    currentConsultationCount >= 0
+  ) {
+    if (currentConsultationCount === 0) {
+      operationalScore += 10;
+    } else if (currentConsultationCount <= 3) {
+      operationalScore += 5;
+    } else if (currentConsultationCount > 5) {
+      operationalScore -= 10;
+    }
   }
 
-  return score;
+  return {
+    semanticTier: semanticTier,
+    semanticScore: semanticScore,
+    operationalScore: operationalScore,
+    totalScore:
+      semanticTier * 1000000 +
+      semanticScore * 100 +
+      operationalScore
+  };
+}
+
+function scoreExpert(expert, caseData) {
+  return scoreExpertDetails(
+    expert,
+    caseData
+  ).totalScore;
+}
+
+function optionalNonNegativeNumber(value) {
+  const text = clean(value);
+
+  if (!text) {
+    return null;
+  }
+
+  const number = Number(text);
+  return Number.isFinite(number) && number >= 0
+    ? number
+    : null;
 }
 
 function mapExpertRow(row) {
@@ -366,12 +567,15 @@ function mapExpertRow(row) {
     availability: clean(row[25]),
     autoRoute: clean(row[26]),
     status: clean(row[27]),
+    verificationStatus: clean(row[30]),
     approvalStatus: clean(row[30]),
     activeStatus: clean(row[32]),
     totalConsultations: Number(row[34]) || 0,
     averageRating: Number(row[35]) || 0,
-    openCases: Number(row[36]) || 0,
+    farmersAssigned: Number(row[36]) || 0,
     aiPriority: clean(row[37]),
+    currentConsultationCount:
+      optionalNonNegativeNumber(row[42]),
     raw: row
   };
 }
@@ -387,11 +591,23 @@ function chooseBestExpert(expertRows, caseData) {
       const canAutoRoute = ["yes", "active", ""].includes(
         lower(expert.autoRoute)
       );
+      const hasActiveStatus = ["active", "yes", ""].includes(
+        lower(expert.activeStatus)
+      );
+      const isVerified = [
+        "verified",
+        "approved",
+        "active",
+        "yes",
+        ""
+      ].includes(lower(expert.verificationStatus));
 
       return (
         isActive &&
         isAvailable &&
         canAutoRoute &&
+        hasActiveStatus &&
+        isVerified &&
         expert.expertId &&
         expert.expertName &&
         expert.phone
@@ -402,49 +618,68 @@ function chooseBestExpert(expertRows, caseData) {
     return null;
   }
 
-  const cropAndProblem = lower(
-    (caseData.crop || "") + " " + (caseData.problem || "")
-  );
-  const routeKeywords = [];
+  const scored = experts.map(function (expert) {
+    const scoreDetails = scoreExpertDetails(
+      expert,
+      caseData
+    );
 
-  if (
-    cropAndProblem.includes("paddy") ||
-    cropAndProblem.includes("rice") ||
-    cropAndProblem.includes("നെല്ല്")
-  ) {
-    routeKeywords.push("paddy", "rice", "agronomy", "crop production");
-  }
-
-  const routedExperts = routeKeywords.length > 0
-    ? experts.filter(function (expert) {
-        const profile = lower([
-          expert.expertGroup,
-          expert.specialisation,
-          expert.cropExpertise,
-          expert.problemExpertise,
-          expert.department,
-          expert.designation
-        ].join(" "));
-
-        return routeKeywords.some(function (keyword) {
-          return profile.includes(keyword);
-        });
-      })
-    : [];
-  const candidates = routedExperts.length > 0 ? routedExperts : experts;
-  const scored = candidates.map(function (expert) {
     return {
       expert: expert,
-      score: scoreExpert(expert, caseData)
+      score: scoreDetails.totalScore,
+      semanticTier:
+        scoreDetails.semanticTier,
+      semanticScore:
+        scoreDetails.semanticScore,
+      operationalScore:
+        scoreDetails.operationalScore
     };
+  }).filter(function (match) {
+    return match.semanticTier > EXPERT_SEMANTIC_TIER.NONE;
   });
 
+  if (scored.length === 0) {
+    return null;
+  }
+
   scored.sort(function (a, b) {
-    if (b.score !== a.score) {
-      return b.score - a.score;
+    if (b.semanticTier !== a.semanticTier) {
+      return b.semanticTier - a.semanticTier;
     }
 
-    return Number(a.expert.openCases || 0) - Number(b.expert.openCases || 0);
+    if (b.semanticScore !== a.semanticScore) {
+      return b.semanticScore - a.semanticScore;
+    }
+
+    if (b.operationalScore !== a.operationalScore) {
+      return b.operationalScore - a.operationalScore;
+    }
+
+    const aHasKnownWorkload = Number.isFinite(
+      a.expert.currentConsultationCount
+    );
+    const bHasKnownWorkload = Number.isFinite(
+      b.expert.currentConsultationCount
+    );
+
+    if (aHasKnownWorkload !== bHasKnownWorkload) {
+      return aHasKnownWorkload ? -1 : 1;
+    }
+
+    if (
+      aHasKnownWorkload &&
+      a.expert.currentConsultationCount !==
+        b.expert.currentConsultationCount
+    ) {
+      return (
+        a.expert.currentConsultationCount -
+        b.expert.currentConsultationCount
+      );
+    }
+
+    return String(a.expert.expertId).localeCompare(
+      String(b.expert.expertId)
+    );
   });
 
   return scored[0];
@@ -457,7 +692,12 @@ function createCaseId() {
 function normalizeMessageText(value) {
   return lower(value)
     .normalize("NFKC")
-    .replace(/[.!?,;:]+$/g, "")
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
+    .replace(/\bi['’]m\b/g, "i am")
+    .replace(/\bi['’]d\b/g, "i would")
+    .replace(/["'`´\u2032-\u2037]/g, "")
+    .replace(/[.!?,;:…()[\]{}<>/\\|_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -472,21 +712,36 @@ function isEscalationOnlyMessage(value) {
   const exactCommands = [
     "talk to expert",
     "talk to an expert",
+    "want to talk to expert",
+    "want to talk to an expert",
+    "i want to talk to expert",
+    "i want to talk to an expert",
     "expert help",
     "expert advice",
+    "need expert",
+    "need an expert",
+    "i need expert",
     "connect expert",
     "connect me to expert",
     "connect me to an expert",
     "speak to expert",
     "speak to an expert",
     "i need an expert",
+    "i need to talk to expert",
+    "i need to talk to an expert",
     "i want an expert",
     "visit my farm",
     "field visit",
     "വിദഗ്ധനെ വേണം",
+    "ഒരു വിദഗ്ധനെ വേണം",
+    "എനിക്ക് വിദഗ്ധനെ വേണം",
+    "എനിക്ക് ഒരു വിദഗ്ധനെ വേണം",
     "വിദഗ്ധ സഹായം വേണം",
     "വിദഗ്ധ സഹായം",
+    "വിദഗ്ധ സഹായം ആവശ്യമാണ്",
     "വിദഗ്ധനുമായി സംസാരിക്കണം",
+    "വിദഗ്ധനോട് സംസാരിക്കണം",
+    "എനിക്ക് വിദഗ്ധനോട് സംസാരിക്കണം",
     "ഫീൽഡ് വിസിറ്റ് വേണം"
   ];
 
@@ -495,6 +750,8 @@ function isEscalationOnlyMessage(value) {
   }
 
   return /^(please )?(talk|speak|connect)( me)? (to )?(an? )?expert( please)?$/.test(text) ||
+    /^(please )?(i )?(want|need)( to)? (talk|speak|connect)( me)? (to )?(an? )?expert( please)?$/.test(text) ||
+    /^(please )?(i )?(want|need) (an? )?expert( please)?$/.test(text) ||
     /^(please )?expert (help|advice|assistance)( please)?$/.test(text);
 }
 

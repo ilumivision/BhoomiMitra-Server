@@ -9,9 +9,11 @@ const {
   buildExpertNotificationParts,
   buildRowFromHeaders,
   buildSheetCellUpdates,
+  chooseBestExpert,
   consumeRecentExpertProblem,
   createCaseId,
   getRecentExpertProblem,
+  isEscalationOnlyMessage,
   makeHeaderMap,
   getHeaderValue,
   parseExpertReplyText,
@@ -20,7 +22,7 @@ const {
 } = require("../utils/expertAssignment");
 
 function makeExpertRow(overrides) {
-  const row = new Array(39).fill("");
+  const row = new Array(45).fill("");
   const values = Object.assign({
     expertId: "BM-EX-100",
     name: "Dr. Maya",
@@ -28,12 +30,15 @@ function makeExpertRow(overrides) {
     whatsapp: "9876543210",
     district: "Kottayam",
     group: "Crop production",
-    specialization: "paddy, disease",
+    specialization: "paddy, disease, rambutan",
     availability: "Available",
     autoRoute: "Yes",
     status: "Active",
+    verificationStatus: "Verified",
+    activeStatus: "Active",
     rating: 4.8,
-    openCases: 0
+    farmersAssigned: 0,
+    currentConsultationCount: 0
   }, overrides || {});
 
   row[0] = values.expertId;
@@ -46,10 +51,52 @@ function makeExpertRow(overrides) {
   row[25] = values.availability;
   row[26] = values.autoRoute;
   row[27] = values.status;
+  row[30] = values.verificationStatus;
+  row[32] = values.activeStatus;
   row[35] = values.rating;
-  row[36] = values.openCases;
+  row[36] = values.farmersAssigned;
+  row[42] = values.currentConsultationCount;
 
   return row;
+}
+
+function makeRobertExpertRow(overrides) {
+  return makeExpertRow(Object.assign({
+    expertId: "EXP001",
+    name: "Dr C P Robert",
+    district: "Pathanamthitta",
+    group:
+      "Plant Pathology, Agricultural Extension, Biocontrol",
+    specialization:
+      "Plant Disease Diagnosis, Biocontrol Agents, Arbuscular Mycorrhizal Fungi (AMF), Mycorrhiza, Biofertilizers, Soil Microbiology, Rhizosphere Management, Organic Farming",
+    rating: 5
+  }, overrides || {}));
+}
+
+function makeRincyExpertRow(overrides) {
+  return makeExpertRow(Object.assign({
+    expertId: "EXP004",
+    name: "Dr Rincy K Abraham",
+    district: "Pathanamthitta",
+    group:
+      "Horticulture, Fruit Crops, Plantation Crops",
+    specialization:
+      "Horticulture, Fruit Crops, Plantation Crops, Pomology, Rambutan, Mangosteen, Mango, Banana, Jackfruit, Orchard Management, Flowering, Fruit Set, Fruit Drop, Grafting, Nursery Management",
+    rating: 5
+  }, overrides || {}));
+}
+
+function makeShanaExpertRow(overrides) {
+  return makeExpertRow(Object.assign({
+    expertId: "EXP007",
+    name: "Dr Shana Harshan",
+    district: "Pathanamthitta",
+    group:
+      "Home Science, Community Science, Food and Nutrition",
+    specialization:
+      "Food Science, Nutrition, Food Processing, Value Addition, Food Preservation, Jackfruit Products, Banana Products, Food Safety, Packaging, Labelling",
+    rating: 5
+  }, overrides || {}));
 }
 
 function makeCaseData(overrides) {
@@ -623,6 +670,474 @@ test("failure of a continuation notification withholds farmer assignment success
     harness.state.updates[0].valuesByHeader.Expert_Notification_Message_ID,
     "wamid.part-1"
   );
+});
+
+[
+  ["Mycorrhiza", "Mycorrhiza improves nutrient uptake in crop roots."],
+  ["Mycorrhizae", "Can Mycorrhizae improve root growth and nutrient uptake?"],
+  ["Mycorrhizal", "Is a Mycorrhizal treatment suitable for these plants?"],
+  ["AMF", "Should I apply AMF as a microbial root inoculant?"]
+].forEach(function (scenario) {
+  test(scenario[0] + " routes to the live Mycorrhiza specialist", function () {
+    const problem = scenario[1];
+    const match = chooseBestExpert(
+      [makeRincyExpertRow(), makeRobertExpertRow()],
+      {
+        crop: "",
+        problem: problem,
+        problemCategory: "General Agriculture",
+        district: "Pathanamthitta"
+      }
+    );
+
+    assert.ok(match);
+    assert.equal(match.expert.expertName, "Dr C P Robert");
+    assert.ok(match.semanticScore >= 60);
+  });
+});
+
+test("Mycorrhiza subject outranks stale Rambutan crop context", function () {
+  const match = chooseBestExpert(
+    [makeRincyExpertRow(), makeRobertExpertRow()],
+    {
+      crop: "Rambutan",
+      problem:
+        "I need advice about Mycorrhiza and soil microbiology.",
+      problemCategory: "General Agriculture",
+      district: "Pathanamthitta"
+    }
+  );
+
+  assert.ok(match);
+  assert.equal(match.expert.expertName, "Dr C P Robert");
+});
+
+test("genuine Rambutan horticulture problem routes to Dr Rincy", function () {
+  const match = chooseBestExpert(
+    [makeRobertExpertRow(), makeRincyExpertRow()],
+    {
+      crop: "Rambutan",
+      problem:
+        "My Rambutan tree has poor flowering and heavy fruit drop.",
+      problemCategory: "General Agriculture",
+      district: "Pathanamthitta"
+    }
+  );
+
+  assert.ok(match);
+  assert.equal(match.expert.expertName, "Dr Rincy K Abraham");
+});
+
+test("multiple specific food-processing matches outrank a single generic overlap", function () {
+  const match = chooseBestExpert(
+    [makeRobertExpertRow(), makeShanaExpertRow()],
+    {
+      crop: "Jackfruit",
+      problem:
+        "I need food processing and value addition guidance for jackfruit.",
+      problemCategory: "General Agriculture",
+      district: "Pathanamthitta"
+    }
+  );
+
+  assert.ok(match);
+  assert.equal(match.expert.expertName, "Dr Shana Harshan");
+});
+
+test("subject token match always beats multiple exact crop matches", function () {
+  const subjectExpert = makeExpertRow({
+    expertId: "EXP-SUBJECT-TOKEN",
+    name: "Subject Token Expert",
+    group: "Unrelated domain",
+    specialization: "Plant Microbiology"
+  });
+  const cropExpert = makeExpertRow({
+    expertId: "EXP-CROP-MULTIPLE",
+    name: "Multiple Crop Expert",
+    group: "Unrelated domain",
+    specialization: "Rambutan, Mangosteen, Banana"
+  });
+  const caseData = {
+    crop: "Rambutan Mangosteen Banana",
+    problem: "Microbiology testing is needed for this sample.",
+    district: "Kottayam"
+  };
+  const subjectOnly = chooseBestExpert(
+    [subjectExpert],
+    caseData
+  );
+  const cropOnly = chooseBestExpert(
+    [cropExpert],
+    caseData
+  );
+  const match = chooseBestExpert(
+    [cropExpert, subjectExpert],
+    caseData
+  );
+
+  assert.equal(subjectOnly.semanticScore, 75);
+  assert.equal(cropOnly.semanticScore, 80);
+  assert.equal(match.expert.expertName, "Subject Token Expert");
+});
+
+test("exact subject specialization always beats multiple Expert_Group matches", function () {
+  const subjectExpert = makeExpertRow({
+    expertId: "EXP-SUBJECT-EXACT",
+    name: "Exact Subject Expert",
+    group: "Unrelated domain",
+    specialization: "Microbial Inoculants"
+  });
+  const domainExpert = makeExpertRow({
+    expertId: "EXP-DOMAIN-MULTIPLE",
+    name: "Multiple Domain Expert",
+    group: "Root Biology, Soil Ecology, Microbial Ecology",
+    specialization: "Unrelated specialty"
+  });
+  const caseData = {
+    crop: "",
+    problem:
+      "Microbial inoculants need evaluation for root biology, soil ecology, and microbial ecology.",
+    district: "Kottayam"
+  };
+  const subjectOnly = chooseBestExpert(
+    [subjectExpert],
+    caseData
+  );
+  const domainOnly = chooseBestExpert(
+    [domainExpert],
+    caseData
+  );
+  const match = chooseBestExpert(
+    [domainExpert, subjectExpert],
+    caseData
+  );
+
+  assert.equal(subjectOnly.semanticScore, 100);
+  assert.equal(domainOnly.semanticScore, 105);
+  assert.equal(match.expert.expertName, "Exact Subject Expert");
+});
+
+test("domain match always beats multiple exact crop matches", function () {
+  const domainExpert = makeExpertRow({
+    expertId: "EXP-DOMAIN",
+    name: "Domain Expert",
+    group: "Soil Biology",
+    specialization: "Unrelated specialty"
+  });
+  const cropExpert = makeExpertRow({
+    expertId: "EXP-CROP",
+    name: "Crop Expert",
+    group: "Unrelated domain",
+    specialization: "Rambutan, Mangosteen, Banana"
+  });
+  const caseData = {
+    crop: "Rambutan Mangosteen Banana",
+    problem: "Soil biology guidance is required.",
+    district: "Kottayam"
+  };
+  const domainOnly = chooseBestExpert(
+    [domainExpert],
+    caseData
+  );
+  const cropOnly = chooseBestExpert(
+    [cropExpert],
+    caseData
+  );
+  const match = chooseBestExpert(
+    [cropExpert, domainExpert],
+    caseData
+  );
+
+  assert.equal(domainOnly.semanticScore, 85);
+  assert.equal(cropOnly.semanticScore, 80);
+  assert.equal(match.expert.expertName, "Domain Expert");
+});
+
+test("district rating and workload cannot overturn semantic tier", function () {
+  const subjectExpert = makeExpertRow({
+    expertId: "EXP-SUBJECT-POOR-OPS",
+    name: "Subject Expert With Poor Operations",
+    district: "Idukki",
+    group: "Unrelated domain",
+    specialization: "Microbial Inoculants",
+    rating: 0,
+    currentConsultationCount: 100
+  });
+  const domainExpert = makeExpertRow({
+    expertId: "EXP-DOMAIN-BEST-OPS",
+    name: "Domain Expert With Best Operations",
+    district: "Kottayam",
+    group: "Root Biology",
+    specialization: "Unrelated specialty",
+    rating: 5,
+    currentConsultationCount: 0
+  });
+  const caseData = {
+    crop: "",
+    problem:
+      "Microbial inoculants and root biology need field evaluation.",
+    district: "Kottayam"
+  };
+  const subjectOnly = chooseBestExpert(
+    [subjectExpert],
+    caseData
+  );
+  const domainOnly = chooseBestExpert(
+    [domainExpert],
+    caseData
+  );
+  const match = chooseBestExpert(
+    [domainExpert, subjectExpert],
+    caseData
+  );
+
+  assert.ok(
+    domainOnly.operationalScore > subjectOnly.operationalScore
+  );
+  assert.equal(
+    match.expert.expertName,
+    "Subject Expert With Poor Operations"
+  );
+});
+
+test("multiple lower-tier phrases cannot accumulate across the tier boundary", function () {
+  const subjectExpert = makeExpertRow({
+    expertId: "EXP-HIGHER-TIER",
+    name: "Higher Tier Token Expert",
+    group: "Unrelated domain",
+    specialization: "Plant Microbiology"
+  });
+  const domainExpert = makeExpertRow({
+    expertId: "EXP-LOWER-TIER",
+    name: "Lower Tier Phrase Expert",
+    group: "Root Biology, Soil Ecology, Microbial Ecology",
+    specialization: "Unrelated specialty"
+  });
+  const caseData = {
+    crop: "",
+    problem:
+      "Microbiology support is needed for root biology, soil ecology, and microbial ecology.",
+    district: "Kottayam"
+  };
+  const subjectOnly = chooseBestExpert(
+    [subjectExpert],
+    caseData
+  );
+  const domainOnly = chooseBestExpert(
+    [domainExpert],
+    caseData
+  );
+  const match = chooseBestExpert(
+    [domainExpert, subjectExpert],
+    caseData
+  );
+
+  assert.equal(subjectOnly.semanticScore, 75);
+  assert.equal(domainOnly.semanticScore, 105);
+  assert.equal(match.expert.expertName, "Higher Tier Token Expert");
+});
+
+[
+  "Talk to expert\u201d",
+  "Want to talk to expert",
+  "I need to talk to an expert"
+].forEach(function (command) {
+  test(command + " recovers the previous detailed problem", function () {
+    const priorProblem =
+      "Mycorrhiza may help root growth, and I need application guidance.";
+    const context = resolveExpertProblemContext({
+      currentText: command,
+      activeCase: null,
+      recentProblem: priorProblem
+    });
+
+    assert.equal(isEscalationOnlyMessage(command), true);
+    assert.equal(context.problem, priorProblem);
+    assert.equal(context.problemSource, "RECENT");
+  });
+});
+
+[
+  "I need expert advice about Mycorrhiza root inoculation.",
+  "Please provide an expert recommendation for this Rambutan fruit-drop problem."
+].forEach(function (question) {
+  test(question + " is not a pure escalation command", function () {
+    assert.equal(isEscalationOnlyMessage(question), false);
+  });
+});
+
+[
+  "വിദഗ്ധ സഹായം വേണം!!!",
+  "എനിക്ക് ഒരു വിദഗ്ധനെ വേണം???",
+  "വിദഗ്ധനോട് സംസാരിക്കണം…"
+].forEach(function (command) {
+  test(command + " is recognized as a Malayalam escalation command", function () {
+    assert.equal(isEscalationOnlyMessage(command), true);
+  });
+});
+
+test("pure escalation without prior context stays pending instead of selecting by stale crop", async function () {
+  const context = resolveExpertProblemContext({
+    currentText: "Want to talk to expert",
+    activeCase: null,
+    recentProblem: ""
+  });
+  const harness = makeHarness({
+    expertRows: [
+      makeRincyExpertRow(),
+      makeRobertExpertRow()
+    ],
+    caseData: {
+      district: "Pathanamthitta",
+      crop: "Rambutan",
+      problem: context.problem,
+      problemCategory: "General Agriculture"
+    }
+  });
+  const result = await assignExpertCase(
+    harness.dependencies
+  );
+  const headerMap = makeHeaderMap(
+    EXPERT_CASE_HEADERS
+  );
+  const savedRow =
+    harness.state.appendedRows[0].row;
+
+  assert.equal(result.success, false);
+  assert.equal(harness.state.sends.length, 0);
+  assert.equal(
+    getHeaderValue(
+      savedRow,
+      headerMap,
+      "Assigned_Expert"
+    ),
+    ""
+  );
+  assert.equal(
+    getHeaderValue(
+      savedRow,
+      headerMap,
+      "Expert_Notification_Status"
+    ),
+    "Pending - No Eligible Expert"
+  );
+  assert.doesNotMatch(
+    result.farmerMessage,
+    /has been assigned/i
+  );
+});
+
+test("operational factors alone cannot meet the semantic threshold", function () {
+  const match = chooseBestExpert(
+    [makeRincyExpertRow({
+      district: "Pathanamthitta",
+      rating: 5,
+      currentConsultationCount: 0
+    })],
+    {
+      crop: "",
+      problem:
+        "Please provide assistance with this unrelated issue.",
+      problemCategory: "General Agriculture",
+      district: "Pathanamthitta"
+    }
+  );
+
+  assert.equal(match, null);
+});
+
+test("repeated generic specialization terms do not inflate semantic score", function () {
+  const genericExpert = makeExpertRow({
+    specialization:
+      "Agriculture, Agriculture, Farming, Farming, Crop, Crop, Plant, Plant Management",
+    group:
+      "General Agriculture, Crop Production, Farm Management",
+    district: "Pathanamthitta",
+    rating: 5
+  });
+  const match = chooseBestExpert(
+    [genericExpert],
+    {
+      crop: "",
+      problem:
+        "I need general agriculture farming crop plant management advice.",
+      problemCategory: "General Agriculture",
+      district: "Pathanamthitta"
+    }
+  );
+
+  assert.equal(match, null);
+});
+
+test("inactive and non-routable directory states are respected", function () {
+  [
+    { status: "Inactive" },
+    { availability: "Unavailable" },
+    { autoRoute: "No" },
+    { activeStatus: "Inactive" },
+    { verificationStatus: "Unverified" }
+  ].forEach(function (override) {
+    const match = chooseBestExpert(
+      [makeRobertExpertRow(override)],
+      {
+        problem: "I need advice about Mycorrhiza.",
+        district: "Pathanamthitta"
+      }
+    );
+
+    assert.equal(match, null, JSON.stringify(override));
+  });
+});
+
+test("Current_Consultation_Count breaks ties while Farmers_Assigned is ignored", function () {
+  const lowerCurrentLoad = makeRobertExpertRow({
+    expertId: "EXP100",
+    name: "Lower Current Load",
+    farmersAssigned: 100,
+    currentConsultationCount: 1
+  });
+  const higherCurrentLoad = makeRobertExpertRow({
+    expertId: "EXP099",
+    name: "Higher Current Load",
+    farmersAssigned: 0,
+    currentConsultationCount: 5
+  });
+  const match = chooseBestExpert(
+    [higherCurrentLoad, lowerCurrentLoad],
+    {
+      problem: "I need advice about Mycorrhiza.",
+      district: "Pathanamthitta"
+    }
+  );
+
+  assert.ok(match);
+  assert.equal(
+    match.expert.expertName,
+    "Lower Current Load"
+  );
+});
+
+test("blank Current_Consultation_Count is unknown rather than zero workload", function () {
+  const unknownLoad = makeRobertExpertRow({
+    expertId: "EXP001",
+    name: "Unknown Current Load",
+    currentConsultationCount: ""
+  });
+  const knownLoad = makeRobertExpertRow({
+    expertId: "EXP999",
+    name: "Known Current Load",
+    currentConsultationCount: 1
+  });
+  const match = chooseBestExpert(
+    [unknownLoad, knownLoad],
+    {
+      problem: "I need advice about Mycorrhiza.",
+      district: "Pathanamthitta"
+    }
+  );
+
+  assert.ok(match);
+  assert.equal(match.expert.expertName, "Known Current Load");
 });
 
 test("no eligible expert saves a pending case but sends no notification", async function () {
