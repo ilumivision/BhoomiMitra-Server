@@ -1307,6 +1307,17 @@ function observationTime(
 }
 
 function numericNdvi(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    (
+      typeof value === "string" &&
+      value.trim() === ""
+    )
+  ) {
+    return null;
+  }
+
   const parsed = Number(value);
 
   return Number.isFinite(parsed) &&
@@ -1319,8 +1330,19 @@ function numericNdvi(value) {
 function hasReliableAcquisitionDate(
   observation
 ) {
+  const observationDate =
+    observation && observation.observationDate;
+
+  if (
+    observationDate === null ||
+    observationDate === undefined ||
+    String(observationDate).trim() === ""
+  ) {
+    return false;
+  }
+
   const acquisitionTime = new Date(
-    observation && observation.observationDate
+    observationDate
   ).getTime();
 
   return Boolean(
@@ -1858,6 +1880,14 @@ async function getSatelliteObservationHistory({
 }
 
 function formatObservationDate(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    String(value).trim() === ""
+  ) {
+    return "";
+  }
+
   const time = new Date(value).getTime();
 
   return Number.isFinite(time)
@@ -2146,10 +2176,25 @@ function simpleFarmerAdvice(value, language) {
 }
 
 function simpleCloudInterference(value, language) {
+  const unavailable = isEnglishLanguage(language)
+    ? "unavailable"
+    : "ലഭ്യമല്ല";
+
+  if (
+    value === null ||
+    value === undefined ||
+    (
+      typeof value === "string" &&
+      value.trim() === ""
+    )
+  ) {
+    return unavailable;
+  }
+
   const cloud = Number(value);
 
   if (!Number.isFinite(cloud)) {
-    return "";
+    return unavailable;
   }
 
   const label = isEnglishLanguage(language)
@@ -2175,8 +2220,9 @@ function formatSatelliteHealthReply({
   now = new Date()
 }) {
   const english = isEnglishLanguage(language);
-  const date = formatObservationDate(
-    result.observationDate
+  const dateLine = formatObservationDateLine(
+    result,
+    language
   );
   const reliable =
     hasReliableAcquisitionDate(result);
@@ -2184,12 +2230,13 @@ function formatSatelliteHealthReply({
     result.observationDate,
     now
   );
-  const interpretation =
-    simpleNdviInterpretation(
+  const ndvi = numericNdvi(
+    result.averageNdvi
+  );
+  const interpretation = ndvi === null
+    ? ""
+    : simpleNdviInterpretation(
       result.averageNdvi,
-      language
-    ) || localizeSatelliteStatus(
-      result.vegetationStatus,
       language
     );
   const cloudInterference =
@@ -2208,17 +2255,14 @@ function formatSatelliteHealthReply({
       "",
       land.farmName ? "Land: " + land.farmName : "",
       "Land ID: " + land.landId,
-      date ? "Latest observation: " + date : "Latest observation: Not available",
+      dateLine,
       interpretation
         ? "Vegetation status: " + interpretation
-        : "Vegetation status: Not available",
-      result.averageNdvi !== undefined &&
-      result.averageNdvi !== null
-        ? "NDVI: " + result.averageNdvi
-        : "",
-      cloudInterference
-        ? "Cloud interference: " + cloudInterference
-        : "",
+        : "Vegetation status: unavailable",
+      ndvi === null
+        ? "NDVI: unavailable"
+        : "NDVI: " + result.averageNdvi,
+      "Cloud interference: " + cloudInterference,
       stale
         ? "⚠️ This imagery is older than 14 days."
         : "",
@@ -2238,17 +2282,14 @@ function formatSatelliteHealthReply({
     "",
     land.farmName ? "ഭൂമി: " + land.farmName : "",
     "ഭൂമി ID: " + land.landId,
-    date ? "ഏറ്റവും പുതിയ നിരീക്ഷണം: " + date : "ഏറ്റവും പുതിയ നിരീക്ഷണം: ലഭ്യമല്ല",
+    dateLine,
     interpretation
       ? "സസ്യവളർച്ചയുടെ നില: " + interpretation
       : "സസ്യവളർച്ചയുടെ നില: ലഭ്യമല്ല",
-    result.averageNdvi !== undefined &&
-    result.averageNdvi !== null
-      ? "NDVI: " + result.averageNdvi
-      : "",
-    cloudInterference
-      ? "മേഘ തടസ്സം: " + cloudInterference
-      : "",
+    ndvi === null
+      ? "NDVI: ലഭ്യമല്ല"
+      : "NDVI: " + result.averageNdvi,
+    "മേഘ തടസ്സം: " + cloudInterference,
     stale
       ? "⚠️ ഈ ചിത്രം 14 ദിവസത്തിൽ കൂടുതൽ പഴക്കമുള്ളതാണ്."
       : "",
@@ -2304,6 +2345,47 @@ function formatCompactDate(value) {
   return parts.length === 3
     ? parts[2] + "-" + parts[1] + "-" + parts[0]
     : date;
+}
+
+function formatObservationDateLine(
+  observation,
+  language,
+  compact = false
+) {
+  const english = isEnglishLanguage(language);
+  const formatter = compact
+    ? formatCompactDate
+    : formatObservationDate;
+
+  if (hasReliableAcquisitionDate(observation)) {
+    const observationDate = formatter(
+      observation.observationDate
+    );
+
+    if (observationDate) {
+      return english
+        ? "Observation date: " + observationDate
+        : "നിരീക്ഷണ തീയതി: " + observationDate;
+    }
+  }
+
+  const recordedDate = formatter(
+    observation && (
+      observation.createdAt ||
+      observation.updatedAt ||
+      ""
+    )
+  );
+
+  if (recordedDate) {
+    return english
+      ? "Recorded date: " + recordedDate
+      : "രേഖപ്പെടുത്തിയ തീയതി: " + recordedDate;
+  }
+
+  return english
+    ? "Observation date unavailable"
+    : "നിരീക്ഷണ തീയതി ലഭ്യമല്ല";
 }
 
 function summarizeHistoryTrend(observations, language) {
@@ -2384,14 +2466,11 @@ function formatSatelliteHistoryReply({
   }
 
   const entries = observations.map(function (observation) {
-    const displayedDateValue =
-      observation.observationDate ||
-      observation.createdAt ||
-      observation.updatedAt ||
-      "";
-    const date = formatCompactDate(
-      displayedDateValue
-    ) || (english ? "Date unavailable" : "തീയതി ലഭ്യമല്ല");
+    const dateLine = formatObservationDateLine(
+      observation,
+      language,
+      true
+    );
     const ndvi = numericNdvi(observation.ndvi);
     const ndviText = ndvi === null
       ? (english ? "NDVI unavailable" : "NDVI ലഭ്യമല്ല")
@@ -2401,7 +2480,7 @@ function formatSatelliteHistoryReply({
       language
     ) || (english ? "Status unavailable" : "നില ലഭ്യമല്ല");
 
-    return date + " — " + ndviText + " — " + status;
+    return dateLine + " — " + ndviText + " — " + status;
   });
   const trend = summarizeHistoryTrend(
     observations,

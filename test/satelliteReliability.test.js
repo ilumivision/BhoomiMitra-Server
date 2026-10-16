@@ -409,7 +409,7 @@ test("satellite history collapses repeated legacy mosaic rows without treating t
 
   assert.match(
     reply,
-    /30-08-2026 — 0\.517 — Moderate vegetation/
+    /Recorded date: 30-08-2026 — 0\.517 — Moderate vegetation/
   );
   assert.match(reply, /stored historical data/i);
   assert.doesNotMatch(reply, /Duplicate-like/);
@@ -453,7 +453,7 @@ test("history deduplication uses scene identity for reliable observations and pr
   assert.equal(rows[2].duplicateCount, 1);
 });
 
-test("processing timestamps cannot make a missing acquisition date reliable", function () {
+test("processing timestamps use a Recorded date label and remain unverified", function () {
   const reply = formatSatelliteHistoryReply({
     land: {
       landId: "BM-L-000003",
@@ -475,9 +475,12 @@ test("processing timestamps cannot make a missing acquisition date reliable", fu
     language: "English"
   });
 
-  assert.match(reply, /30-08-2026 — 0\.517 — Moderate vegetation/);
+  assert.match(
+    reply,
+    /Recorded date: 30-08-2026 — 0\.517 — Moderate vegetation/
+  );
   assert.match(reply, /stored historical data/i);
-  assert.doesNotMatch(reply, /Acquisition date:/);
+  assert.doesNotMatch(reply, /Observation date: 30-08-2026/);
 });
 
 test("stale imagery and live failures are disclosed without presenting stored data as current", function () {
@@ -527,7 +530,7 @@ test("English and Malayalam health replies show a simple farmer summary and caut
   });
 
   assert.match(english, /Satellite Crop Status/);
-  assert.match(english, /Latest observation: 2026-09-01/);
+  assert.match(english, /Observation date: 2026-09-01/);
   assert.match(english, /Vegetation status: Good vegetation/);
   assert.match(english, /NDVI: 0\.61/);
   assert.match(english, /Cloud interference: Low \(3%\)/);
@@ -535,7 +538,7 @@ test("English and Malayalam health replies show a simple farmer summary and caut
   assert.match(english, /supporting indicator/i);
   assert.doesNotMatch(english, /Scene ID|Valid pixels|Source:/);
   assert.match(malayalam, /സാറ്റലൈറ്റ് വിള നില/);
-  assert.match(malayalam, /ഏറ്റവും പുതിയ നിരീക്ഷണം: 2026-09-01/);
+  assert.match(malayalam, /നിരീക്ഷണ തീയതി: 2026-09-01/);
   assert.match(malayalam, /സസ്യവളർച്ചയുടെ നില: നല്ല സസ്യവളർച്ച/);
   assert.match(malayalam, /കർഷകനുള്ള നിർദേശം:/);
   assert.match(malayalam, /സഹായ സൂചിക/);
@@ -577,6 +580,168 @@ test("farmer summary uses the cautious NDVI interpretation bands", function () {
   }
 });
 
+test("blank whitespace and null NDVI values remain unavailable", function () {
+  for (const averageNdvi of ["", "   ", null]) {
+    const reply = formatSatelliteHealthReply({
+      land: {
+        landId: "BM-L-000003",
+        farmName: "Home Farm"
+      },
+      result: {
+        observationDate: "2026-10-10T00:00:00.000Z",
+        sceneId: "S2-MISSING-NDVI",
+        averageNdvi,
+        vegetationStatus: "Very Low Vegetation",
+        cloudCover: 5
+      },
+      language: "English",
+      now: new Date("2026-10-15T00:00:00.000Z")
+    });
+
+    assert.match(reply, /NDVI: unavailable/);
+    assert.match(reply, /Vegetation status: unavailable/);
+    assert.doesNotMatch(
+      reply,
+      /very low vegetation|possible stress|severe stress/i
+    );
+  }
+});
+
+test("blank and null cloud cover remain unavailable", function () {
+  for (const cloudCover of ["", null]) {
+    const reply = formatSatelliteHealthReply({
+      land: {
+        landId: "BM-L-000003",
+        farmName: "Home Farm"
+      },
+      result: {
+        observationDate: "2026-10-10T00:00:00.000Z",
+        sceneId: "S2-MISSING-CLOUD",
+        averageNdvi: 0.5,
+        cloudCover
+      },
+      language: "English",
+      now: new Date("2026-10-15T00:00:00.000Z")
+    });
+
+    assert.match(reply, /Cloud interference: unavailable/);
+    assert.doesNotMatch(reply, /Cloud interference: Low \(0%\)/);
+  }
+});
+
+test("missing NDVI values cannot create a history trend", function () {
+  for (const ndvi of ["", "   ", null]) {
+    const reply = formatSatelliteHistoryReply({
+      land: {
+        landId: "BM-L-000003",
+        farmName: "Home Farm"
+      },
+      history: {
+        observations: [
+          {
+            observationDate: "2026-10-12T00:00:00.000Z",
+            sceneId: "S2-MISSING-NDVI",
+            ndvi
+          },
+          {
+            observationDate: "2026-10-10T00:00:00.000Z",
+            sceneId: "S2-VALID-NDVI",
+            ndvi: 0.5
+          }
+        ]
+      },
+      language: "English"
+    });
+
+    assert.match(reply, /NDVI unavailable — Status unavailable/);
+    assert.doesNotMatch(reply, /Trend:/);
+  }
+});
+
+test("verified history dates use the Observation date label", function () {
+  const reply = formatSatelliteHistoryReply({
+    land: { landId: "BM-L-000003" },
+    history: {
+      observations: [
+        {
+          observationDate: "2026-10-12T00:00:00.000Z",
+          createdAt: "2026-10-13T00:00:00.000Z",
+          sceneId: "S2-VERIFIED-DATE",
+          ndvi: 0.5
+        }
+      ]
+    },
+    language: "English"
+  });
+
+  assert.match(reply, /Observation date: 12-10-2026/);
+  assert.doesNotMatch(reply, /Recorded date:/);
+});
+
+test("history falls back to clearly labelled recorded dates", function () {
+  const createdReply = formatSatelliteHistoryReply({
+    land: { landId: "BM-L-000003" },
+    history: {
+      observations: [
+        {
+          observationDate: "",
+          createdAt: "2026-10-12T00:00:00.000Z",
+          sceneId: "S2-CREATED-DATE",
+          ndvi: 0.5
+        }
+      ]
+    },
+    language: "English"
+  });
+  const updatedReply = formatSatelliteHistoryReply({
+    land: { landId: "BM-L-000003" },
+    history: {
+      observations: [
+        {
+          observationDate: null,
+          createdAt: "",
+          updatedAt: "2026-10-11T00:00:00.000Z",
+          sceneId: "S2-UPDATED-DATE",
+          ndvi: 0.5
+        }
+      ]
+    },
+    language: "English"
+  });
+
+  assert.match(createdReply, /Recorded date: 12-10-2026/);
+  assert.match(updatedReply, /Recorded date: 11-10-2026/);
+  assert.equal(
+    (createdReply.match(/stored historical data/gi) || []).length,
+    1
+  );
+});
+
+test("history reports when no observation or recorded date is available", function () {
+  const reply = formatSatelliteHistoryReply({
+    land: { landId: "BM-L-000003" },
+    history: {
+      observations: [
+        {
+          observationDate: null,
+          createdAt: "",
+          updatedAt: "",
+          sceneId: "S2-NO-DATE",
+          ndvi: 0.5
+        }
+      ]
+    },
+    language: "English"
+  });
+
+  assert.match(reply, /Observation date unavailable/);
+  assert.doesNotMatch(reply, /01-01-1970/);
+  assert.equal(
+    (reply.match(/stored historical data/gi) || []).length,
+    1
+  );
+});
+
 test("history reply shows at most three compact records and a supported trend", function () {
   const reply = formatSatelliteHistoryReply({
     land: { landId: "BM-L-000003", farmName: "Home Farm" },
@@ -608,9 +773,9 @@ test("history reply shows at most three compact records and a supported trend", 
     now: new Date("2026-10-15T00:00:00.000Z")
   });
 
-  assert.match(reply, /12-10-2026 — 0\.65 — Good vegetation/);
-  assert.match(reply, /10-10-2026 — 0\.55 — Moderate vegetation/);
-  assert.match(reply, /08-10-2026 — 0\.45 — Moderate vegetation/);
+  assert.match(reply, /Observation date: 12-10-2026 — 0\.65 — Good vegetation/);
+  assert.match(reply, /Observation date: 10-10-2026 — 0\.55 — Moderate vegetation/);
+  assert.match(reply, /Observation date: 08-10-2026 — 0\.45 — Moderate vegetation/);
   assert.doesNotMatch(reply, /06-10-2026/);
   assert.match(reply, /Trend: Improving/);
   assert.doesNotMatch(reply, /Scene ID|Source:|Image quality/);
