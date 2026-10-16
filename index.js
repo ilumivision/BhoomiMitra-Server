@@ -122,7 +122,17 @@ const {
   createExpertCaseManager
 } = require("./utils/expertCaseManager");
 const {
-  assignExpertCase
+  assignExpertCase,
+  buildSheetCellUpdates,
+  consumeRecentExpertProblem,
+  getRecentExpertProblem,
+  getHeaderValue: getExpertCaseHeaderValue,
+  isDetailedFarmerProblem,
+  isEscalationOnlyMessage,
+  makeHeaderMap: makeExpertCaseHeaderMap,
+  parseExpertReplyText,
+  rememberRecentExpertProblem,
+  resolveExpertProblemContext
 } = require("./utils/expertAssignment");
 const {
   fetchAllSources
@@ -869,11 +879,14 @@ const userLanguagePreferences = {};
 const pendingServiceSearches = {};
 const boundarySessions = {};
 const processedMessages = new Set();
+const recentExpertProblems = {};
 let sheetMetadataCache = null;
 let sheetMetadataCacheTime = 0;
 
 const SHEET_METADATA_CACHE_MS =
   10 * 60 * 1000;
+const EXPERT_PROBLEM_CONTEXT_MS =
+  6 * 60 * 60 * 1000;
 
 const SHEETS = {
   farmers: "Farmers",
@@ -1431,23 +1444,18 @@ if (landManagementCommand === "back") {
 // Your recommendation here
 // =====================================================
 
-if (
-  userText &&
-  /^REPLY\s+BM-EXP-\d+/i.test(userText)
-) {
-  const replyMatch =
-  userText.match(
-    /^REPLY\s+(BM-EXP-\d+)\s*([\s\S]*)$/i
-  );
+const parsedExpertReply =
+  parseExpertReplyText(userText);
 
+if (parsedExpertReply) {
 const caseId =
-  replyMatch && replyMatch[1]
-    ? replyMatch[1].trim()
+  parsedExpertReply
+    ? parsedExpertReply.caseId
     : "";
 
 const expertAdvice =
-  replyMatch && replyMatch[2]
-    ? replyMatch[2].trim()
+  parsedExpertReply
+    ? parsedExpertReply.advice
     : "";
 
 if (!expertAdvice) {
@@ -1467,14 +1475,30 @@ if (!expertAdvice) {
 const caseRows =
   await readSheetRows(
     "Expert_Cases",
-    "A:T"
+    "A:AD"
+  );
+
+const caseHeaders =
+  caseRows && caseRows[0]
+    ? caseRows[0]
+    : [];
+
+const caseHeaderMap =
+  makeExpertCaseHeaderMap(
+    caseHeaders
   );
 
 const caseRow =
-  (caseRows || []).find(
+  (caseRows || []).slice(1).find(
     function (row) {
       return (
-        String(row[0] || "")
+        String(
+          getExpertCaseHeaderValue(
+            row,
+            caseHeaderMap,
+            "Case_ID"
+          ) || ""
+        )
           .trim()
           .toUpperCase() ===
         caseId.toUpperCase()
@@ -1493,11 +1517,26 @@ if (!caseRow) {
 }
 
 const farmerWhatsApp =
-  String(caseRow[3] || "")
+  String(
+    getExpertCaseHeaderValue(
+      caseRow,
+      caseHeaderMap,
+      "WhatsApp"
+    ) || ""
+  )
     .replace(/\D/g, "");
 
 const assignedExpertWhatsApp =
-  String(caseRow[13] || "")
+  String(
+    getExpertCaseHeaderValue(
+      caseRow,
+      caseHeaderMap,
+      "Assigned_Expert_WhatsApp"
+    ) ||
+    // Compatibility for rows written by the earlier positional writer.
+    caseRow[13] ||
+    ""
+  )
     .replace(/\D/g, "");
 
 const senderWhatsApp =
@@ -5849,6 +5888,26 @@ if (isServiceRequest(userText)) {
 const detectedIntent = detectIntent(userText);
 console.log("Detected Intent:", detectedIntent);
 
+if (
+  isDetailedFarmerProblem(userText) &&
+  !isEscalationOnlyMessage(userText)
+) {
+  rememberRecentExpertProblem(
+    recentExpertProblems,
+    from,
+    {
+      text: userText,
+      timestamp: Date.now(),
+      crop:
+        caseManager.extractRecognisedCrop(
+          userText
+        ),
+      category: detectedIntent,
+      detectedIntent: detectedIntent
+    }
+  );
+}
+
 if (detectedIntent === "weather") {
   const needsDistrict = await sendWeatherSheetReply(
     from,
@@ -6273,81 +6332,155 @@ const needExpert =
   lowerUserText.includes("വിദഗ്ധനെ വേണം") ||
   lowerUserText.includes("വിദഗ്ധ സഹായം വേണം") ||
   lowerUserText.includes("ഫീൽഡ് വിസിറ്റ് വേണം");
-  let expertConfirmation = "";  
- if (needExpert) {
-  const assignmentResult = await assignExpertCase({
-    caseData: {
-      from: from,
-      whatsapp: from,
-      farmerPhone: from,
-      farmerWhatsapp: from,
+let expertConfirmation = "";
 
-      crop:
-        activeCase && activeCase.crop
-          ? activeCase.crop
-          : "",
+if (needExpert) {
+  let farmerProfile = null;
 
-      problem: userText,
-      farmerMessage: userText,
-      aiDiagnosis: aiReply,
-      aiConfidence: 60,
-      priority: "High",
-      source: "WhatsApp",
-      expertRequested: true,
-      escalationReason:
-        "Farmer requested expert assistance"
-    },
+  try {
+    farmerProfile =
+      await findRegistrationByPhone(
+        "farmer",
+        from
+      );
+  } catch (profileError) {
+    console.error(
+      "Farmer profile lookup failed during expert escalation:",
+      profileError && profileError.message
+        ? profileError.message
+        : profileError
+    );
+  }
 
-    readSheetRows: readSheetRows,
-    appendRow: appendSafe
-  });
+  const activePhotos =
+    activeCase &&
+    Array.isArray(activeCase.photos)
+      ? activeCase.photos
+      : [];
+  const recentExpertProblem =
+    getRecentExpertProblem(
+      recentExpertProblems,
+      from,
+      EXPERT_PROBLEM_CONTEXT_MS
+    );
+  const expertProblemContext =
+    resolveExpertProblemContext({
+      currentText: userText,
+      activeCase: activeCase,
+      recentProblem:
+        recentExpertProblem
+          ? recentExpertProblem.text
+          : ""
+    });
 
-  if (assignmentResult.success) {
-    const selectedExpert =
-      assignmentResult.expert || {};
+  try {
+    const assignmentResult =
+      await assignExpertCase({
+        caseData: {
+          sourceMessageId: message.id,
+          from: from,
+          whatsapp: from,
+          farmerId:
+            farmerProfile && farmerProfile.memberId
+              ? farmerProfile.memberId
+              : "",
+          farmerName:
+            farmerProfile && farmerProfile.name
+              ? farmerProfile.name
+              : "",
+          district:
+            farmerProfile && farmerProfile.district
+              ? farmerProfile.district
+              : "",
+          panchayath:
+            farmerProfile && farmerProfile.panchayath
+              ? farmerProfile.panchayath
+              : "",
+          crop:
+            activeCase && activeCase.crop
+              ? activeCase.crop
+              : (
+                  recentExpertProblem &&
+                  recentExpertProblem.crop
+                    ? recentExpertProblem.crop
+                    :
+                  farmerProfile && farmerProfile.service
+                    ? farmerProfile.service
+                    : ""
+                ),
+          problem:
+            expertProblemContext.problem,
+          farmerMessage: userText,
+          caseSummary:
+            expertProblemContext.caseSummary,
+          aiDiagnosis: aiReply,
+          aiConfidence: 60,
+          priority: "High",
+          imageIds: activePhotos
+            .map(function (photo) {
+              return photo && photo.mediaId
+                ? photo.mediaId
+                : "";
+            })
+            .filter(Boolean)
+            .join(", "),
+          mediaAvailable:
+            activePhotos.length > 0,
+          source: "WhatsApp",
+          expertRequested: true,
+          escalationReason:
+            "Farmer requested expert assistance"
+        },
+        readSheetRows: readSheetRows,
+        appendRow: function (sheetName, row) {
+          return appendSafe(
+            sheetName,
+            row,
+            { returnDetails: true }
+          );
+        },
+        updateCase:
+          updateExpertCaseByHeaders,
+        sendExpertMessage:
+          sendWhatsAppMessage
+      });
 
-    const expertPhone =
-      selectedExpert.phone ||
-      selectedExpert.whatsappNumber ||
-      selectedExpert.mobileNumber ||
-      "";
-
-   expertConfirmation =
-  "📋 Expert Case Registered\n" +
-  "Case ID: " +
-  assignmentResult.caseId +
-  "\n" +
-  (
-    selectedExpert.expertId
-      ? "Expert ID: " + selectedExpert.expertId + "\n"
-      : ""
-  ) +
-  (
-    selectedExpert.expertName
-      ? "Assigned Expert: " + selectedExpert.expertName + "\n"
-      : ""
-  ) +
-  "\n" +
-  (
-    selectedExpert.expertId
-      ? "Your query has been assigned to a BhoomiMitra expert."
-      : "Your query has been registered. An appropriate expert will be assigned."
-  );
+    expertConfirmation =
+      assignmentResult.farmerMessage ||
+      "Your expert request is awaiting expert assignment.";
 
     if (
-      expertPhone &&
-      assignmentResult.expertMessage
+      assignmentResult.success &&
+      recentExpertProblem &&
+      (
+        expertProblemContext.problemSource === "RECENT" ||
+        recentExpertProblem.text ===
+          expertProblemContext.problem
+      )
     ) {
-      await sendWhatsAppMessage(
-        expertPhone,
-        assignmentResult.expertMessage
+      consumeRecentExpertProblem(
+        recentExpertProblems,
+        from,
+        recentExpertProblem.timestamp
       );
     }
-  } else {
+
+    if (!assignmentResult.success) {
+      console.error(
+        "Expert assignment not completed:",
+        assignmentResult.error
+      );
+    }
+  } catch (assignmentError) {
     console.error(
       "Expert assignment failed:",
-      assignmentResult.error
+      assignmentError && assignmentError.message
+        ? assignmentError.message
+        : assignmentError
     );
+
+    expertConfirmation =
+      "We could not complete your expert request right now. Please try again shortly.";
   }
 }
 
@@ -8702,7 +8835,7 @@ async function sendWhatsAppMessage(
     ? text
     : await applyPreferredReplyLanguage(to, text);
 
-  await axios.post(
+  const response = await axios.post(
     url,
     {
       messaging_product: "whatsapp",
@@ -8728,8 +8861,27 @@ async function sendWhatsAppMessage(
       }
     }
   );
+
+  const messageId =
+    response &&
+    response.data &&
+    response.data.messages &&
+    response.data.messages[0] &&
+    response.data.messages[0].id
+      ? String(response.data.messages[0].id).trim()
+      : "";
+
+  return {
+    accepted: Boolean(messageId),
+    messageId: messageId,
+    data: response ? response.data : null
+  };
 }
-async function appendSafe(sheetName, row) {
+async function appendSafe(
+  sheetName,
+  row,
+  options = {}
+) {
   try {
     if (
       !GOOGLE_SHEET_ID ||
@@ -8740,7 +8892,8 @@ async function appendSafe(sheetName, row) {
       return false;
     }
 
-    await sheets.spreadsheets.values.append({
+    const response =
+      await sheets.spreadsheets.values.append({
       spreadsheetId: GOOGLE_SHEET_ID,
       range: "'" + String(sheetName).replace(/'/g, "''") + "'!A:BK",
       valueInputOption: "USER_ENTERED",
@@ -8755,7 +8908,31 @@ async function appendSafe(sheetName, row) {
       sheetName
     );
 
-    return true;
+    if (!options.returnDetails) {
+      return true;
+    }
+
+    const updatedRange =
+      response &&
+      response.data &&
+      response.data.updates &&
+      response.data.updates.updatedRange
+        ? String(
+            response.data.updates.updatedRange
+          )
+        : "";
+    const rangeMatch =
+      updatedRange.match(
+        /![A-Z]+(\d+):[A-Z]+(\d+)$/i
+      );
+
+    return {
+      success: true,
+      rowNumber: rangeMatch
+        ? Number(rangeMatch[2])
+        : null,
+      updatedRange: updatedRange
+    };
 
   } catch (error) {
     console.error(
@@ -8767,6 +8944,109 @@ async function appendSafe(sheetName, row) {
       error.response && error.response.data
         ? error.response.data
         : error.message
+    );
+
+    return false;
+  }
+}
+async function updateExpertCaseByHeaders(input) {
+  try {
+    if (
+      !GOOGLE_SHEET_ID ||
+      !GOOGLE_CLIENT_EMAIL ||
+      !GOOGLE_PRIVATE_KEY
+    ) {
+      console.log("Google Sheets credentials missing.");
+      return false;
+    }
+
+    const update = input || {};
+    const headers = Array.isArray(update.headers)
+      ? update.headers
+      : [];
+    let headersForUpdate = headers;
+    let rowNumber = Number(update.rowNumber);
+
+    if (!Number.isInteger(rowNumber) || rowNumber < 2) {
+      const rows = await readSheetRows(
+        update.sheetName || "Expert_Cases",
+        "A:AD"
+      );
+      const liveHeaders =
+        rows && rows[0]
+          ? rows[0]
+          : headers;
+      const liveHeaderMap =
+        makeExpertCaseHeaderMap(
+          liveHeaders
+        );
+      headersForUpdate = liveHeaders;
+      const matchedIndex =
+        (rows || []).findIndex(
+          function (row, index) {
+            if (index === 0) {
+              return false;
+            }
+
+            const caseId =
+              getExpertCaseHeaderValue(
+                row,
+                liveHeaderMap,
+                "Case_ID"
+              );
+            const sourceMessageId =
+              getExpertCaseHeaderValue(
+                row,
+                liveHeaderMap,
+                "Source_Message_ID"
+              );
+
+            return (
+              String(caseId || "").trim() ===
+                String(update.caseId || "").trim() &&
+              String(sourceMessageId || "").trim() ===
+                String(update.sourceMessageId || "").trim()
+            );
+          }
+        );
+
+      if (matchedIndex < 1) {
+        console.error(
+          "Unable to locate appended Expert_Cases row for update:",
+          update.caseId
+        );
+        return false;
+      }
+
+      rowNumber = matchedIndex + 1;
+    }
+
+    const valuesByHeader =
+      update.valuesByHeader || {};
+    const data = buildSheetCellUpdates(
+      headersForUpdate,
+      rowNumber,
+      update.sheetName || "Expert_Cases",
+      valuesByHeader
+    );
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      requestBody: {
+        valueInputOption: "USER_ENTERED",
+        data: data
+      }
+    });
+
+    return true;
+  } catch (error) {
+    console.error(
+      "Expert_Cases update error:",
+      error && error.response && error.response.data
+        ? error.response.data
+        : error && error.message
+          ? error.message
+          : error
     );
 
     return false;
