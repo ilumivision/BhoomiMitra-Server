@@ -385,6 +385,69 @@ test("live detailed question then later escalation recovers the original farmer 
   assert.doesNotMatch(harness.state.sends[0].message, /Problem:\nTalk to expert/);
 });
 
+test("Get Me expert recovers and routes the prior live Mycorrhiza question", async function () {
+  const store = {};
+  const farmer = "919876543299";
+  const problem =
+    "I want to use mycorrhizal. Where can I get advice?";
+
+  rememberRecentExpertProblem(store, farmer, {
+    text: problem,
+    timestamp: 1000,
+    crop: "Rambutan",
+    category: "general_agriculture",
+    detectedIntent: "general_agriculture"
+  });
+
+  const recent = getRecentExpertProblem(
+    store,
+    farmer,
+    5000,
+    2000
+  );
+  const context = resolveExpertProblemContext({
+    currentText: "Get Me expert",
+    activeCase: null,
+    recentProblem: recent && recent.text
+  });
+  const match = chooseBestExpert(
+    [makeRincyExpertRow(), makeRobertExpertRow()],
+    {
+      crop: recent.crop,
+      problem: context.problem,
+      problemCategory: "General Agriculture",
+      district: "Pathanamthitta"
+    }
+  );
+  const harness = makeHarness({
+    expertRows: [
+      makeRincyExpertRow(),
+      makeRobertExpertRow()
+    ],
+    caseData: {
+      crop: recent.crop,
+      problem: context.problem,
+      problemCategory: "General Agriculture",
+      district: "Pathanamthitta"
+    }
+  });
+  const result = await assignExpertCase(
+    harness.dependencies
+  );
+
+  assert.equal(isEscalationOnlyMessage("Get Me expert"), true);
+  assert.equal(context.problem, problem);
+  assert.equal(context.problemSource, "RECENT");
+  assert.ok(match);
+  assert.equal(match.expert.expertName, "Dr C P Robert");
+  assert.equal(result.success, true);
+  assert.equal(result.expert.expertName, "Dr C P Robert");
+  assert.match(
+    harness.state.sends[0].message,
+    new RegExp(problem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  );
+});
+
 test("live Malayalam problem is recovered for a later Malayalam expert-help command", function () {
   const store = {};
   const farmer = "919876543212";
@@ -940,7 +1003,30 @@ test("multiple lower-tier phrases cannot accumulate across the tier boundary", f
 [
   "Talk to expert\u201d",
   "Want to talk to expert",
-  "I need to talk to an expert"
+  "I need to talk to an expert",
+  "Get me expert",
+  "Get me an expert",
+  "Give me expert",
+  "Give me an expert",
+  "Find expert",
+  "Find me an expert",
+  "Connect expert",
+  "Connect me to expert",
+  "Connect me with an expert",
+  "Need expert",
+  "Need an expert",
+  "I need expert",
+  "I want expert",
+  "I want an expert",
+  "Talk expert",
+  "Talk to expert",
+  "Speak to expert",
+  "Speak with an expert",
+  "Expert please",
+  "Expert help",
+  "GET ME AN EXPERT!!!",
+  "FiNd Me An ExPeRt?!",
+  "SPEAK TO EXPERT..."
 ].forEach(function (command) {
   test(command + " recovers the previous detailed problem", function () {
     const priorProblem =
@@ -959,7 +1045,10 @@ test("multiple lower-tier phrases cannot accumulate across the tier boundary", f
 
 [
   "I need expert advice about Mycorrhiza root inoculation.",
-  "Please provide an expert recommendation for this Rambutan fruit-drop problem."
+  "Please provide an expert recommendation for this Rambutan fruit-drop problem.",
+  "I need expert advice on fertilizer application",
+  "What is the expert recommendation for Mycorrhiza?",
+  "An expert told me to apply this"
 ].forEach(function (question) {
   test(question + " is not a pure escalation command", function () {
     assert.equal(isEscalationOnlyMessage(question), false);
@@ -969,7 +1058,11 @@ test("multiple lower-tier phrases cannot accumulate across the tier boundary", f
 [
   "വിദഗ്ധ സഹായം വേണം!!!",
   "എനിക്ക് ഒരു വിദഗ്ധനെ വേണം???",
-  "വിദഗ്ധനോട് സംസാരിക്കണം…"
+  "വിദഗ്ധനോട് സംസാരിക്കണം…",
+  "വിദഗ്ധനെ വേണം!",
+  "വിദഗ്ധ സഹായം ആവശ്യമാണ്.",
+  "എനിക്ക് വിദഗ്ധനുമായി സംസാരിക്കണം???",
+  "ഫീൽഡ് വിസിറ്റ് വേണം!"
 ].forEach(function (command) {
   test(command + " is recognized as a Malayalam escalation command", function () {
     assert.equal(isEscalationOnlyMessage(command), true);

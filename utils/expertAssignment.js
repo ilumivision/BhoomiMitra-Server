@@ -702,6 +702,21 @@ function normalizeMessageText(value) {
     .trim();
 }
 
+const ENGLISH_EXPERT_REQUEST_PATTERNS = [
+  /^(?:(?:please|kindly) |(?:(?:can|could|would) you ))?(?:get|give|find)(?: me)? (?:an? )?expert(?: (?:help|advice|assistance))?(?: please)?$/,
+  /^(?:(?:please|kindly) |(?:(?:can|could|would) you ))?connect(?: me)?(?: (?:to|with))? (?:an? )?expert(?: (?:help|advice|assistance))?(?: please)?$/,
+  /^(?:(?:please|kindly) |(?:(?:can|could|would) you ))?(?:talk|speak)(?: (?:to|with))? (?:an? )?expert(?: (?:help|advice|assistance))?(?: please)?$/,
+  /^(?:(?:please|kindly) )?(?:i )?(?:want|need)(?: to (?:(?:talk|speak)(?: (?:to|with))?|connect(?: me)?(?: (?:to|with))?))? (?:an? )?expert(?: (?:help|advice|assistance))?(?: please)?$/,
+  /^(?:(?:please|kindly) )?expert(?: (?:help|advice|assistance))?(?: please)?$/
+];
+
+const MALAYALAM_EXPERT_REQUEST_PATTERNS = [
+  /^(?:എനിക്ക് )?(?:ഒരു )?വിദഗ്ധനെ വേണം$/,
+  /^വിദഗ്ധ സഹായം(?: വേണം| ആവശ്യമാണ്)?$/,
+  /^(?:എനിക്ക് )?വിദഗ്ധന(?:ുമായി|ോട്) സംസാരിക്കണം$/,
+  /^ഫീൽഡ് വിസിറ്റ് വേണം$/
+];
+
 function isEscalationOnlyMessage(value) {
   const text = normalizeMessageText(value);
 
@@ -709,50 +724,15 @@ function isEscalationOnlyMessage(value) {
     return false;
   }
 
-  const exactCommands = [
-    "talk to expert",
-    "talk to an expert",
-    "want to talk to expert",
-    "want to talk to an expert",
-    "i want to talk to expert",
-    "i want to talk to an expert",
-    "expert help",
-    "expert advice",
-    "need expert",
-    "need an expert",
-    "i need expert",
-    "connect expert",
-    "connect me to expert",
-    "connect me to an expert",
-    "speak to expert",
-    "speak to an expert",
-    "i need an expert",
-    "i need to talk to expert",
-    "i need to talk to an expert",
-    "i want an expert",
-    "visit my farm",
-    "field visit",
-    "വിദഗ്ധനെ വേണം",
-    "ഒരു വിദഗ്ധനെ വേണം",
-    "എനിക്ക് വിദഗ്ധനെ വേണം",
-    "എനിക്ക് ഒരു വിദഗ്ധനെ വേണം",
-    "വിദഗ്ധ സഹായം വേണം",
-    "വിദഗ്ധ സഹായം",
-    "വിദഗ്ധ സഹായം ആവശ്യമാണ്",
-    "വിദഗ്ധനുമായി സംസാരിക്കണം",
-    "വിദഗ്ധനോട് സംസാരിക്കണം",
-    "എനിക്ക് വിദഗ്ധനോട് സംസാരിക്കണം",
-    "ഫീൽഡ് വിസിറ്റ് വേണം"
-  ];
-
-  if (exactCommands.includes(text)) {
+  if (text === "visit my farm" || text === "field visit") {
     return true;
   }
 
-  return /^(please )?(talk|speak|connect)( me)? (to )?(an? )?expert( please)?$/.test(text) ||
-    /^(please )?(i )?(want|need)( to)? (talk|speak|connect)( me)? (to )?(an? )?expert( please)?$/.test(text) ||
-    /^(please )?(i )?(want|need) (an? )?expert( please)?$/.test(text) ||
-    /^(please )?expert (help|advice|assistance)( please)?$/.test(text);
+  return ENGLISH_EXPERT_REQUEST_PATTERNS.some(function (pattern) {
+    return pattern.test(text);
+  }) || MALAYALAM_EXPERT_REQUEST_PATTERNS.some(function (pattern) {
+    return pattern.test(text);
+  });
 }
 
 function isDetailedFarmerProblem(value) {
