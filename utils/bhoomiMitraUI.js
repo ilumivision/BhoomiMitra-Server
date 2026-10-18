@@ -1,5 +1,21 @@
 "use strict";
 
+const {
+  EXPERT_ADVICE_ACTION_IDS
+} = require("./expertAdviceFlow");
+const {
+  TRAINING_ACTION_IDS,
+  TRAINING_DYNAMIC_PREFIXES
+} = require("./training");
+const {
+  SCHEME_ACTION_IDS,
+  SCHEME_DYNAMIC_PREFIXES
+} = require("./schemes");
+const {
+  FARM_ALERT_ACTION_IDS,
+  FARM_ALERT_PREFIXES
+} = require("./farmAlerts");
+
 // =====================================================
 // BhoomiMitra UI
 // ICAR-KVK, CARD Pathanamthitta
@@ -255,6 +271,34 @@ async function sendMainMenu(
               },
 
               {
+                id: TRAINING_ACTION_IDS.OPEN,
+
+                title:
+                  isMalayalam
+                    ? "🎓 പരിശീലന പരിപാടികൾ"
+                    : "🎓 Training Programmes",
+
+                description:
+                  isMalayalam
+                    ? "വരാനിരിക്കുന്ന കാർഷിക പരിശീലനങ്ങൾ"
+                    : "Upcoming agricultural trainings"
+              },
+
+              {
+                id: SCHEME_ACTION_IDS.OPEN,
+
+                title:
+                  isMalayalam
+                    ? "🏛️ സർക്കാർ പദ്ധതികൾ"
+                    : "🏛️ Schemes & Advisories",
+
+                description:
+                  isMalayalam
+                    ? "സർക്കാർ സഹായവും കാർഷിക അറിയിപ്പുകളും"
+                    : "Government support and farm advisories"
+              },
+
+              {
                 id: "HOME_MARKET",
 
                 title:
@@ -445,6 +489,20 @@ async function sendFarmMenu(
                   isMalayalam
                     ? "ഭൂമി, വിള, പ്രവർത്തനം, ഉപദേശം"
                     : "Land, crops, activities and advisory history"
+              },
+
+              {
+                id: FARM_ALERT_ACTION_IDS.OPEN,
+
+                title:
+                  isMalayalam
+                    ? "🔔 എന്റെ കൃഷി അലർട്ടുകൾ"
+                    : "🔔 My Farm Alerts",
+
+                description:
+                  isMalayalam
+                    ? "വരാനിരിക്കുന്ന ജോലി, കാലാവസ്ഥ, ഉപദേശം"
+                    : "Due work, weather cautions and advisories"
               },
 
               {
@@ -1120,6 +1178,1222 @@ async function sendProfileMenu(
     }
   );
 }
+
+async function sendExpertAdviceChoice(
+  to,
+  language
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() ===
+    "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: isMalayalam
+        ? (
+            "👨‍🌾 വിദഗ്ധ സഹായം\n\n" +
+            "എങ്ങനെ തുടരണമെന്ന് തിരഞ്ഞെടുക്കുക."
+          )
+        : (
+            "👨‍🌾 Expert Advice\n\n" +
+            "Choose how you would like to continue."
+          )
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.AI_FIRST,
+            title: isMalayalam
+              ? "🤖 AI മറുപടി ആദ്യം"
+              : "🤖 AI Answer First"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.DIRECT,
+            title: isMalayalam
+              ? "👨‍🌾 നേരിട്ട്"
+              : "👨‍🌾 Direct Expert"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.MAIN_MENU,
+            title: isMalayalam
+              ? "🏠 പ്രധാന മെനു"
+              : "🏠 Main Menu"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendExpertConfirmation(
+  to,
+  language,
+  directMode
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() ===
+    "malayalam";
+  const direct = Boolean(directMode);
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? (
+            direct
+              ? "ഈ ചോദ്യം അനുയോജ്യനായ വിദഗ്ധന് അയയ്ക്കണോ?"
+              : "ഈ ചോദ്യം അനുയോജ്യനായ വിദഗ്ധന് അയയ്ക്കാൻ ആഗ്രഹിക്കുന്നുണ്ടോ?"
+          )
+        : (
+            direct
+              ? "Send this question to a suitable expert?"
+              : "Would you like this question to be sent to a suitable expert?"
+          )
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.CONFIRM_YES,
+            title: isMalayalam
+              ? "✅ അതെ, അയയ്ക്കുക"
+              : "✅ Yes, Ask Expert"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.CONFIRM_NO,
+            title: isMalayalam
+              ? "❌ വേണ്ട"
+              : "❌ No, AI is Enough"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.MAIN_MENU,
+            title: isMalayalam
+              ? "🏠 പ്രധാന മെനു"
+              : "🏠 Main Menu"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendExpertDeclinedMenu(
+  to,
+  language
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() ===
+    "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? "ശരി. ഭൂമിമിത്ര AI ഉപയോഗിച്ച് തുടരാം."
+        : "Okay. You can continue with BhoomiMitra AI."
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.ASK_ANOTHER,
+            title: isMalayalam
+              ? "🤖 മറ്റൊരു ചോദ്യം"
+              : "🤖 Ask Another"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.MAIN_MENU,
+            title: isMalayalam
+              ? "🏠 പ്രധാന മെനു"
+              : "🏠 Main Menu"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendExpertAssignmentCard(
+  to,
+  language,
+  cardText
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() ===
+    "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: String(cardText || "").trim()
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.FOLLOW_UP,
+            title: isMalayalam
+              ? "💬 തുടർ ചോദ്യം"
+              : "💬 Send Follow-up"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.VIEW_CASE,
+            title: isMalayalam
+              ? "📄 കേസ് കാണുക"
+              : "📄 View Case"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: EXPERT_ADVICE_ACTION_IDS.MAIN_MENU,
+            title: isMalayalam
+              ? "🏠 പ്രധാന മെനു"
+              : "🏠 Main Menu"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendExpertCaseList(
+  to,
+  language,
+  mode,
+  rows
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() ===
+    "malayalam";
+  const isView = mode === "VIEW_CASE";
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: isMalayalam
+        ? (
+            isView
+              ? "കാണേണ്ട വിദഗ്ധ കേസ് തിരഞ്ഞെടുക്കുക."
+              : "തുടർ ചോദ്യം അയയ്ക്കേണ്ട വിദഗ്ധ കേസ് തിരഞ്ഞെടുക്കുക."
+          )
+        : (
+            isView
+              ? "Choose the expert case you want to view."
+              : "Choose the expert case for your follow-up."
+          )
+    },
+    action: {
+      button: isMalayalam ? "കേസുകൾ കാണുക" : "Choose case",
+      sections: [
+        {
+          title: isMalayalam ? "വിദഗ്ധ കേസുകൾ" : "Expert cases",
+          rows: Array.isArray(rows) ? rows.slice(0, 10) : []
+        }
+      ]
+    }
+  });
+}
+
+async function sendTrainingMenu(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+  const rows = [
+    [TRAINING_ACTION_IDS.UPCOMING, "Upcoming Trainings", "വരാനിരിക്കുന്നവ"],
+    [TRAINING_ACTION_IDS.CROP_PRODUCTION, "Crop Production", "വിള ഉൽപ്പാദനം"],
+    [TRAINING_ACTION_IDS.HORTICULTURE, "Horticulture", "തോട്ടവിള കൃഷി"],
+    [TRAINING_ACTION_IDS.ANIMAL_HUSBANDRY, "Animal Husbandry", "മൃഗസംരക്ഷണം"],
+    [TRAINING_ACTION_IDS.PLANT_PROTECTION, "Plant Protection", "സസ്യസംരക്ഷണം"],
+    [TRAINING_ACTION_IDS.VALUE_ADDITION, "Value Addition", "മൂല്യവർധന"],
+    [TRAINING_ACTION_IDS.FARM_MACHINERY, "Farm Machinery", "കാർഷിക യന്ത്രങ്ങൾ"],
+    [TRAINING_ACTION_IDS.ALL, "Other / All Trainings", "മറ്റ് / എല്ലാം"],
+    [TRAINING_ACTION_IDS.MY_TRAININGS, "My Trainings", "എന്റെ പരിശീലനങ്ങൾ"],
+    [TRAINING_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു"]
+  ].map(function (entry) {
+    return {
+      id: entry[0],
+      title: isMalayalam ? entry[2] : entry[1]
+    };
+  });
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: isMalayalam
+        ? "🎓 പരിശീലന പരിപാടികൾ\nഒരു വിഭാഗം തിരഞ്ഞെടുക്കുക."
+        : "🎓 Training Programmes\nChoose a category."
+    },
+    action: {
+      button: isMalayalam ? "പരിശീലനങ്ങൾ" : "View trainings",
+      sections: [
+        {
+          title: isMalayalam ? "പരിശീലന വിഭാഗങ്ങൾ" : "Training categories",
+          rows: rows
+        }
+      ]
+    }
+  });
+}
+
+async function sendTrainingProgramList(
+  to,
+  language,
+  rows,
+  myTrainings
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: myTrainings
+        ? (
+            isMalayalam
+              ? "🎓 എന്റെ പരിശീലനങ്ങൾ\nവിവരങ്ങൾ കാണാൻ ഒരു പരിശീലനം തിരഞ്ഞെടുക്കുക."
+              : "🎓 My Trainings\nChoose a programme to view its details."
+          )
+        : (
+            isMalayalam
+              ? "🎓 ലഭ്യമായ പരിശീലനങ്ങൾ\nവിവരങ്ങൾ കാണാൻ ഒരു പരിശീലനം തിരഞ്ഞെടുക്കുക."
+              : "🎓 Available Trainings\nChoose a programme to view its details."
+          )
+    },
+    action: {
+      button: isMalayalam ? "തിരഞ്ഞെടുക്കുക" : "Choose training",
+      sections: [
+        {
+          title: myTrainings
+            ? (isMalayalam ? "എന്റെ പരിശീലനങ്ങൾ" : "My Trainings")
+            : (isMalayalam ? "പരിശീലനങ്ങൾ" : "Training Programmes"),
+          rows: Array.isArray(rows) ? rows.slice(0, 10) : []
+        }
+      ]
+    }
+  });
+}
+
+async function sendPromotedTrainingList(to, language, rows) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: isMalayalam
+        ? "⭐ ജനപ്രിയ / പ്രോത്സാഹിപ്പിക്കുന്ന പരിശീലനങ്ങൾ\nഒരു പരിശീലനം തിരഞ്ഞെടുക്കുക."
+        : "⭐ Popular / Promoted Trainings\nChoose a training."
+    },
+    action: {
+      button: isMalayalam ? "തിരഞ്ഞെടുക്കുക" : "Choose training",
+      sections: [{
+        title: isMalayalam ? "ജനപ്രിയ പരിശീലനങ്ങൾ" : "Popular trainings",
+        rows: Array.isArray(rows) ? rows.slice(0, 5) : []
+      }]
+    }
+  });
+}
+
+async function sendPromotedTrainingCard(
+  to,
+  language,
+  detailText,
+  programId,
+  canRegister
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+  const buttons = [];
+
+  if (canRegister) {
+    buttons.push({
+      type: "reply",
+      reply: {
+        id: TRAINING_DYNAMIC_PREFIXES.REGISTER + programId,
+        title: isMalayalam ? "✅ താൽപര്യമുണ്ട്" : "✅ I'm Interested"
+      }
+    });
+  }
+
+  buttons.push({
+    type: "reply",
+    reply: {
+      id: TRAINING_DYNAMIC_PREFIXES.DETAILS + programId,
+      title: isMalayalam ? "📄 വിശദാംശങ്ങൾ" : "📄 Details"
+    }
+  });
+  buttons.push({
+    type: "reply",
+    reply: {
+      id: TRAINING_ACTION_IDS.MAIN_MENU,
+      title: isMalayalam ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu"
+    }
+  });
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(detailText || "").trim() },
+    action: { buttons: buttons }
+  });
+}
+
+async function sendTrainingDetails(
+  to,
+  language,
+  detailText,
+  programId,
+  canRegister
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+  const buttons = [];
+
+  if (canRegister) {
+    buttons.push({
+      type: "reply",
+      reply: {
+        id: TRAINING_DYNAMIC_PREFIXES.REGISTER + programId,
+        title: isMalayalam ? "✅ രജിസ്റ്റർ" : "✅ Register"
+      }
+    });
+  }
+
+  buttons.push({
+    type: "reply",
+    reply: {
+      id: TRAINING_ACTION_IDS.MORE,
+      title: isMalayalam ? "📅 കൂടുതൽ" : "📅 More Trainings"
+    }
+  });
+  buttons.push({
+    type: "reply",
+    reply: {
+      id: TRAINING_ACTION_IDS.MAIN_MENU,
+      title: isMalayalam ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu"
+    }
+  });
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(detailText || "").trim() },
+    action: { buttons: buttons }
+  });
+}
+
+async function sendTrainingRegistrationConfirmation(
+  to,
+  language,
+  program,
+  alreadyRegistered
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+  const text = isMalayalam
+    ? [
+        alreadyRegistered
+          ? "✅ ഈ പരിപാടിക്ക് നിങ്ങൾ ഇതിനകം രജിസ്റ്റർ ചെയ്തിട്ടുണ്ട്."
+          : "✅ പരിശീലന രജിസ്ട്രേഷൻ സ്ഥിരീകരിച്ചു",
+        "",
+        "പരിപാടി: " + program.title,
+        "തീയതി: " + (program.date || "ലഭ്യമല്ല"),
+        "വേദി: " + (program.venue || "ലഭ്യമല്ല"),
+        "നില: Registered"
+      ].join("\n")
+    : [
+        alreadyRegistered
+          ? "✅ You are already registered for this programme."
+          : "✅ Training Registration Confirmed",
+        "",
+        "Programme: " + program.title,
+        "Date: " + (program.date || "Not provided"),
+        "Venue: " + (program.venue || "Not provided"),
+        "Status: Registered"
+      ].join("\n");
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.MY_TRAININGS,
+            title: isMalayalam ? "📅 എന്റെ പരിശീലനം" : "📅 My Trainings"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.MORE,
+            title: isMalayalam ? "🎓 കൂടുതൽ" : "🎓 More Trainings"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.MAIN_MENU,
+            title: isMalayalam ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendTrainingRequestShortcuts(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? "നിങ്ങൾക്ക് ആവശ്യമുള്ള മറ്റൊരു പരിശീലനം KVK-യോട് അഭ്യർത്ഥിക്കാം."
+        : "You can also ask KVK to conduct a training you need."
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_START,
+            title: isMalayalam ? "🎓 പരിശീലനം വേണം" : "🎓 Request Training"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.MY_REQUESTS,
+            title: isMalayalam ? "📋 എന്റെ അഭ്യർത്ഥന" : "📋 My Requests"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.PROMOTED,
+            title: isMalayalam ? "⭐ ജനപ്രിയ പരിശീലനം" : "⭐ Popular Trainings"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendTrainingRequestPrompt(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? "KVK ഏത് പരിശീലനം നടത്തണമെന്നാണ് നിങ്ങൾ ആഗ്രഹിക്കുന്നത്?\nനിങ്ങളുടെ ആവശ്യം ടൈപ്പ് ചെയ്യുകയോ വോയ്സ് സന്ദേശം അയയ്ക്കുകയോ ചെയ്യാം."
+        : "What training would you like KVK to conduct?\nYou can type your need or send a voice message."
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.MY_REQUESTS,
+            title: isMalayalam ? "📋 എന്റെ അഭ്യർത്ഥന" : "📋 My Requests"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_CANCEL,
+            title: isMalayalam ? "❌ റദ്ദാക്കുക" : "❌ Cancel"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendTrainingModePreference(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: isMalayalam
+        ? "ഇഷ്ടപ്പെട്ട പരിശീലന രീതി തിരഞ്ഞെടുക്കുക:"
+        : "Preferred training mode:"
+    },
+    action: {
+      button: isMalayalam ? "രീതി തിരഞ്ഞെടുക്കുക" : "Choose mode",
+      sections: [{
+        title: isMalayalam ? "പരിശീലന രീതി" : "Training mode",
+        rows: [
+        {
+          id: TRAINING_ACTION_IDS.REQUEST_MODE_ONLINE,
+          title: isMalayalam ? "💻 ഓൺലൈൻ" : "💻 Online"
+        },
+        {
+          id: TRAINING_ACTION_IDS.REQUEST_MODE_OFFLINE,
+          title: isMalayalam ? "🏫 നേരിട്ട്" : "🏫 Offline / In-person"
+        },
+        {
+          id: TRAINING_ACTION_IDS.REQUEST_MODE_EITHER,
+          title: isMalayalam ? "🔄 ഏതും മതി" : "🔄 Either is fine"
+        }
+        ]
+      }]
+    }
+  });
+}
+
+async function sendTrainingTimePreference(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam ? "ഇഷ്ടപ്പെട്ട സമയം:" : "Preferred time:"
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_TIME_AFTERNOON,
+            title: "🕑 2:00–5:00 PM"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_TIME_EVENING,
+            title: "🌙 7:00–10:00 PM"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_TIME_EITHER,
+            title: isMalayalam ? "🔄 ഏതും മതി" : "🔄 Either is fine"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendTrainingRequestConfirmation(
+  to,
+  language,
+  topic,
+  mode,
+  preferredTime
+) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+  const modeValue = String(mode || "Either").trim();
+  const timeValue = String(preferredTime || "Not applicable").trim();
+  const displayedMode = isMalayalam
+    ? ({
+        "Online": "ഓൺലൈൻ",
+        "Offline / In-person": "ഓഫ്‌ലൈൻ / നേരിട്ട്",
+        "Either": "ഏതും മതി"
+      }[modeValue] || modeValue)
+    : modeValue;
+  const displayedTime = isMalayalam
+    ? ({
+        "Either": "ഏതും മതി",
+        "Not applicable": "ബാധകമല്ല"
+      }[timeValue] || timeValue)
+    : timeValue;
+  const text = isMalayalam
+    ? [
+        "🎓 പരിശീലന അഭ്യർത്ഥന",
+        "",
+        "ആവശ്യപ്പെട്ട പരിശീലനം:",
+        String(topic || "").trim(),
+        "",
+        "ഇഷ്ടപ്പെട്ട രീതി: " + displayedMode,
+        "ഇഷ്ടപ്പെട്ട സമയം: " + displayedTime,
+        "",
+        "ഈ അഭ്യർത്ഥന KVK-യിലേക്ക് സമർപ്പിക്കണോ?"
+      ].join("\n")
+    : [
+        "🎓 Training Request",
+        "",
+        "Requested training:",
+        String(topic || "").trim(),
+        "",
+        "Preferred mode: " + displayedMode,
+        "Preferred time: " + displayedTime,
+        "",
+        "Submit this request to KVK?"
+      ].join("\n");
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_SUBMIT,
+            title: isMalayalam ? "✅ സമർപ്പിക്കുക" : "✅ Submit"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_CHANGE,
+            title: isMalayalam ? "✏️ മാറ്റുക" : "✏️ Change"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_CANCEL,
+            title: isMalayalam ? "❌ റദ്ദാക്കുക" : "❌ Cancel"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendTrainingRequestSubmitted(to, language, topic) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+  const text = isMalayalam
+    ? [
+        "✅ പരിശീലന അഭ്യർത്ഥന സമർപ്പിച്ചു",
+        "",
+        "ആവശ്യപ്പെട്ട പരിശീലനം:",
+        String(topic || "").trim(),
+        "",
+        "നിങ്ങളുടെ അഭ്യർത്ഥന ICAR-KVK പത്തനംതിട്ടയിലേക്ക് അയച്ചു. പരിപാടി നിശ്ചയിച്ചാൽ നിങ്ങളെ അറിയിക്കും."
+      ].join("\n")
+    : [
+        "✅ Training Request Submitted",
+        "",
+        "Requested training:",
+        String(topic || "").trim(),
+        "",
+        "Your request has been sent to ICAR-KVK Pathanamthitta. You will be informed if a programme is scheduled."
+      ].join("\n");
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.MY_REQUESTS,
+            title: isMalayalam ? "📋 എന്റെ അഭ്യർത്ഥന" : "📋 My Requests"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.OPEN,
+            title: isMalayalam ? "🎓 പരിശീലനങ്ങൾ" : "🎓 Programmes"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.MAIN_MENU,
+            title: isMalayalam ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendMyTrainingRequests(to, language, requests) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+  const records = Array.isArray(requests) ? requests.slice(0, 5) : [];
+  const lines = [
+    isMalayalam ? "📋 എന്റെ പരിശീലന അഭ്യർത്ഥനകൾ" : "📋 My Training Requests"
+  ];
+
+  records.forEach(function (request, index) {
+    const requestedDate = String(request.requestedAt || "").slice(0, 10) ||
+      (isMalayalam ? "തീയതി ലഭ്യമല്ല" : "Date unavailable");
+    const storedMode = String(request.mode || "").trim();
+    const storedTime = String(request.preferredTime || "").trim();
+    const mode = isMalayalam
+      ? ({
+          "Online": "ഓൺലൈൻ",
+          "Offline / In-person": "ഓഫ്‌ലൈൻ / നേരിട്ട്",
+          "Either": "ഏതും മതി"
+        }[storedMode] || storedMode)
+      : storedMode;
+    const preferredTime = isMalayalam
+      ? ({
+          "Either": "ഏതും മതി",
+          "Not applicable": "ബാധകമല്ല"
+        }[storedTime] || storedTime)
+      : storedTime;
+    lines.push(
+      "",
+      String(index + 1) + ". " + String(request.topic || "").trim().slice(0, 120),
+      (isMalayalam ? "തീയതി: " : "Requested: ") + requestedDate,
+      (isMalayalam ? "നില: " : "Status: ") + (request.status || "Requested")
+    );
+
+    if (mode) {
+      lines.push((isMalayalam ? "രീതി: " : "Mode: ") + mode);
+    }
+    if (preferredTime) {
+      lines.push((isMalayalam ? "സമയം: " : "Time: ") + preferredTime);
+    }
+  });
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: lines.join("\n").slice(0, 1000) },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.REQUEST_START,
+            title: isMalayalam ? "🎓 പുതിയ അഭ്യർത്ഥന" : "🎓 New Request"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.OPEN,
+            title: isMalayalam ? "🎓 പരിശീലനങ്ങൾ" : "🎓 Programmes"
+          }
+        },
+        {
+          type: "reply",
+          reply: {
+            id: TRAINING_ACTION_IDS.MAIN_MENU,
+            title: isMalayalam ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu"
+          }
+        }
+      ]
+    }
+  });
+}
+
+async function sendSchemesMenu(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const rows = [
+    [SCHEME_ACTION_IDS.RELEVANT, "Relevant Schemes for Me", "എനിക്ക് പ്രസക്തമായവ"],
+    [SCHEME_ACTION_IDS.CROP, "Crop Schemes", "വിള പദ്ധതികൾ"],
+    [SCHEME_ACTION_IDS.LIVESTOCK, "Livestock Schemes", "മൃഗസംരക്ഷണ പദ്ധതികൾ"],
+    [SCHEME_ACTION_IDS.MACHINERY, "Machinery / Irrigation", "യന്ത്രം / ജലസേചനം"],
+    [SCHEME_ACTION_IDS.FINANCIAL, "Subsidies & Support", "സബ്സിഡിയും സഹായവും"],
+    [SCHEME_ACTION_IDS.INSURANCE, "Insurance / Risk", "ഇൻഷുറൻസ് / നഷ്ടസഹായം"],
+    [SCHEME_ACTION_IDS.ADVISORIES, "Current Advisories", "നിലവിലെ അറിയിപ്പുകൾ"],
+    [SCHEME_ACTION_IDS.SEARCH, "Search by Topic", "വിഷയം തിരയുക"],
+    [SCHEME_ACTION_IDS.MY_INTERESTS, "My Scheme Interests", "എന്റെ പദ്ധതി താൽപര്യങ്ങൾ"],
+    [SCHEME_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു"]
+  ].map(function (entry) {
+    return { id: entry[0], title: ml ? entry[2] : entry[1] };
+  });
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: ml
+        ? "🏛️ സർക്കാർ പദ്ധതികളും കാർഷിക അറിയിപ്പുകളും\nഒരു ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക."
+        : "🏛️ Government Schemes & Advisories\nChoose an option."
+    },
+    action: {
+      button: ml ? "പദ്ധതികൾ കാണുക" : "View schemes",
+      sections: [{
+        title: ml ? "പദ്ധതികളും അറിയിപ്പുകളും" : "Schemes and advisories",
+        rows: rows
+      }]
+    }
+  });
+}
+
+async function sendSchemeList(to, language, rows, relevant) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: relevant
+        ? (ml
+            ? "🏛️ നിങ്ങൾക്ക് പ്രസക്തമായിരിക്കാവുന്ന പദ്ധതികൾ\nഅപേക്ഷിക്കുന്നതിന് മുമ്പ് യോഗ്യത പരിശോധിക്കുക."
+            : "🏛️ Schemes that may be relevant to you\nPlease verify eligibility before applying.")
+        : (ml
+            ? "🏛️ സജീവ സർക്കാർ പദ്ധതികൾ\nവിവരങ്ങൾ കാണാൻ ഒരു പദ്ധതി തിരഞ്ഞെടുക്കുക."
+            : "🏛️ Active government schemes\nChoose a scheme to view details.")
+    },
+    action: {
+      button: ml ? "പദ്ധതി എടുക്കുക" : "Choose scheme",
+      sections: [{
+        title: ml ? "സർക്കാർ പദ്ധതികൾ" : "Government schemes",
+        rows: Array.isArray(rows) ? rows.slice(0, 10) : []
+      }]
+    }
+  });
+}
+
+async function sendSchemeDetails(to, language, detailText, schemeId, expanded) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: String(detailText || "").trim() },
+    action: {
+      button: ml ? "ഒരു നടപടി തിരഞ്ഞെടുക്കുക" : "Choose action",
+      sections: [{
+        title: ml ? "പദ്ധതി നടപടികൾ" : "Scheme actions",
+        rows: [
+        {
+          id: SCHEME_DYNAMIC_PREFIXES.INTEREST + schemeId,
+          title: ml ? "✅ താൽപര്യമുണ്ട്" : "✅ I'm Interested"
+        },
+        {
+          id: SCHEME_DYNAMIC_PREFIXES.HELP + schemeId,
+          title: ml ? "🆘 അപേക്ഷാ സഹായം" : "🆘 Need Help to Apply"
+        },
+        {
+          id: SCHEME_ACTION_IDS.OPEN,
+          title: ml ? "📄 കൂടുതൽ പദ്ധതികൾ" : "📄 More Schemes"
+        },
+        {
+          id: SCHEME_ACTION_IDS.MAIN_MENU,
+          title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu"
+        }
+        ]
+      }]
+    }
+  });
+}
+
+async function sendSchemeSearchResults(to, language, rows) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: ml
+        ? "🔎 ലഭ്യമായ സജീവ പദ്ധതികളും നിലവിലെ അറിയിപ്പുകളും\nഒരു ഫലം തിരഞ്ഞെടുക്കുക."
+        : "🔎 Matching active schemes and current advisories\nChoose a result."
+    },
+    action: {
+      button: ml ? "ഫലം തിരഞ്ഞെടുക്കുക" : "Choose result",
+      sections: [{
+        title: ml ? "തിരയൽ ഫലങ്ങൾ" : "Search results",
+        rows: Array.isArray(rows) ? rows.slice(0, 10) : []
+      }]
+    }
+  });
+}
+
+async function sendSchemeInterestConfirmation(to, language, scheme, status, duplicate) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const displayedStatus = ml
+    ? ({
+        "Interested": "താൽപര്യം രേഖപ്പെടുത്തി",
+        "Help Requested": "അപേക്ഷാ സഹായം അഭ്യർത്ഥിച്ചു"
+      }[status] || status)
+    : status;
+  const text = ml
+    ? [
+        duplicate ? "✅ ഈ അഭ്യർത്ഥന മുമ്പേ രേഖപ്പെടുത്തിയിട്ടുണ്ട്" : "✅ പദ്ധതി താൽപര്യം രേഖപ്പെടുത്തി",
+        "",
+        "പദ്ധതി: " + scheme.name,
+        "നില: " + displayedStatus,
+        "",
+        "നിലവിലെ യോഗ്യതയും അപേക്ഷാ നിബന്ധനകളും ഔദ്യോഗിക ഉറവിടത്തിൽ പരിശോധിക്കുക."
+      ].join("\n")
+    : [
+        duplicate ? "✅ This request is already recorded" : "✅ Scheme interest recorded",
+        "",
+        "Scheme: " + scheme.name,
+        "Status: " + status,
+        "",
+        "Please verify current eligibility and application conditions with the official source."
+      ].join("\n");
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.MY_INTERESTS, title: ml ? "📋 എന്റെ താൽപര്യങ്ങൾ" : "📋 My Interests" } },
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.OPEN, title: ml ? "🏛️ പദ്ധതികൾ" : "🏛️ Schemes" } },
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.MAIN_MENU, title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+      ]
+    }
+  });
+}
+
+async function sendSchemeSearchPrompt(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: ml
+        ? "ഏത് പദ്ധതി അല്ലെങ്കിൽ സഹായമാണ് തിരയേണ്ടത്? വിഷയം ടൈപ്പ് ചെയ്യുകയോ വോയ്സ് സന്ദേശം അയയ്ക്കുകയോ ചെയ്യാം."
+        : "What scheme or support are you looking for? Type a topic or send a voice message."
+    },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.MY_INTERESTS, title: ml ? "📋 എന്റെ താൽപര്യങ്ങൾ" : "📋 My Interests" } },
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.OPEN, title: ml ? "❌ റദ്ദാക്കുക" : "❌ Cancel" } }
+      ]
+    }
+  });
+}
+
+async function sendMySchemeInterests(to, language, interests) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const lines = [ml ? "📋 എന്റെ പദ്ധതി താൽപര്യങ്ങൾ" : "📋 My Scheme Interests"];
+  (interests || []).slice(0, 5).forEach(function (interest, index) {
+    const status = ml
+      ? ({
+          "Interested": "താൽപര്യം രേഖപ്പെടുത്തി",
+          "Help Requested": "അപേക്ഷാ സഹായം അഭ്യർത്ഥിച്ചു"
+        }[interest.status] || interest.status)
+      : interest.status;
+    lines.push(
+      "",
+      String(index + 1) + ". " + String(interest.schemeName || "").slice(0, 120),
+      (ml ? "തീയതി: " : "Date: ") + (String(interest.requestedAt || "").slice(0, 10) || "-"),
+      (ml ? "നില: " : "Status: ") + status
+    );
+  });
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: lines.join("\n").slice(0, 1000) },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.OPEN, title: ml ? "🏛️ പദ്ധതികൾ" : "🏛️ Schemes" } },
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.MAIN_MENU, title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+      ]
+    }
+  });
+}
+
+async function sendSchemeAdvisories(to, language, text) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(text || "").trim() },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.OPEN, title: ml ? "🏛️ പദ്ധതികൾ" : "🏛️ Schemes" } },
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.MAIN_MENU, title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+      ]
+    }
+  });
+}
+
+async function sendFarmAlertsMenu(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: "🌿 വളപ്രയോഗ ഡയറിയും ഓർമ്മപ്പെടുത്തലും\n\nരേഖപ്പെടുത്തിയതും ആസൂത്രണം ചെയ്തതുമായ വളപ്രയോഗങ്ങൾ കാണുക.\n\n🌿 Fertilizer diary and reminders\n\nView completed and planned fertilizer applications."
+    },
+    action: {
+      button: ml ? "അലർട്ടുകൾ തിരഞ്ഞെടുക്കുക" : "Choose alerts",
+      sections: [{
+        title: ml ? "വളപ്രയോഗം" : "Fertilizer application",
+        rows: [
+          { id: FARM_ALERT_ACTION_IDS.ACTIVE, title: ml ? "🔔 ആസൂത്രണം ചെയ്തത്" : "🔔 Planned", description: ml ? "വരാനിരിക്കുന്ന വളപ്രയോഗങ്ങൾ" : "Upcoming fertilizer applications" },
+          { id: FARM_ALERT_ACTION_IDS.ADD, title: ml ? "✅ പൂർത്തിയായത് ചേർക്കുക" : "✅ Record completed", description: ml ? "ചെയ്ത വളപ്രയോഗം രേഖപ്പെടുത്തുക" : "Add a fertilizer diary entry" },
+          { id: FARM_ALERT_ACTION_IDS.PLAN, title: ml ? "📅 ഓർമ്മപ്പെടുത്തൽ" : "📅 Plan reminder", description: ml ? "2 ദിവസം മുമ്പ് ഓർമ്മിപ്പിക്കുക" : "Opt in to a 2-day reminder" },
+          { id: FARM_ALERT_ACTION_IDS.HISTORY, title: ml ? "📖 ഡയറി ചരിത്രം" : "📖 Diary history", description: ml ? "പൂർത്തിയായ വളപ്രയോഗങ്ങൾ" : "Completed fertilizer applications" },
+          { id: FARM_ALERT_ACTION_IDS.FARM_MENU, title: ml ? "↩️ എന്റെ കൃഷിയിടം" : "↩️ My Farm", description: ml ? "കൃഷി മെനുവിലേക്ക്" : "Return to farm menu" },
+          { id: FARM_ALERT_ACTION_IDS.MAIN_MENU, title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu", description: ml ? "BhoomiMitra ഹോം" : "BhoomiMitra home" }
+        ]
+      }]
+    }
+  });
+}
+
+async function sendFarmAlertLandList(to, language, rows) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: "ഏത് രജിസ്റ്റർ ചെയ്ത കൃഷിയിടത്തിലാണ് വളപ്രയോഗം?\n\nWhich registered farm is this fertilizer application for?" },
+    action: {
+      button: ml ? "കൃഷിയിടം തിരഞ്ഞെടുക്കുക" : "Choose farm",
+      sections: [{ title: ml ? "എന്റെ കൃഷിയിടങ്ങൾ" : "My farms", rows: rows }]
+    }
+  });
+}
+
+async function sendFarmOperationTypes(to, language, rows) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml ? "നിങ്ങൾ രേഖപ്പെടുത്താൻ ആഗ്രഹിക്കുന്ന കൃഷിപ്പണി തിരഞ്ഞെടുക്കുക." : "Choose the farm operation to record." },
+    action: {
+      button: ml ? "പണി തിരഞ്ഞെടുക്കുക" : "Choose operation",
+      sections: [{ title: ml ? "കൃഷിപ്പണികൾ" : "Farm operations", rows: rows }]
+    }
+  });
+}
+
+async function sendFarmCropList(to, language, rows) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: "ഏത് രജിസ്റ്റർ ചെയ്ത വിളയ്ക്കാണ് വളപ്രയോഗം?\n\nWhich registered crop is this fertilizer application for?" },
+    action: {
+      button: ml ? "വിള തിരഞ്ഞെടുക്കുക" : "Choose crop",
+      sections: [{ title: ml ? "കൃഷിയിടത്തിലെ വിളകൾ" : "Crops on this farm", rows: rows }]
+    }
+  });
+}
+
+async function sendFarmOperationDateChoices(to, language, status) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const completed = String(status || "").toLowerCase() === "completed";
+  const buttons = completed ? [
+    { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.DATE_TODAY, title: ml ? "ഇന്ന്" : "Today" } },
+    { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.DATE_YESTERDAY, title: ml ? "ഇന്നലെ" : "Yesterday" } },
+    { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.DATE_CHOOSE, title: ml ? "📅 തീയതി" : "📅 Choose date" } }
+  ] : [
+    { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.DATE_IN_TWO_DAYS, title: ml ? "2 ദിവസത്തിന് ശേഷം" : "In 2 days" } },
+    { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.DATE_CHOOSE, title: ml ? "📅 തീയതി" : "📅 Choose date" } }
+  ];
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: completed
+      ? "വളപ്രയോഗം ചെയ്ത തീയതി തിരഞ്ഞെടുക്കുക.\n\nChoose the completed fertilizer application date."
+      : "ഇന്നുമുതൽ കുറഞ്ഞത് 2 ദിവസം കഴിഞ്ഞുള്ള വളപ്രയോഗ തീയതി തിരഞ്ഞെടുക്കുക. 2 ദിവസം മുമ്പുള്ള ഓർമ്മപ്പെടുത്തലിന് നിങ്ങൾ സമ്മതിക്കുന്നു.\n\nChoose a fertilizer date at least 2 days from today. You are opting in to one reminder 2 days before." },
+    action: { buttons: buttons }
+  });
+}
+
+async function sendFarmOperationNotePrompt(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: ml ? "ആവശ്യമെങ്കിൽ ഒരു ചുരുക്ക കുറിപ്പ് ടൈപ്പ് ചെയ്യുക അല്ലെങ്കിൽ വോയ്സ് അയയ്ക്കുക." : "Optionally type a short note or send it by voice." },
+    action: { buttons: [
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.NOTE_SKIP, title: ml ? "കുറിപ്പില്ല" : "No note" } },
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.CANCEL, title: ml ? "റദ്ദാക്കുക" : "Cancel" } }
+    ] }
+  });
+}
+
+async function sendFarmOperationConfirmation(to, language, text) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(text || "").slice(0, 1000) },
+    action: { buttons: [
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.SAVE, title: ml ? "✅ സേവ് ചെയ്യുക" : "✅ Save" } },
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.CHANGE, title: ml ? "✏️ മാറ്റുക" : "✏️ Change" } },
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.CANCEL, title: ml ? "❌ റദ്ദാക്കുക" : "❌ Cancel" } }
+    ] }
+  });
+}
+
+async function sendFarmOperationPrompt(to, language, status) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const completed = String(status || "").toLowerCase() === "completed";
+  const text = completed
+    ? "വളപ്രയോഗം ചെയ്ത തീയതി YYYY-MM-DD രൂപത്തിൽ ടൈപ്പ് ചെയ്യുക.\n\nType the completed date as YYYY-MM-DD."
+    : "ഇന്നുമുതൽ കുറഞ്ഞത് 2 ദിവസം കഴിഞ്ഞുള്ള വളപ്രയോഗ തീയതി YYYY-MM-DD രൂപത്തിൽ ടൈപ്പ് ചെയ്യുക. സ്ഥിരീകരിച്ചാൽ 2 ദിവസം മുമ്പുള്ള ഒരൊറ്റ ഓർമ്മപ്പെടുത്തലിന് നിങ്ങൾ സമ്മതിക്കുന്നു.\n\nType a fertilizer date at least 2 days from today as YYYY-MM-DD. Confirming opts you in to one reminder 2 days before.";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text },
+    action: { buttons: [{ type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.OPEN, title: ml ? "റദ്ദാക്കുക" : "Cancel" } }] }
+  });
+}
+
+async function sendFarmAlertList(to, language, rows, emptyText) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  if (!rows || rows.length === 0) {
+    return sendInteractiveMessage(to, {
+      type: "button",
+      body: { text: emptyText || "ആസൂത്രണം ചെയ്ത വളപ്രയോഗങ്ങളില്ല.\n\nThere are no planned fertilizer applications." },
+      action: { buttons: [
+        { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.PLAN, title: ml ? "📅 ഓർമ്മപ്പെടുത്തൽ" : "📅 Plan reminder" } },
+        { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.OPEN, title: ml ? "🔔 അലർട്ട് മെനു" : "🔔 Alerts menu" } }
+      ] }
+    });
+  }
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: "🔔 ആസൂത്രണം ചെയ്ത വളപ്രയോഗങ്ങൾ\n\n🔔 Planned fertilizer applications" },
+    action: {
+      button: ml ? "അലർട്ട് കാണുക" : "View alert",
+      sections: [{ title: ml ? "നിലവിലെ അലർട്ടുകൾ" : "Current alerts", rows: rows }]
+    }
+  });
+}
+
+async function sendFarmAlertDetails(to, language, text, alert) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const rows = [
+    { id: FARM_ALERT_PREFIXES.DONE + alert.notificationId, title: ml ? "✅ ചെയ്തു" : "✅ Done", description: ml ? "പൂർത്തിയായതായി രേഖപ്പെടുത്തുക" : "Mark this work completed" },
+    { id: FARM_ALERT_ACTION_IDS.ACTIVE, title: ml ? "🔔 എല്ലാ അലർട്ടുകളും" : "🔔 All alerts", description: ml ? "പട്ടികയിലേക്ക് മടങ്ങുക" : "Return to the alerts list" }
+  ];
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: String(text || "").slice(0, 1000) },
+    action: { button: ml ? "നടപടി തിരഞ്ഞെടുക്കുക" : "Choose action", sections: [{ title: ml ? "നടപടികൾ" : "Actions", rows: rows }] }
+  });
+}
+
+async function sendFarmOperationResult(to, language, text) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(text || "") },
+    action: { buttons: [
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.ACTIVE, title: ml ? "🔔 അലർട്ടുകൾ" : "🔔 My Alerts" } },
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.ADD, title: ml ? "✅ ഡയറി ചേർക്കുക" : "✅ Add diary entry" } },
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.PLAN, title: ml ? "📅 ഓർമ്മപ്പെടുത്തൽ" : "📅 Plan reminder" } }
+    ] }
+  });
+}
+
+async function sendFarmAlertHistory(to, language, text) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(text || "").slice(0, 1000) },
+    action: { buttons: [
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.OPEN, title: ml ? "🔔 അലർട്ട് മെനു" : "🔔 Alerts menu" } },
+      { type: "reply", reply: { id: FARM_ALERT_ACTION_IDS.MAIN_MENU, title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+    ] }
+  });
+}
 // ===================================================
 // INTERACTIVE SELECTION → EXISTING BHOOMIMITRA COMMAND
 // ===================================================
@@ -1221,6 +2495,43 @@ return {
   sendLandManagementMenu,
   sendSatelliteGpsMenu,
   sendExpertMenu,
+  sendExpertAdviceChoice,
+  sendExpertConfirmation,
+  sendExpertDeclinedMenu,
+  sendExpertAssignmentCard,
+  sendExpertCaseList,
+  sendTrainingMenu,
+  sendTrainingProgramList,
+  sendPromotedTrainingList,
+  sendPromotedTrainingCard,
+  sendTrainingDetails,
+  sendTrainingRegistrationConfirmation,
+  sendTrainingRequestShortcuts,
+  sendTrainingRequestPrompt,
+  sendTrainingModePreference,
+  sendTrainingTimePreference,
+  sendTrainingRequestConfirmation,
+  sendTrainingRequestSubmitted,
+  sendMyTrainingRequests,
+  sendSchemesMenu,
+  sendSchemeList,
+  sendSchemeDetails,
+  sendSchemeSearchResults,
+  sendSchemeInterestConfirmation,
+  sendSchemeSearchPrompt,
+  sendMySchemeInterests,
+  sendSchemeAdvisories,
+  sendFarmAlertsMenu,
+  sendFarmAlertLandList,
+  sendFarmOperationTypes,
+  sendFarmCropList,
+  sendFarmOperationDateChoices,
+  sendFarmOperationConfirmation,
+  sendFarmOperationPrompt,
+  sendFarmAlertList,
+  sendFarmAlertDetails,
+  sendFarmOperationResult,
+  sendFarmAlertHistory,
   sendMarketMenu,
   sendProfileMenu,
   sendPersonalRecordsMenu,

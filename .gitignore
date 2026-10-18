@@ -1,4 +1,57 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Local environment files and secrets
 .env
-npm-debug.log
+.env.*
+!.env.example
+*credentials*.json
+*service-account*.json
+*service_account*.json
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.jks
+
+# Farmer data and spreadsheet exports
+farmer-exports/
+farmer_exports/
+*farmer*export*.json
+*farmer*export*.zip
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.ods
+
+# Databases, dumps, and backups
+*.sql
+*.dump
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+*.backup
+backups/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Temporary and operating-system files
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
 .DS_Store
+Thumbs.db

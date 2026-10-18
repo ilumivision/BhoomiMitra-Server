@@ -4,8 +4,12 @@ const assert = require("node:assert/strict");
 const {
   PRIMARY_HEADERS,
   normalizePhone,
-  upsertMasterMember
+  upsertMasterMember,
+  reconcileFarmersToMaster
 } = require("../utils/masterMemberRegistry");
+const {
+  parseCommandLine
+} = require("../scripts/reconcile-master-members");
 const {
   FARMER_HEADER_ALIASES,
   normalizeRegistrationHeader,
@@ -135,6 +139,78 @@ function makeLiveFarmerLanguageHeaders() {
     "Preferred_Language";
 
   return headers;
+}
+
+const FARMER_HEADERS = [
+  "Farmer_ID",
+  "Name",
+  "Mobile",
+  "WhatsApp",
+  "District",
+  "Panchayath",
+  "Preferred_Language"
+];
+
+function makeFarmerRow(values) {
+  const row = new Array(FARMER_HEADERS.length).fill("");
+
+  Object.keys(values).forEach(function (header) {
+    row[FARMER_HEADERS.indexOf(header)] = values[header];
+  });
+
+  return row;
+}
+
+function createReconciliationSheets(farmerRows, masterRows) {
+  const calls = {
+    farmerReads: 0,
+    masterReads: 0,
+    append: 0,
+    batchUpdate: 0
+  };
+
+  return {
+    calls,
+    client: {
+      spreadsheets: {
+        values: {
+          async get(request) {
+            if (request.range.startsWith("'Farmers'!")) {
+              calls.farmerReads += 1;
+              return {
+                data: {
+                  values: [FARMER_HEADERS, ...farmerRows]
+                }
+              };
+            }
+
+            calls.masterReads += 1;
+            return {
+              data: {
+                values: masterRows || [HEADERS]
+              }
+            };
+          },
+          async append() {
+            calls.append += 1;
+          },
+          async batchUpdate() {
+            calls.batchUpdate += 1;
+          }
+        }
+      }
+    }
+  };
+}
+
+function reconciliationOptions(fake, overrides) {
+  return {
+    sheets: fake.client,
+    spreadsheetId: "test-sheet",
+    farmerHeaderAliases: FARMER_HEADER_ALIASES,
+    farmerId: "BM-1783517586436",
+    ...(overrides || {})
+  };
 }
 
 function member(overrides) {
@@ -574,6 +650,176 @@ test("ignores blank headers even when their columns have dropdown validation", f
   assert.equal(
     findFarmerPreferredLanguageColumn(headers),
     columnLetterToIndex("BG")
+  );
+});
+
+test("reconciliation targets an exact Farmer_ID match only", async function () {
+  const fake = createReconciliationSheets([
+    makeFarmerRow({
+      Farmer_ID: "BM-OTHER",
+      Mobile: "9000000000"
+    }),
+    makeFarmerRow({
+      Farmer_ID: "BM-1783517586436",
+      Name: "Target Farmer",
+      Mobile: "9876543210"
+    })
+  ]);
+
+  const result = await reconcileFarmersToMaster(
+    reconciliationOptions(fake)
+  );
+
+  assert.equal(result.success, true);
+  assert.equal(result.farmerId, "BM-1783517586436");
+  assert.equal(result.processed, 1);
+  assert.equal(result.appended, 1);
+  assert.equal(fake.calls.masterReads, 1);
+  assert.equal(fake.calls.append, 0);
+});
+
+test("reconciliation trims Farmer_ID input and Sheet values", async function () {
+  const fake = createReconciliationSheets([
+    makeFarmerRow({
+      Farmer_ID: "  BM-1783517586436  ",
+      Mobile: "9876543210"
+    })
+  ]);
+
+  const result = await reconcileFarmersToMaster(
+    reconciliationOptions(fake, {
+      farmerId: "  BM-1783517586436  "
+    })
+  );
+
+  assert.equal(result.success, true);
+  assert.equal(result.processed, 1);
+});
+
+test("reconciliation refuses a missing Farmer_ID before any Master action", async function () {
+  const fake = createReconciliationSheets([
+    makeFarmerRow({
+      Farmer_ID: "BM-OTHER",
+      Mobile: "9000000000"
+    })
+  ]);
+
+  const result = await reconcileFarmersToMaster(
+    reconciliationOptions(fake)
+  );
+
+  assert.equal(result.success, false);
+  assert.equal(result.code, "FARMER_NOT_FOUND");
+  assert.equal(fake.calls.masterReads, 0);
+  assert.equal(fake.calls.append, 0);
+  assert.equal(fake.calls.batchUpdate, 0);
+});
+
+test("reconciliation refuses duplicate identical Farmer_ID rows", async function () {
+  const fake = createReconciliationSheets([
+    makeFarmerRow({
+      Farmer_ID: "BM-1783517586436",
+      Mobile: "9876543210"
+    }),
+    makeFarmerRow({
+      Farmer_ID: " BM-1783517586436 ",
+      Mobile: "9123456780"
+    })
+  ]);
+
+  const result = await reconcileFarmersToMaster(
+    reconciliationOptions(fake)
+  );
+
+  assert.equal(result.success, false);
+  assert.equal(result.code, "FARMER_ID_AMBIGUITY");
+  assert.equal(result.matchCount, 2);
+  assert.deepEqual(result.rowNumbers, [2, 3]);
+  assert.equal(fake.calls.masterReads, 0);
+  assert.equal(fake.calls.append, 0);
+  assert.equal(fake.calls.batchUpdate, 0);
+});
+
+test("targeted reconciliation has no effect on unrelated Farmer rows", async function () {
+  const fake = createReconciliationSheets([
+    makeFarmerRow({
+      Farmer_ID: "BM-UNRELATED-1",
+      Mobile: "9000000001"
+    }),
+    makeFarmerRow({
+      Farmer_ID: "BM-1783517586436",
+      Mobile: "9876543210"
+    }),
+    makeFarmerRow({
+      Farmer_ID: "BM-UNRELATED-2",
+      Mobile: "9000000002"
+    })
+  ]);
+
+  const result = await reconcileFarmersToMaster(
+    reconciliationOptions(fake)
+  );
+
+  assert.equal(result.processed, 1);
+  assert.equal(result.skipped, 0);
+  assert.equal(fake.calls.masterReads, 1);
+});
+
+test("targeted CLI remains dry-run unless --execute is present", async function () {
+  const dryRunCli = parseCommandLine([
+    "--farmer-id",
+    " BM-1783517586436 "
+  ]);
+  const executeCli = parseCommandLine([
+    "--farmer-id",
+    "BM-1783517586436",
+    "--execute"
+  ]);
+
+  assert.deepEqual(dryRunCli, {
+    execute: false,
+    dryRun: true,
+    farmerId: "BM-1783517586436"
+  });
+  assert.deepEqual(executeCli, {
+    execute: true,
+    dryRun: false,
+    farmerId: "BM-1783517586436"
+  });
+
+  const dryRunFake = createReconciliationSheets([
+    makeFarmerRow({
+      Farmer_ID: "BM-1783517586436",
+      Mobile: "9876543210"
+    })
+  ]);
+  const executeFake = createReconciliationSheets([
+    makeFarmerRow({
+      Farmer_ID: "BM-1783517586436",
+      Mobile: "9876543210"
+    })
+  ]);
+
+  await reconcileFarmersToMaster(
+    reconciliationOptions(dryRunFake, dryRunCli)
+  );
+  await reconcileFarmersToMaster(
+    reconciliationOptions(executeFake, executeCli)
+  );
+
+  assert.equal(dryRunFake.calls.append, 0);
+  assert.equal(executeFake.calls.append, 1);
+});
+
+test("targeted CLI refuses a missing Farmer_ID value", function () {
+  assert.throws(
+    function () {
+      parseCommandLine([
+        "--farmer-id",
+        "--execute"
+      ]);
+    },
+    /requires a Farmer_ID value/
   );
 });
 

@@ -1,6 +1,10 @@
 "use strict";
 
 const crypto = require("crypto");
+const {
+  createExpertQuestionId,
+  deriveExpertTopic
+} = require("./expertAdviceFlow");
 
 const EXPERT_CASE_HEADERS = [
   "Case_ID",
@@ -1020,13 +1024,22 @@ function buildPrefixedParts(prefix, content, maximumLength) {
 function buildExpertNotificationParts(preparedCase, settings) {
   const maximumLength = 3200;
   const caseId = preparedCase.caseId;
+  const expertQuestionId =
+    createExpertQuestionId(caseId);
+  const topic = deriveExpertTopic(
+    preparedCase.problem,
+    preparedCase.problemCategory,
+    preparedCase.crop
+  );
   const problem = preparedCase.problem || "Not available";
   const primaryPrefix = [
     "🩺 New BhoomiMitra Expert Case",
+    "Expert Qn ID: " + expertQuestionId,
     "Case ID: " + caseId,
+    "Topic: " + topic,
     "Farmer: " + safeFarmerIdentifier(preparedCase),
     "District: " + (preparedCase.district || "Not available"),
-    "Crop/Animal: " + (preparedCase.crop || "Not available"),
+    "Crop/Animal: " + (preparedCase.crop || "Not specified"),
     "Category: " + (preparedCase.problemCategory || "Not available"),
     "Photo/media available: " + (preparedCase.mediaAvailable ? "Yes" : "No"),
     "Priority: " + preparedCase.priority,
@@ -1156,7 +1169,12 @@ function duplicateResult(row, headerMap) {
     getHeaderValue(row, headerMap, "Expert_Notification_Message_ID")
   );
   const expertName = clean(getHeaderValue(row, headerMap, "Assigned_Expert"));
-  const delivered = lower(status) === "assigned" && Boolean(notificationMessageId);
+  const delivered = [
+    "assigned",
+    "expert replied",
+    "farmer follow-up",
+    "closed"
+  ].includes(lower(status)) && Boolean(notificationMessageId);
 
   return {
     success: delivered,
@@ -1400,7 +1418,7 @@ async function assignExpertCase(options) {
 
       await updateCase(Object.assign({}, persistedCase, {
         valuesByHeader: {
-          Status: "Expert Notification Failed",
+          Status: "Pending Expert Notification",
           Expert_Notification_Status: "Failed",
           Expert_Notification_Message_ID: primaryMessageId,
           Notification_Attempts: notificationAttempts,
@@ -1412,7 +1430,7 @@ async function assignExpertCase(options) {
       return {
         success: false,
         caseId: preparedCase.caseId,
-        status: "Expert Notification Failed",
+        status: "Pending Expert Notification",
         error: notificationFailure,
         expert: selectedExpert,
         expertMessage: expertMessages[0] || "",

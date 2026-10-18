@@ -495,7 +495,55 @@ async function reconcileFarmersToMaster(options) {
     issues: []
   };
 
-  for (const row of rows.slice(1)) {
+  let farmerRows = rows.slice(1);
+  const requestedFarmerId =
+    String(options.farmerId || "").trim();
+
+  if (requestedFarmerId) {
+    summary.farmerId = requestedFarmerId;
+
+    const matches = farmerRows
+      .map(function (row, index) {
+        return {
+          row,
+          rowNumber: index + 2
+        };
+      })
+      .filter(function (item) {
+        return (
+          getCell(item.row, indexes.id) ===
+          requestedFarmerId
+        );
+      });
+
+    if (matches.length === 0) {
+      return {
+        ...summary,
+        success: false,
+        code: "FARMER_NOT_FOUND",
+        farmerId: requestedFarmerId
+      };
+    }
+
+    if (matches.length > 1) {
+      return {
+        ...summary,
+        success: false,
+        code: "FARMER_ID_AMBIGUITY",
+        farmerId: requestedFarmerId,
+        matchCount: matches.length,
+        rowNumbers: matches.map(function (match) {
+          return match.rowNumber;
+        })
+      };
+    }
+
+    // From this point onward, a targeted run cannot inspect or upsert any
+    // unrelated Farmer row.
+    farmerRows = [matches[0].row];
+  }
+
+  for (const row of farmerRows) {
     const bmId = getCell(row, indexes.id);
     const mobile = getCell(row, indexes.mobile);
     const whatsapp = getCell(row, indexes.whatsapp);
