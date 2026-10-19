@@ -3072,7 +3072,7 @@ async function loadCropFarmContext(from) {
   const values = await Promise.all([
     readSheetRows(FARM_LAND_SHEET, "A:AZ"),
     readSheetRows(CROP_SHEET, "A:Z"),
-    readSheetRows(CROP_HISTORY_SHEET, "A:Z"),
+    readSheetRows(CROP_HISTORY_SHEET, "A:AF"),
     readSheetRows(OPERATION_SHEET, "A:Z"),
     readSheetRows(VERIFIED_ALERT_SHEET, "A:Z")
   ]);
