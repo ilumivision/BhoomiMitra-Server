@@ -18,6 +18,9 @@ const {
 const {
   ANIMAL_ACTION_IDS
 } = require("./animalHusbandry");
+const {
+  CROP_FARM_ACTION_IDS
+} = require("./cropFarmRecords");
 
 // =====================================================
 // BhoomiMitra UI
@@ -554,17 +557,17 @@ async function sendFarmMenu(
               },
 
               {
-                id: FARM_ALERT_ACTION_IDS.OPEN,
+                id: CROP_FARM_ACTION_IDS.OPEN,
 
                 title:
                   isMalayalam
-                    ? "🔔 എന്റെ കൃഷി അലർട്ടുകൾ"
-                    : "🔔 My Farm Alerts",
+                    ? "🌱 വിളകളും കൃഷിരേഖകളും"
+                    : "🌱 Crop & Farm Records",
 
                 description:
                   isMalayalam
-                    ? "വരാനിരിക്കുന്ന ജോലി, കാലാവസ്ഥ, ഉപദേശം"
-                    : "Due work, weather cautions and advisories"
+                    ? "വിള, കൃഷിപ്പണി, അലർട്ട് രേഖകൾ"
+                    : "Crops, operations, history and alerts"
               },
 
               {
@@ -2303,6 +2306,99 @@ async function sendFarmAlertsMenu(to, language) {
   });
 }
 
+async function sendCropFarmMenu(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const labels = [
+    [CROP_FARM_ACTION_IDS.REGISTER, "Register Crop", "വിള രജിസ്റ്റർ", "Add a crop to a verified land", "സ്ഥിരീകരിച്ച ഭൂമിയിൽ വിള ചേർക്കുക"],
+    [CROP_FARM_ACTION_IDS.MY_CROPS, "My Crops", "എന്റെ വിളകൾ", "View current registered crops", "നിലവിലെ വിളകൾ കാണുക"],
+    [CROP_FARM_ACTION_IDS.HISTORY, "Crop History", "വിള ചരിത്രം", "Current and previous crops", "നിലവിലെയും പഴയതുമായ വിളകൾ"],
+    [CROP_FARM_ACTION_IDS.RECORD_OPERATION, "Record Farm Activity", "കൃഷിപ്പണി രേഖ", "Completed or planned operation", "പൂർത്തിയായതോ ആസൂത്രണം ചെയ്തതോ"],
+    [CROP_FARM_ACTION_IDS.ACTIVITIES, "My Farm Activities", "എന്റെ കൃഷിപ്പണികൾ", "Recent operation history", "സമീപകാല പ്രവർത്തന ചരിത്രം"],
+    [CROP_FARM_ACTION_IDS.PLANNED, "Planned Operations", "ആസൂത്രിത പണികൾ", "View farmer-recorded plans", "ആസൂത്രണം ചെയ്ത പണികൾ"],
+    [CROP_FARM_ACTION_IDS.ALERTS, "Farm & Crop Alerts", "കൃഷി മുന്നറിയിപ്പുകൾ", "Verified and scheduled alerts", "സ്ഥിരീകരിച്ചതും ആസൂത്രിതവും"],
+    [CROP_FARM_ACTION_IDS.FERTILIZER, "Fertilizer Diary", "വളപ്രയോഗ ഡയറി", "Existing diary and reminders", "നിലവിലെ ഡയറിയും ഓർമ്മപ്പെടുത്തലും"],
+    [CROP_FARM_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു", "BhoomiMitra home", "BhoomiMitra ഹോം"]
+  ];
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml
+      ? "🌱 വിളകളും കൃഷിരേഖകളും\n\nഒരു പ്രവർത്തനം തിരഞ്ഞെടുക്കുക."
+      : "🌱 Crop and Farm Records\n\nChoose an action." },
+    action: {
+      button: ml ? "പ്രവർത്തനങ്ങൾ" : "Choose action",
+      sections: [{ title: ml ? "കൃഷിരേഖകൾ" : "Crop and farm records", rows: labels.map(function (item) {
+        return { id: item[0], title: (ml ? item[2] : item[1]).slice(0, 24), description: (ml ? item[4] : item[3]).slice(0, 72) };
+      }) }]
+    }
+  });
+}
+
+async function sendCropFarmLandList(to, language, rows, purpose) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: purpose === "operation"
+      ? (ml ? "കൃഷിപ്പണി രേഖപ്പെടുത്തേണ്ട നിങ്ങളുടെ ഭൂമി തിരഞ്ഞെടുക്കുക." : "Choose your land for this farm activity.")
+      : (ml ? "വിള രജിസ്റ്റർ ചെയ്യേണ്ട നിങ്ങളുടെ ഭൂമി തിരഞ്ഞെടുക്കുക." : "Choose your land for crop registration.") },
+    action: { button: ml ? "ഭൂമി തിരഞ്ഞെടുക്കുക" : "Choose land", sections: [{ title: ml ? "എന്റെ ഭൂമികൾ" : "My verified lands", rows: rows }] }
+  });
+}
+
+async function sendCropFarmOperationTypes(to, language, rows) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml ? "കൃഷിപ്പണിയുടെ തരം തിരഞ്ഞെടുക്കുക." : "Choose the farm activity type. Use Fertilizer Diary for fertilizer applications." },
+    action: { button: ml ? "പണി തിരഞ്ഞെടുക്കുക" : "Choose activity", sections: [{ title: ml ? "കൃഷിപ്പണികൾ" : "Farm activities", rows: rows }] }
+  });
+}
+
+async function sendCropFarmCropList(to, language, rows) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml ? "ഈ പണി ഏത് രജിസ്റ്റർ ചെയ്ത വിളയ്ക്കാണ്?" : "Which registered crop is this activity for?" },
+    action: { button: ml ? "വിള തിരഞ്ഞെടുക്കുക" : "Choose crop", sections: [{ title: ml ? "വിളകൾ" : "Registered crops", rows: rows }] }
+  });
+}
+
+async function sendCropStatusList(to, language, rows) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml ? "നില പുതുക്കേണ്ട വിള തിരഞ്ഞെടുക്കുക." : "Choose the crop whose status should be updated." },
+    action: { button: ml ? "വിള തിരഞ്ഞെടുക്കുക" : "Choose crop", sections: [{ title: ml ? "നിലവിലെ വിളകൾ" : "Current crops", rows: rows }] }
+  });
+}
+
+async function sendCropFarmMessage(to, language, text) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(text || "").slice(0, 4000) },
+    action: { buttons: [
+      { type: "reply", reply: { id: CROP_FARM_ACTION_IDS.OPEN, title: ml ? "🌱 കൃഷിരേഖകൾ" : "🌱 Farm Records" } },
+      { type: "reply", reply: { id: CROP_FARM_ACTION_IDS.FARM_MENU, title: ml ? "↩️ എന്റെ കൃഷിയിടം" : "↩️ My Farm" } },
+      { type: "reply", reply: { id: CROP_FARM_ACTION_IDS.MAIN_MENU, title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+    ] }
+  });
+}
+
+async function sendCropFarmConfirmation(to, language, text, kind) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const saveId = kind === "operation" ? CROP_FARM_ACTION_IDS.SAVE_OPERATION
+    : kind === "status" ? CROP_FARM_ACTION_IDS.SAVE_STATUS : CROP_FARM_ACTION_IDS.SAVE_CROP;
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(text || "").slice(0, 1000) },
+    action: { buttons: [
+      { type: "reply", reply: { id: saveId, title: ml ? "✅ സേവ്" : "✅ Save" } },
+      { type: "reply", reply: { id: CROP_FARM_ACTION_IDS.CHANGE, title: ml ? "✏️ മാറ്റുക" : "✏️ Change" } },
+      { type: "reply", reply: { id: CROP_FARM_ACTION_IDS.CANCEL, title: ml ? "❌ റദ്ദാക്കുക" : "❌ Cancel" } }
+    ] }
+  });
+}
+
 async function sendFarmAlertLandList(to, language, rows) {
   const ml = String(language || "").toLowerCase() === "malayalam";
   return sendInteractiveMessage(to, {
@@ -2595,6 +2691,13 @@ return {
   sendFarmAlertDetails,
   sendFarmOperationResult,
   sendFarmAlertHistory,
+  sendCropFarmMenu,
+  sendCropFarmLandList,
+  sendCropFarmOperationTypes,
+  sendCropFarmCropList,
+  sendCropStatusList,
+  sendCropFarmMessage,
+  sendCropFarmConfirmation,
   sendMarketMenu,
   sendProfileMenu,
   sendPersonalRecordsMenu,

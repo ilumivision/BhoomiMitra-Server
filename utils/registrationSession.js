@@ -68,9 +68,8 @@ const REGISTRATION_MENU_STEPS = new Set([
 ]);
 
 function isExplicitRegistrationExit(selectionId) {
-  return EXPLICIT_REGISTRATION_EXIT_IDS.has(
-    String(selectionId || "").trim()
-  );
+  const id = String(selectionId || "").trim();
+  return EXPLICIT_REGISTRATION_EXIT_IDS.has(id) || id.startsWith("CROP_FARM_");
 }
 
 function closeRegistrationSessionForNavigation(options) {

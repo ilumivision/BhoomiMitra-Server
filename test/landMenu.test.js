@@ -215,25 +215,19 @@ test("Update land click routes to safe option 3 handling", function () {
   );
 });
 
-test("Add crop click routes to safe option 4 handling", function () {
+test("Add crop click routes to implemented option 4 handling", function () {
   const ui = makeUi().ui;
 
   assert.equal(ui.getLandManagementCommand("LAND_ADD_CROP"), "4");
-  assert.match(
-    getUnavailableFarmOptionReply("4", "English"),
-    /No land record was changed/
-  );
+  assert.equal(getUnavailableFarmOptionReply("4", "English"), "");
 });
 
-test("Crop history click routes to safe option 5 handling", function () {
+test("Crop history click routes to implemented option 5 handling", function () {
   assert.equal(
     makeUi().ui.getLandManagementCommand("LAND_CROP_HISTORY"),
     "5"
   );
-  assert.notEqual(
-    getUnavailableFarmOptionReply("5", "Malayalam"),
-    ""
-  );
+  assert.equal(getUnavailableFarmOptionReply("5", "Malayalam"), "");
 });
 
 test("Usage history click routes to safe option 6 handling", function () {
@@ -393,14 +387,14 @@ test("numeric options 1 through 9 remain legacy fallbacks", function () {
 });
 
 test("only currently unimplemented land options return safe unavailable replies", function () {
-  for (const choice of ["3", "4", "5", "6", "7"]) {
+  for (const choice of ["3", "6", "7"]) {
     assert.match(
       getUnavailableFarmOptionReply(choice, "English"),
       /No land record was changed/
     );
   }
 
-  for (const choice of ["1", "2", "8", "9"]) {
+  for (const choice of ["1", "2", "4", "5", "8", "9"]) {
     assert.equal(
       getUnavailableFarmOptionReply(choice, "English"),
       ""

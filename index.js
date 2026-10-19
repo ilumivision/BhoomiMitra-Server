@@ -243,6 +243,38 @@ const {
   validateOperationDate
 } = require("./utils/farmAlerts");
 const {
+  CROP_FARM_ACTION_IDS,
+  CROP_FARM_PREFIXES,
+  CROP_HISTORY_SHEET,
+  CROP_SHEET,
+  OPERATION_SHEET,
+  OPERATION_TYPES,
+  VERIFIED_ALERT_SHEET,
+  appendCropStatus,
+  buildMyFarmAlerts,
+  cropRowsForOperation,
+  cropRowsForStatus,
+  formatCropSummary,
+  formatFarmAlerts,
+  formatOperationSummary,
+  isCurrentCrop,
+  landRowsForAction,
+  latestCropStates,
+  operationTypeRows,
+  ownedLand,
+  parseCropFarmAction,
+  parseCropFarmNaturalLanguage,
+  parseCropRegistrationDetails,
+  parseCropStatusDetails,
+  parseOperationDetails,
+  readCropHistory,
+  readCrops,
+  readFarmOperations,
+  recordFarmOperation,
+  registerCrop,
+  relevantOperations
+} = require("./utils/cropFarmRecords");
+const {
   fetchAllSources
 } = require("./utils/marketFetcher");
 const {
@@ -996,6 +1028,7 @@ const expertAdviceSessions = {};
 const trainingRequestSessions = {};
 const schemeSearchSessions = {};
 const farmAlertSessions = {};
+const cropFarmSessions = {};
 const animalHusbandrySessions = {};
 const registrationCoordinator =
   createRegistrationCoordinator();
@@ -2902,6 +2935,482 @@ async function completeFarmAlertTextInput(from, userText, sourceMessageId) {
   return true;
 }
 
+function cropFarmLanguage(from) {
+  return userLanguagePreferences[from] === "Malayalam" ? "Malayalam" : "English";
+}
+
+function cropFarmText(language, english, malayalam) {
+  return language === "Malayalam" ? malayalam : english;
+}
+
+async function loadCropFarmContext(from) {
+  const farmerResult = await findRegistrationByPhone("farmer", from, { requireUnique: true });
+  const farmer = farmerResult && farmerResult.success && farmerResult.memberId ? farmerResult : null;
+  if (!farmer) return { farmer: null, lands: [], crops: [], history: [], operations: [] };
+  const values = await Promise.all([
+    readSheetRows(FARM_LAND_SHEET, "A:AZ"),
+    readSheetRows(CROP_SHEET, "A:Z"),
+    readSheetRows(CROP_HISTORY_SHEET, "A:Z"),
+    readSheetRows(OPERATION_SHEET, "A:Z"),
+    readSheetRows(VERIFIED_ALERT_SHEET, "A:Z")
+  ]);
+  const landRows = values[0];
+  const cropRows = values[1];
+  const historyRows = values[2];
+  const operationRows = values[3];
+  const alertRows = values[4];
+  const lands = readFarmerLands(landRows, farmer.memberId);
+  const crops = readCrops(cropRows, farmer.memberId).filter(function (crop) {
+    return Boolean(ownedLand(lands, farmer.memberId, crop.landId));
+  });
+  const history = readCropHistory(historyRows, farmer.memberId).filter(function (event) {
+    return crops.some(function (crop) {
+      return crop.cropId === event.cropId && crop.landId === event.landId;
+    });
+  });
+  const operations = readFarmOperations(operationRows, farmer.memberId);
+  return {
+    farmer: farmer,
+    landRows: landRows,
+    cropRows: cropRows,
+    historyRows: historyRows,
+    operationRows: operationRows,
+    alertRows: alertRows,
+    lands: lands,
+    crops: crops,
+    history: history,
+    operations: operations
+  };
+}
+
+async function sendCropFarmUnavailable(from, language, message) {
+  await bhoomiMitraUI.sendCropFarmMessage(from, language, message || cropFarmText(
+    language,
+    "Crop and farm records are temporarily unavailable. The required Google Sheets headers must be added manually before this function can save records.",
+    "വിള-കൃഷി രേഖകൾ ഇപ്പോൾ ലഭ്യമല്ല. രേഖകൾ സേവ് ചെയ്യുന്നതിന് മുമ്പ് ആവശ്യമായ Google Sheets തലക്കെട്ടുകൾ മാനുവലായി ചേർക്കണം."
+  ));
+  return true;
+}
+
+async function handleCropFarmAction(options) {
+  const input = options || {};
+  const action = input.cropFarmAction || {};
+  const from = input.from;
+  const language = cropFarmLanguage(from);
+
+  if (action.action === "OPEN") {
+    delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendCropFarmMenu(from, language);
+    return true;
+  }
+  if (action.action === "MAIN_MENU") {
+    delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendMainMenu(from, language);
+    return true;
+  }
+  if (action.action === "FARM_MENU") {
+    delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendFarmMenu(from, language);
+    return true;
+  }
+  if (action.action === "FERTILIZER") {
+    delete cropFarmSessions[from];
+    return handleFarmAlertAction({ farmAlertAction: { action: "OPEN" }, from: from, sourceMessageId: input.sourceMessageId });
+  }
+  if (action.action === "CANCEL") {
+    delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendCropFarmMenu(from, language);
+    return true;
+  }
+
+  const context = await loadCropFarmContext(from);
+  if (!context.farmer) {
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, cropFarmText(
+      language,
+      "Please complete BhoomiMitra farmer registration before using crop and farm records.",
+      "വിള-കൃഷി രേഖകൾ ഉപയോഗിക്കുന്നതിന് മുമ്പ് BhoomiMitra കർഷക രജിസ്ട്രേഷൻ പൂർത്തിയാക്കുക."
+    ));
+    return true;
+  }
+
+  if (action.action === "REGISTER") {
+    if (!context.landRows || !context.cropRows) return sendCropFarmUnavailable(from, language);
+    if (!context.lands.length) {
+      await bhoomiMitraUI.sendCropFarmMessage(from, language, cropFarmText(
+        language,
+        "No land with a verified Farmer_ID is linked to your account. Crop registration cannot continue.",
+        "സ്ഥിരീകരിച്ച Farmer_ID ഉള്ള ഭൂമി നിങ്ങളുടെ അക്കൗണ്ടുമായി ബന്ധിപ്പിച്ചിട്ടില്ല. വിള രജിസ്ട്രേഷൻ തുടരാനാകില്ല."
+      ));
+      return true;
+    }
+    cropFarmSessions[from] = {
+      step: "choose_crop_land", language: language,
+      cropName: String(action.cropName || "").trim(),
+      sourceMessageId: input.sourceMessageId || "", updatedAt: Date.now()
+    };
+    await bhoomiMitraUI.sendCropFarmLandList(
+      from, language, landRowsForAction(context.lands, CROP_FARM_PREFIXES.CROP_LAND), "crop"
+    );
+    return true;
+  }
+
+  if (action.action === "CROP_LAND") {
+    const session = cropFarmSessions[from];
+    const land = ownedLand(context.lands, context.farmer.memberId, action.landId);
+    if (!session || session.step !== "choose_crop_land" || !land) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    session.land = land;
+    session.step = session.cropName ? "awaiting_crop_details" : "awaiting_crop_name";
+    session.updatedAt = Date.now();
+    await sendWhatsAppMessage(from, session.cropName
+      ? cropFarmText(language,
+        "Enter: variety or - | planting date YYYY-MM-DD or - | cultivated area | unit | Annual/Perennial/Intercrop/Mixed | crop status | optional remarks",
+        "നൽകുക: ഇനം അല്ലെങ്കിൽ - | നടീൽ തീയതി YYYY-MM-DD അല്ലെങ്കിൽ - | കൃഷി വിസ്തീർണം | യൂണിറ്റ് | Annual/Perennial/Intercrop/Mixed | വിള നില | കുറിപ്പ് (ഐച്ഛികം)")
+      : cropFarmText(language, "Type the crop name.", "വിളയുടെ പേര് ടൈപ്പ് ചെയ്യുക."));
+    return true;
+  }
+
+  if (action.action === "MY_CROPS" || action.action === "HISTORY") {
+    if (!context.cropRows) return sendCropFarmUnavailable(from, language);
+    const states = latestCropStates(context.crops, context.history);
+    const view = action.action === "MY_CROPS" ? states.filter(isCurrentCrop) : states;
+    const text = formatCropSummary(view, context.lands, context.history, language);
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, text);
+    return true;
+  }
+
+  if (action.action === "UPDATE_STATUS") {
+    if (!context.cropRows || !context.historyRows) return sendCropFarmUnavailable(from, language);
+    const currentCrops = latestCropStates(context.crops, context.history).filter(isCurrentCrop);
+    if (!currentCrops.length) {
+      await bhoomiMitraUI.sendCropFarmMessage(from, language, cropFarmText(
+        language, "No current registered crop is available for a status update.",
+        "നില പുതുക്കാൻ നിലവിലെ രജിസ്റ്റർ ചെയ്ത വിളയില്ല."
+      ));
+      return true;
+    }
+    cropFarmSessions[from] = {
+      step: "choose_status_crop", language: language,
+      sourceMessageId: input.sourceMessageId || "", updatedAt: Date.now()
+    };
+    await bhoomiMitraUI.sendCropStatusList(from, language, cropRowsForStatus(currentCrops));
+    return true;
+  }
+
+  if (action.action === "STATUS_CROP") {
+    const session = cropFarmSessions[from];
+    const selectedCrop = context.crops.find(function (crop) {
+      return crop.cropId === action.cropId && Boolean(ownedLand(context.lands, context.farmer.memberId, crop.landId));
+    });
+    if (!session || session.step !== "choose_status_crop" || !selectedCrop) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    session.statusCrop = selectedCrop;
+    session.step = "awaiting_crop_status";
+    session.updatedAt = Date.now();
+    await sendWhatsAppMessage(from, cropFarmText(
+      language,
+      "Enter: event type (Completed/Harvested/Removed/Replanted) | event date YYYY-MM-DD | new crop status | optional remarks",
+      "നൽകുക: സംഭവം (Completed/Harvested/Removed/Replanted) | തീയതി YYYY-MM-DD | പുതിയ വിള നില | കുറിപ്പ് (ഐച്ഛികം)"
+    ));
+    return true;
+  }
+
+  if (action.action === "RECORD_OPERATION") {
+    if (!context.landRows || !context.operationRows || !context.cropRows) return sendCropFarmUnavailable(from, language);
+    if (!context.lands.length) return sendCropFarmUnavailable(from, language, cropFarmText(
+      language, "A verified owned land is required before recording a farm activity.",
+      "കൃഷിപ്പണി രേഖപ്പെടുത്തുന്നതിന് മുമ്പ് സ്ഥിരീകരിച്ച സ്വന്തം ഭൂമി ആവശ്യമാണ്."
+    ));
+    cropFarmSessions[from] = {
+      step: "choose_operation_land", language: language,
+      sourceMessageId: input.sourceMessageId || "", updatedAt: Date.now()
+    };
+    await bhoomiMitraUI.sendCropFarmLandList(
+      from, language, landRowsForAction(context.lands, CROP_FARM_PREFIXES.OPERATION_LAND), "operation"
+    );
+    return true;
+  }
+
+  if (action.action === "OPERATION_LAND") {
+    const session = cropFarmSessions[from];
+    const land = ownedLand(context.lands, context.farmer.memberId, action.landId);
+    if (!session || session.step !== "choose_operation_land" || !land) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    session.land = land;
+    session.step = "choose_operation_type";
+    session.updatedAt = Date.now();
+    await bhoomiMitraUI.sendCropFarmOperationTypes(from, language, operationTypeRows());
+    return true;
+  }
+
+  if (action.action === "OPERATION_TYPE") {
+    const session = cropFarmSessions[from];
+    if (!session || session.step !== "choose_operation_type" || !session.land) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    if (/fertili[sz]er/i.test(action.operationType)) {
+      delete cropFarmSessions[from];
+      return handleFarmAlertAction({ farmAlertAction: { action: "OPEN" }, from: from, sourceMessageId: input.sourceMessageId });
+    }
+    if (action.operationType === "Other") {
+      session.step = "awaiting_operation_type_text";
+      session.updatedAt = Date.now();
+      await sendWhatsAppMessage(from, cropFarmText(
+        language,
+        "Type the activity: Post-Harvest Operation or Other.",
+        "പ്രവർത്തനം ടൈപ്പ് ചെയ്യുക: Post-Harvest Operation അല്ലെങ്കിൽ Other."
+      ));
+      return true;
+    }
+    session.operationType = action.operationType;
+    session.step = "choose_operation_crop";
+    session.updatedAt = Date.now();
+    await bhoomiMitraUI.sendCropFarmCropList(from, language, cropRowsForOperation(context.crops, session.land.landId));
+    return true;
+  }
+
+  if (action.action === "OPERATION_CROP") {
+    const session = cropFarmSessions[from];
+    if (!session || session.step !== "choose_operation_crop" || !session.land || !session.operationType) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    if (action.cropId !== "NONE" && !context.crops.some(function (crop) {
+      return crop.cropId === action.cropId && crop.landId === session.land.landId;
+    })) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    session.cropId = action.cropId === "NONE" ? "" : action.cropId;
+    session.step = "awaiting_operation_details";
+    session.updatedAt = Date.now();
+    await sendWhatsAppMessage(from, cropFarmText(
+      language,
+      "Enter: operation date YYYY-MM-DD | Completed or Planned | input/material or - | quantity or - | unit or - | cost or - | optional remarks",
+      "നൽകുക: പണി തീയതി YYYY-MM-DD | Completed അല്ലെങ്കിൽ Planned | വസ്തു അല്ലെങ്കിൽ - | അളവ് അല്ലെങ്കിൽ - | യൂണിറ്റ് അല്ലെങ്കിൽ - | ചെലവ് അല്ലെങ്കിൽ - | കുറിപ്പ് (ഐച്ഛികം)"
+    ));
+    return true;
+  }
+
+  if (action.action === "SAVE_CROP") {
+    const session = cropFarmSessions[from];
+    if (!session || session.step !== "confirm_crop" || !session.land || !session.cropDetails) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    const currentLand = ownedLand(context.lands, context.farmer.memberId, session.land.landId);
+    const result = await registerCrop(Object.assign({}, session.cropDetails, {
+      farmerId: context.farmer.memberId, land: currentLand || {}, cropName: session.cropName,
+      cropRows: context.cropRows, sourceMessageId: session.sourceMessageId,
+      appendRow: function (sheetName, row) { return appendSafe(sheetName, row); }
+    }));
+    if (result.success) delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, result.success
+      ? (result.duplicate
+        ? cropFarmText(language, "This crop registration already exists. Crop ID: ", "ഈ വിള രജിസ്ട്രേഷൻ ഇതിനകം നിലവിലുണ്ട്. Crop ID: ") + result.cropId
+        : cropFarmText(language, "✅ Crop registered. Crop ID: ", "✅ വിള രജിസ്റ്റർ ചെയ്തു. Crop ID: ") + result.cropId)
+      : cropFarmText(language, "The crop was not saved (", "വിള സേവ് ചെയ്തില്ല (") + result.code + ").");
+    return true;
+  }
+
+  if (action.action === "SAVE_STATUS") {
+    const session = cropFarmSessions[from];
+    if (!session || session.step !== "confirm_status" || !session.statusCrop || !session.statusDetails) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    const result = await appendCropStatus(Object.assign({}, session.statusDetails, {
+      farmerId: context.farmer.memberId, cropId: session.statusCrop.cropId,
+      crops: context.crops, lands: context.lands, historyRows: context.historyRows,
+      sourceMessageId: session.sourceMessageId,
+      appendRow: function (sheetName, row) { return appendSafe(sheetName, row); }
+    }));
+    if (result.success) delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, result.success
+      ? (result.duplicate
+        ? cropFarmText(language, "This crop status event already exists.", "ഈ വിള നില സംഭവം ഇതിനകം നിലവിലുണ്ട്.")
+        : cropFarmText(language, "✅ Crop status history recorded.", "✅ വിള നില ചരിത്രത്തിൽ രേഖപ്പെടുത്തി."))
+      : cropFarmText(language, "The crop status was not saved (", "വിള നില സേവ് ചെയ്തില്ല (") + result.code + ").");
+    return true;
+  }
+
+  if (action.action === "SAVE_OPERATION") {
+    const session = cropFarmSessions[from];
+    if (!session || session.step !== "confirm_operation" || !session.land || !session.operationDetails) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    const currentLand = ownedLand(context.lands, context.farmer.memberId, session.land.landId);
+    const result = await recordFarmOperation(Object.assign({}, session.operationDetails, {
+      farmerId: context.farmer.memberId, land: currentLand || {}, cropId: session.cropId,
+      operationType: session.operationType, crops: context.crops,
+      operationRows: context.operationRows, sourceMessageId: session.sourceMessageId,
+      appendRow: function (sheetName, row) { return appendSafe(sheetName, row); }
+    }));
+    if (result.success) delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, result.success
+      ? (result.duplicate
+        ? cropFarmText(language, "This farm activity already exists. Operation ID: ", "ഈ കൃഷിപ്പണി ഇതിനകം നിലവിലുണ്ട്. Operation ID: ") + result.operationId
+        : cropFarmText(language, "✅ Farm activity recorded. Operation ID: ", "✅ കൃഷിപ്പണി രേഖപ്പെടുത്തി. Operation ID: ") + result.operationId)
+      : cropFarmText(language, "The farm activity was not saved (", "കൃഷിപ്പണി സേവ് ചെയ്തില്ല (") + result.code + ").");
+    return true;
+  }
+
+  if (action.action === "CHANGE") {
+    const session = cropFarmSessions[from];
+    if (!session) return handleCropFarmAction({ cropFarmAction: { action: "OPEN" }, from: from });
+    if (session.statusCrop) {
+      session.step = "awaiting_crop_status";
+      await sendWhatsAppMessage(from, cropFarmText(language, "Enter the crop status event again.", "വിള നില സംഭവം വീണ്ടും നൽകുക."));
+    } else if (session.cropName) {
+      session.step = "awaiting_crop_name";
+      await sendWhatsAppMessage(from, cropFarmText(language, "Type the crop name again.", "വിളയുടെ പേര് വീണ്ടും ടൈപ്പ് ചെയ്യുക."));
+    } else {
+      delete cropFarmSessions[from];
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+    }
+    return true;
+  }
+
+  if (action.action === "ACTIVITIES" || action.action === "PLANNED") {
+    if (!context.operationRows) return sendCropFarmUnavailable(from, language);
+    const operations = relevantOperations(context.operations, context.lands, context.crops, {
+      farmerId: context.farmer.memberId,
+      status: action.action === "PLANNED" ? "Planned" : ""
+    });
+    await bhoomiMitraUI.sendCropFarmMessage(
+      from, language, formatOperationSummary(operations, context.lands, context.crops, language)
+    );
+    return true;
+  }
+
+  if (action.action === "ALERTS") {
+    const alerts = buildMyFarmAlerts({
+      farmerId: context.farmer.memberId, district: context.farmer.district,
+      lands: context.lands, crops: context.crops, operations: context.operations,
+      alertRows: context.alertRows, now: new Date()
+    });
+    const notificationRows = await readSheetRows(FARM_NOTIFICATION_SHEET, "A:J");
+    const fertilizerRecords = readNotificationRecords(notificationRows, context.farmer.memberId);
+    const fertilizerAlerts = buildMyAlerts(fertilizerRecords, context.lands, new Date());
+    alerts.planned = alerts.planned.concat((fertilizerAlerts.due || []).map(function (record) {
+      return Object.assign({}, record, {
+        operationType: "Fertilizer Application",
+        operationDate: record.dueDate
+      });
+    }));
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, formatFarmAlerts(alerts, language));
+    return true;
+  }
+  return false;
+}
+
+async function completeCropFarmTextInput(from, userText, sourceMessageId) {
+  const session = cropFarmSessions[from];
+  if (!session) return false;
+  const language = session.language || cropFarmLanguage(from);
+  const text = String(userText || "").trim();
+  if (/^(cancel|back|menu|റദ്ദാക്കുക|പിന്നോട്ട്|മെനു)$/i.test(text)) {
+    delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendCropFarmMenu(from, language);
+    return true;
+  }
+  if (session.step === "awaiting_crop_name") {
+    if (text.length < 2) {
+      await sendWhatsAppMessage(from, cropFarmText(language, "Type a valid crop name.", "ശരിയായ വിളയുടെ പേര് ടൈപ്പ് ചെയ്യുക."));
+      return true;
+    }
+    session.cropName = text;
+    session.step = "awaiting_crop_details";
+    session.sourceMessageId = session.sourceMessageId || sourceMessageId;
+    await sendWhatsAppMessage(from, cropFarmText(language,
+      "Enter: variety or - | planting date YYYY-MM-DD or - | cultivated area | unit | Annual/Perennial/Intercrop/Mixed | crop status | optional remarks",
+      "നൽകുക: ഇനം അല്ലെങ്കിൽ - | നടീൽ തീയതി YYYY-MM-DD അല്ലെങ്കിൽ - | കൃഷി വിസ്തീർണം | യൂണിറ്റ് | Annual/Perennial/Intercrop/Mixed | വിള നില | കുറിപ്പ് (ഐച്ഛികം)"));
+    return true;
+  }
+  if (session.step === "awaiting_crop_details") {
+    const parsed = parseCropRegistrationDetails(text);
+    if (!parsed.success) {
+      await sendWhatsAppMessage(from, cropFarmText(language, "Those crop details are incomplete or invalid. Use the requested | separated format.", "വിള വിവരങ്ങൾ അപൂർണ്ണമോ തെറ്റോ ആണ്. ആവശ്യപ്പെട്ട | വേർതിരിച്ച രൂപം ഉപയോഗിക്കുക."));
+      return true;
+    }
+    session.cropDetails = parsed;
+    session.sourceMessageId = session.sourceMessageId || sourceMessageId;
+    session.step = "confirm_crop";
+    await bhoomiMitraUI.sendCropFarmConfirmation(from, language, [
+      cropFarmText(language, "Confirm crop registration", "വിള രജിസ്ട്രേഷൻ സ്ഥിരീകരിക്കുക"),
+      "Land: " + session.land.landId,
+      "Crop: " + session.cropName,
+      "Variety: " + (parsed.variety || "-"),
+      "Planting: " + (parsed.plantingDate || "-"),
+      "Area: " + parsed.cultivatedArea + " " + parsed.areaUnit,
+      "Type: " + parsed.cropType,
+      "Status: " + parsed.cropStatus
+    ].join("\n"), "crop");
+    return true;
+  }
+  if (session.step === "awaiting_crop_status") {
+    const parsed = parseCropStatusDetails(text);
+    if (!parsed.success) {
+      await sendWhatsAppMessage(from, cropFarmText(language, "That crop status event is incomplete or invalid. Use the requested | separated format.", "വിള നില സംഭവം അപൂർണ്ണമോ തെറ്റോ ആണ്. ആവശ്യപ്പെട്ട | വേർതിരിച്ച രൂപം ഉപയോഗിക്കുക."));
+      return true;
+    }
+    session.statusDetails = parsed;
+    session.sourceMessageId = session.sourceMessageId || sourceMessageId;
+    session.step = "confirm_status";
+    await bhoomiMitraUI.sendCropFarmConfirmation(from, language, [
+      cropFarmText(language, "Confirm crop status", "വിള നില സ്ഥിരീകരിക്കുക"),
+      "Crop: " + session.statusCrop.cropName,
+      "Crop ID: " + session.statusCrop.cropId,
+      "Event: " + parsed.eventType,
+      "Date: " + parsed.eventDate,
+      "Status: " + parsed.cropStatus
+    ].join("\n"), "status");
+    return true;
+  }
+  if (session.step === "awaiting_operation_type_text") {
+    const chosen = OPERATION_TYPES.find(function (type) {
+      return type !== "Fertilizer Application" && type.toLowerCase() === text.toLowerCase();
+    });
+    if (!chosen) {
+      await sendWhatsAppMessage(from, cropFarmText(language, "Type Post-Harvest Operation or Other.", "Post-Harvest Operation അല്ലെങ്കിൽ Other ടൈപ്പ് ചെയ്യുക."));
+      return true;
+    }
+    session.operationType = chosen;
+    session.step = "choose_operation_crop";
+    const context = await loadCropFarmContext(from);
+    await bhoomiMitraUI.sendCropFarmCropList(from, language, cropRowsForOperation(context.crops, session.land.landId));
+    return true;
+  }
+  if (session.step === "awaiting_operation_details") {
+    const parsed = parseOperationDetails(text);
+    if (!parsed.success) {
+      await sendWhatsAppMessage(from, cropFarmText(language, "Those activity details are incomplete or invalid. Use the requested | separated format.", "കൃഷിപ്പണി വിവരങ്ങൾ അപൂർണ്ണമോ തെറ്റോ ആണ്. ആവശ്യപ്പെട്ട | വേർതിരിച്ച രൂപം ഉപയോഗിക്കുക."));
+      return true;
+    }
+    session.operationDetails = parsed;
+    session.sourceMessageId = session.sourceMessageId || sourceMessageId;
+    session.step = "confirm_operation";
+    await bhoomiMitraUI.sendCropFarmConfirmation(from, language, [
+      cropFarmText(language, "Confirm farm activity", "കൃഷിപ്പണി സ്ഥിരീകരിക്കുക"),
+      "Land: " + session.land.landId,
+      "Crop ID: " + (session.cropId || "-"),
+      "Operation: " + session.operationType,
+      "Date: " + parsed.operationDate,
+      "Status: " + parsed.operationStatus
+    ].join("\n"), "operation");
+    return true;
+  }
+  return false;
+}
+
 function animalFlowLanguage(from) {
   return userLanguagePreferences[from] === "Malayalam"
     ? "Malayalam"
@@ -3349,6 +3858,24 @@ if (
         menuSessions: userMenus
       });
 
+      const cropFarmAction =
+        parseCropFarmAction(uiSelection.id);
+
+      if (cropFarmAction) {
+        delete animalHusbandrySessions[from];
+        delete farmAlertSessions[from];
+        await handleCropFarmAction({
+          cropFarmAction: cropFarmAction,
+          from: from,
+          sourceMessageId: message.id
+        });
+        return;
+      }
+
+      if (cropFarmSessions[from]) {
+        delete cropFarmSessions[from];
+      }
+
       const animalAction =
         parseAnimalAction(uiSelection.id);
 
@@ -3731,6 +4258,14 @@ if (landManagementCommand === "back") {
   ) {
     await completeFarmAlertTextInput(from, userText, message.id);
     return;
+  }
+
+  if (
+    message.type === "text" &&
+    cropFarmSessions[from]
+  ) {
+    const cropFarmHandled = await completeCropFarmTextInput(from, userText, message.id);
+    if (cropFarmHandled) return;
   }
 
   const pendingTypedTrainingRequest = trainingRequestSessions[from];
@@ -5858,7 +6393,17 @@ lines.push(
 
   return;
 }
-if (["3", "4", "5", "6", "7"].includes(
+if (farmMenuChoice === "4" || farmMenuChoice === "5") {
+  await handleCropFarmAction({
+    cropFarmAction: {
+      action: farmMenuChoice === "4" ? "REGISTER" : "HISTORY"
+    },
+    from: from,
+    sourceMessageId: message.id
+  });
+  return;
+}
+if (["3", "6", "7"].includes(
   farmMenuChoice
 )) {
   await sendWhatsAppMessage(
@@ -8307,6 +8852,21 @@ if (
     language,
     false
   );
+  return;
+}
+
+const cropFarmNaturalLanguageAction = parseCropFarmNaturalLanguage(userText);
+
+if (
+  detectedIntent !== "weather" &&
+  detectedIntent !== "market" &&
+  cropFarmNaturalLanguageAction
+) {
+  await handleCropFarmAction({
+    cropFarmAction: cropFarmNaturalLanguageAction,
+    from: from,
+    sourceMessageId: message.id
+  });
   return;
 }
 

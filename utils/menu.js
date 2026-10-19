@@ -82,8 +82,6 @@ const SERVICE_OPTIONS = {
 
 const UNAVAILABLE_FARM_OPTIONS = {
   "3": "Update land details",
-  "4": "Add crop / farm activity",
-  "5": "Crop history",
   "6": "BhoomiMitra usage history",
   "7": "Land summary"
 };

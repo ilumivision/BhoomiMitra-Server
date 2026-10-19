@@ -1,6 +1,7 @@
 "use strict";
 
 const crypto = require("crypto");
+const cropFarmRecords = require("./cropFarmRecords");
 
 const LAND_SHEET = "Land_Parcels";
 const NOTIFICATION_SHEET = "Notification_Log";
@@ -710,3 +711,9 @@ module.exports = {
   validateOperationDate,
   wasDelivered
 };
+
+// Prompt 4 extends the existing alert boundary with verified, validity-scoped
+// crop/weather alerts and farmer-scheduled operations. Reminder dispatch remains
+// unchanged and disabled unless its existing explicit runner safeguards pass.
+module.exports.buildMyFarmAlerts = cropFarmRecords.buildMyFarmAlerts;
+module.exports.readVerifiedAlerts = cropFarmRecords.readVerifiedAlerts;
