@@ -1,5 +1,6 @@
 const axios = require("axios");
 const OpenAI = require("openai");
+const { safeErrorDetails } = require("./webhookSecurity");
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
@@ -25,9 +26,7 @@ async function photoVision(data) {
                 reply: "ചിത്രം പരിശോധിക്കാൻ ഇപ്പോൾ കഴിഞ്ഞില്ല. ദയവായി കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
             };
         }
-        console.log(
-            "[PHOTO_VISION] Fetching media information. mediaId=" + mediaId
-        );
+        console.log("[PHOTO_VISION] Fetching media information.");
         const mediaInfo = await axios.get(
             "https://graph.facebook.com/v20.0/" +
                 mediaId +
@@ -560,53 +559,9 @@ async function photoVision(data) {
         };
     } catch (error) {
         console.error(
-            "[PHOTO_VISION] Error message:",
-            error && error.message
-                ? error.message
-                : "Unknown error"
+            "[PHOTO_VISION] Analysis failed.",
+            { error: safeErrorDetails(error) }
         );
-
-        if (
-            error &&
-            error.response &&
-            error.response.status
-        ) {
-            console.error(
-                "[PHOTO_VISION] HTTP status:",
-                error.response.status
-            );
-        }
-
-        if (
-            error &&
-            error.response &&
-            error.response.data
-        ) {
-            try {
-                console.error(
-                    "[PHOTO_VISION] Response data:",
-                    JSON.stringify(error.response.data)
-                );
-            } catch (stringifyError) {
-                console.error(
-                    "[PHOTO_VISION] Response data could not be stringified."
-                );
-            }
-        }
-
-        if (error && error.code) {
-            console.error(
-                "[PHOTO_VISION] Error code:",
-                error.code
-            );
-        }
-
-        if (error && error.stack) {
-            console.error(
-                "[PHOTO_VISION] Stack:",
-                error.stack
-            );
-        }
 
         return {
             success: false,

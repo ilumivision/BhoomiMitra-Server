@@ -1,3 +1,7 @@
+"use strict";
+
+const { safeErrorDetails } = require("./webhookSecurity");
+
 const CONSENT_SHEET =
   "User_Consent_Log";
 
@@ -75,8 +79,8 @@ async function readConsentLog({
     };
   } catch (error) {
     console.error(
-      "readConsentLog error:",
-      error.message
+      "Consent log read failed.",
+      { error: safeErrorDetails(error) }
     );
 
     return {
@@ -217,8 +221,8 @@ async function saveConsent({
     };
   } catch (error) {
     console.error(
-      "saveConsent error:",
-      error.message
+      "Consent save failed.",
+      { error: safeErrorDetails(error) }
     );
 
     return {

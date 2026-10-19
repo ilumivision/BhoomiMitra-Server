@@ -5,6 +5,17 @@ const EXPLICIT_REGISTRATION_EXIT_IDS = new Set([
   "LANG_MALAYALAM",
   "HOME_ASK",
   "HOME_FARM",
+  "ANIMAL_OPEN",
+  "ANIMAL_REGISTER",
+  "ANIMAL_MY_ANIMALS",
+  "ANIMAL_HEALTH_DIARY",
+  "ANIMAL_PREVENTIVE",
+  "ANIMAL_PRODUCTION",
+  "ANIMAL_RECORD_HISTORY",
+  "ANIMAL_VET_ADVISORY",
+  "ANIMAL_VET_EXPERT",
+  "ANIMAL_DISEASE_ALERTS",
+  "ANIMAL_MAIN_MENU",
   "HOME_EXPERT",
   "HOME_TRAINING",
   "TRAINING_PROMOTED",
@@ -109,9 +120,34 @@ function closeRegistrationSessionForNavigation(options) {
   return true;
 }
 
+function clearCompletedRegistrationSession(options) {
+  const settings = options || {};
+  const userKey = String(settings.userKey || "").trim();
+  const registrationSessions =
+    settings.registrationSessions || {};
+  const result = settings.result;
+
+  if (!userKey || !result || result.success !== true) {
+    return false;
+  }
+
+  if (
+    !Object.prototype.hasOwnProperty.call(
+      registrationSessions,
+      userKey
+    )
+  ) {
+    return false;
+  }
+
+  delete registrationSessions[userKey];
+  return true;
+}
+
 module.exports = {
   EXPLICIT_REGISTRATION_EXIT_IDS,
   REGISTRATION_MENU_STEPS,
   isExplicitRegistrationExit,
-  closeRegistrationSessionForNavigation
+  closeRegistrationSessionForNavigation,
+  clearCompletedRegistrationSession
 };

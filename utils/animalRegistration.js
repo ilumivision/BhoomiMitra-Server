@@ -1,4 +1,5 @@
 "use strict";
+const { safeErrorDetails } = require("./webhookSecurity");
 
 const SHEET_NAME = "Animal_Registry";
 
@@ -106,9 +107,24 @@ async function registerAnimal(data) {
       normalizePhone(
         data && data.phone
       );
-
     const animal =
       (data && data.animal) || {};
+
+    if (!String(animal.farmerId || "").trim()) {
+      return {
+        success: false,
+        code: "FARMER_ID_REQUIRED",
+        error: "A verified Farmer_ID is required before animal registration."
+      };
+    }
+
+    if (!String(animal.animalType || "").trim()) {
+      return {
+        success: false,
+        code: "ANIMAL_TYPE_REQUIRED",
+        error: "Animal type is required."
+      };
+    }
 
     if (!sheets || !spreadsheetId) {
       throw new Error(
@@ -130,6 +146,56 @@ async function registerAnimal(data) {
 
     const headers =
       rows[0].map(normalizeHeader);
+
+    const requiredHeaders = [
+      "animal_id",
+      "farmer_id",
+      "animal_type"
+    ];
+    const missingHeaders =
+      requiredHeaders.filter(function (header) {
+        return !headers.includes(header);
+      });
+
+    if (missingHeaders.length) {
+      return {
+        success: false,
+        code: "HEADERS_MISSING",
+        missingHeaders,
+        error:
+          "Animal_Registry is missing required headers: " +
+          missingHeaders.join(", ")
+      };
+    }
+
+    const requestedTag =
+      String(animal.tagNumber || "")
+        .trim()
+        .toLowerCase();
+    const farmerIndex = headers.indexOf("farmer_id");
+    const tagIndex = headers.indexOf("tag_number");
+    const activeIndex = headers.indexOf("active_status");
+
+    if (
+      requestedTag &&
+      tagIndex >= 0 &&
+      rows.slice(1).some(function (row) {
+        const sameFarmer =
+          getCell(row, farmerIndex).toLowerCase() ===
+          String(animal.farmerId).trim().toLowerCase();
+        const sameTag =
+          getCell(row, tagIndex).toLowerCase() === requestedTag;
+        const status = getCell(row, activeIndex).toLowerCase();
+        return sameFarmer && sameTag &&
+          (activeIndex < 0 || !status || status === "active");
+      })
+    ) {
+      return {
+        success: false,
+        code: "DUPLICATE_TAG",
+        error: "This tag number is already registered to the farmer."
+      };
+    }
 
     const animalId =
       generateAnimalId(
@@ -203,11 +269,8 @@ async function registerAnimal(data) {
     };
   } catch (error) {
     console.error(
-      "Animal registration error:",
-      error &&
-      error.message
-        ? error.message
-        : error
+      "Animal registration error.",
+      { error: safeErrorDetails(error) }
     );
 
     return {
@@ -233,6 +296,10 @@ async function getFarmerAnimals(data) {
       normalizePhone(
         data && data.phone
       );
+    const farmerId =
+      String((data && data.farmerId) || "")
+        .trim()
+        .toLowerCase();
 
     const rows =
       await getAnimalRows({
@@ -261,6 +328,12 @@ async function getFarmerAnimals(data) {
           "registered_mobile",
           "farmer_mobile"
         ]
+      );
+
+    const farmerIdIndex =
+      findHeaderIndex(
+        headers,
+        ["farmer_id", "member_id", "bm_id"]
       );
 
     const animalIdIndex =
@@ -321,6 +394,16 @@ async function getFarmerAnimals(data) {
       rows
         .slice(1)
         .filter(function (row) {
+          if (
+            farmerId &&
+            (
+              farmerIdIndex < 0 ||
+              getCell(row, farmerIdIndex).toLowerCase() !== farmerId
+            )
+          ) {
+            return false;
+          }
+
           const matchesPhone =
             phoneIndexes.some(
               function (index) {
@@ -402,11 +485,8 @@ async function getFarmerAnimals(data) {
     };
   } catch (error) {
     console.error(
-      "Animal retrieval error:",
-      error &&
-      error.message
-        ? error.message
-        : error
+      "Animal retrieval error.",
+      { error: safeErrorDetails(error) }
     );
 
     return {

@@ -7,6 +7,7 @@ const {
   getFarmerPreferredLanguage,
   readFarmerStatuses
 } = require("./registrationFields");
+const { safeErrorDetails } = require("./webhookSecurity");
 
 function normalizeText(value) {
   return String(value || "")
@@ -931,12 +932,8 @@ async function handlePersonalRecords(data) {
       console.warn(
         "Personal records phone ambiguity:",
         {
-          normalizedPhone:
-            memberData.normalizedPhone,
-          farmerIds:
-            memberData.matchingFarmerIds,
-          rowNumbers:
-            memberData.rowNumbers
+          matchCount:
+            memberData.matchingFarmerIds.length
         }
       );
 
@@ -1019,7 +1016,9 @@ async function handlePersonalRecords(data) {
       spreadsheetId:
         data && data.spreadsheetId,
       phone:
-        data && data.phone
+        data && data.phone,
+      farmerId:
+        member.farmerId
     });
 
   if (
@@ -1139,11 +1138,8 @@ async function handlePersonalRecords(data) {
     };
   } catch (error) {
     console.error(
-      "Personal records error:",
-      error &&
-      error.message
-        ? error.message
-        : error
+      "Personal records error.",
+      { error: safeErrorDetails(error) }
     );
 
     return {

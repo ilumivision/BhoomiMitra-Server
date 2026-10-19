@@ -13,6 +13,7 @@ const registrationModule =
   require("../utils/registration");
 const {
   closeRegistrationSessionForNavigation,
+  clearCompletedRegistrationSession,
   isExplicitRegistrationExit
 } = require("../utils/registrationSession");
 
@@ -91,6 +92,7 @@ function makeAnimalRows() {
   return [
     [
       "Animal_ID",
+      "Farmer_ID",
       "WhatsApp_No",
       "Animal_Type",
       "Breed",
@@ -103,6 +105,7 @@ function makeAnimalRows() {
     ],
     [
       "AN-1",
+      "BM-1001",
       PHONE,
       "Cow",
       "Jersey",
@@ -302,6 +305,41 @@ test("completed registration cleanup behavior is not changed", function () {
   assert.equal(closeForSelection(state, "SERVICE_10"), false);
   assert.equal(state.menuSessions[PHONE].step, "completed");
   assert.equal(state.menuSessions[PHONE].updatedAt, 1);
+});
+
+test("failed registration keeps its collected session data available for retry", function () {
+  const state = makeActiveRegistration("farmer");
+  state.registrationSessions[PHONE].step = "crop";
+  state.registrationSessions[PHONE].data.name = "Anu Farmer";
+
+  const cleared = clearCompletedRegistrationSession({
+    registrationSessions: state.registrationSessions,
+    userKey: PHONE,
+    result: { success: false, code: "SHEET_APPEND_FAILED" }
+  });
+
+  assert.equal(cleared, false);
+  assert.equal(state.registrationSessions[PHONE].step, "crop");
+  assert.equal(
+    state.registrationSessions[PHONE].data.name,
+    "Anu Farmer"
+  );
+});
+
+test("successful or recovered registration clears the completed session", function () {
+  const state = makeActiveRegistration("farmer");
+  const cleared = clearCompletedRegistrationSession({
+    registrationSessions: state.registrationSessions,
+    userKey: PHONE,
+    result: {
+      success: true,
+      alreadyRegistered: true,
+      memberId: "BM-1001"
+    }
+  });
+
+  assert.equal(cleared, true);
+  assert.equal(state.registrationSessions[PHONE], undefined);
 });
 
 test("Farmer registration can restart cleanly from Membership", async function () {

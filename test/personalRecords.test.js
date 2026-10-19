@@ -135,6 +135,7 @@ function makeAnimalRows() {
   return [
     [
       "Animal_ID",
+      "Farmer_ID",
       "WhatsApp_No",
       "Animal_Type",
       "Breed",
@@ -147,6 +148,7 @@ function makeAnimalRows() {
     ],
     [
       "AN-1",
+      "BM-1001",
       "9847298918",
       "Cow",
       "Jersey",
@@ -241,7 +243,7 @@ test("returns explicit no-match state", async function () {
   assert.deepEqual(lookup.matches, []);
 });
 
-test("refuses multiple normalized-phone matches and reports Farmer IDs internally", async function () {
+test("refuses multiple normalized-phone matches without logging Farmer IDs or phone data", async function () {
   const farmers = [
     makeLiveHeaders(),
     makeFarmerRow({ farmerId: "BM-1001" }),
@@ -268,9 +270,10 @@ test("refuses multiple normalized-phone matches and reports Farmer IDs internall
     assert.equal(result.lookupState, "multiple_matches");
     assert.match(result.reply, /more than one Farmer record/i);
     assert.doesNotMatch(result.reply, /BM-1001|BM-1002|Anu Farmer|Second Farmer/);
-    assert.deepEqual(
-      warnings[0][1].farmerIds,
-      ["BM-1001", "BM-1002"]
+    assert.equal(warnings[0][1].matchCount, 2);
+    assert.doesNotMatch(
+      JSON.stringify(warnings),
+      /BM-1001|BM-1002|9847298918|Anu Farmer|Second Farmer/
     );
   } finally {
     console.warn = originalWarn;

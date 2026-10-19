@@ -46,6 +46,7 @@ logs/
 npm-debug.log*
 
 # Temporary and operating-system files
+.runtime/
 tmp/
 temp/
 *.tmp

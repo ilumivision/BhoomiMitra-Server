@@ -1,10 +1,11 @@
-"use strict";
+ "use strict";
 
 const {
   fetchSoilGridsData,
   extractSoilProfile,
   formatEstimatedSoilProfile
 } = require("../soilModule");
+const { safeErrorDetails } = require("./webhookSecurity");
 
 function normaliseCoordinate(value) {
   const number = Number(value);
@@ -280,8 +281,8 @@ function createSoilModule(options = {}) {
       };
     } catch (error) {
       console.error(
-        "Soil advisory error:",
-        error.message
+        "Soil advisory error.",
+        { error: safeErrorDetails(error) }
       );
 
       return {

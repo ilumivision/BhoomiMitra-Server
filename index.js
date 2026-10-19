@@ -1,5 +1,6 @@
 const express = require("express");
 const axios = require("axios");
+const path = require("path");
 require("dotenv").config();
 
 const OpenAI = require("openai");
@@ -7,6 +8,13 @@ const { google } = require("googleapis");
 const detectIntent = require("./utils/detectIntent");
 const voiceModule = require("./utils/voice");
 const photoVision = require("./utils/photoVision");
+const {
+  captureRawBody,
+  createMessageLedger,
+  safeErrorDetails,
+  safeMessageMetadata,
+  verifyMetaSignature
+} = require("./utils/webhookSecurity");
 const soilModule = require("./utils/soil");
 const weatherModule = require("./utils/weather");
 const detectKeralaDistrict = require("./utils/keralaDistricts");
@@ -24,6 +32,23 @@ const {
   registerLand,
   getFarmerLands
 } = require("./utils/landRegistration");
+const {
+  registerAnimal
+} = require("./utils/animalRegistration");
+const {
+  ANIMAL_ACTION_IDS,
+  formatAnimalRecords,
+  formatDiseaseAlerts,
+  formatOwnedAnimals,
+  getAnimalRecords,
+  getOwnedAnimals,
+  getVerifiedDiseaseAlerts,
+  isAnimalNaturalLanguageQuery,
+  parseAnimalAction,
+  saveBreedingProductionRecord,
+  saveHealthRecord,
+  verifyAnimalOwnership
+} = require("./utils/animalHusbandry");
 
 const {
   startBoundarySession,
@@ -69,7 +94,8 @@ const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
 const {
-  closeRegistrationSessionForNavigation
+  closeRegistrationSessionForNavigation,
+  clearCompletedRegistrationSession
 } = require("./utils/registrationSession");
 
 const registrationModule =
@@ -87,8 +113,11 @@ const {
   withPreferredLanguage
 } = require("./utils/registrationFields");
 const {
-  upsertMasterMember
+  syncFarmerRegistration
 } = require("./utils/masterMemberRegistry");
+const {
+  createRegistrationCoordinator
+} = require("./utils/registrationIntegrity");
 
 const {
   createServiceFinder,
@@ -225,7 +254,7 @@ const {
 
 const app = express();
 
-app.use(express.json());
+app.use(express.json({ verify: captureRawBody }));
 app.use(soilTestRoute);
 
 function requireSatelliteDiagnosticAccess(
@@ -266,15 +295,11 @@ app.get(
         Boolean(token)
     });
   } catch (error) {
-    console.error(
-      "Copernicus test error:",
-      error
-    );
+    logSafeError("Copernicus test error.", error);
 
     res.status(500).json({
       success: false,
-      message:
-        error.message
+      message: "Copernicus authentication test failed."
     });
   }
   }
@@ -301,11 +326,7 @@ app.get(
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          landResult &&
-          landResult.error
-            ? landResult.error
-            : "Land boundary could not be loaded."
+        message: "Land boundary could not be loaded."
       });
     }
 
@@ -325,15 +346,11 @@ app.get(
         sentinelResult
     });
   } catch (error) {
-    console.error(
-      "Sentinel-2 test error:",
-      error
-    );
+    logSafeError("Sentinel-2 test error.", error);
 
     res.status(500).json({
       success: false,
-      message:
-        error.message
+      message: "Sentinel-2 test failed."
     });
   }
   }
@@ -360,11 +377,7 @@ app.get(
     ) {
       return res.status(400).json({
         success: false,
-        message:
-          landResult &&
-          landResult.error
-            ? landResult.error
-            : "Land boundary could not be loaded."
+        message: "Land boundary could not be loaded."
       });
     }
 
@@ -385,15 +398,11 @@ app.get(
 readOnly: true
     });
   } catch (error) {
-    console.error(
-      "Sentinel-2 NDVI test error:",
-      error
-    );
+    logSafeError("Sentinel-2 NDVI test error.", error);
 
     res.status(500).json({
       success: false,
-      message:
-        error.message
+      message: "Sentinel-2 NDVI test failed."
     });
   }
   }
@@ -403,8 +412,35 @@ const PORT = process.env.PORT || 10000;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+const META_APP_SECRET =
+  process.env.META_APP_SECRET ||
+  process.env.APP_SECRET ||
+  "";
+const WHATSAPP_MESSAGE_STATE_FILE =
+  process.env.WHATSAPP_MESSAGE_STATE_FILE ||
+  path.join(
+    process.cwd(),
+    ".runtime",
+    "whatsapp-message-state.json"
+  );
 const KVK_TRAINING_ALERT_WHATSAPP =
   process.env.KVK_TRAINING_ALERT_WHATSAPP || "";
+
+const webhookMessageLedger = createMessageLedger({
+  filePath: WHATSAPP_MESSAGE_STATE_FILE,
+  ttlMs: process.env.WHATSAPP_MESSAGE_DEDUP_TTL_MS,
+  maxCompleted:
+    process.env.WHATSAPP_MESSAGE_DEDUP_MAX_COMPLETED
+});
+
+function logSafeError(context, error, metadata) {
+  console.error(
+    context,
+    Object.assign({}, metadata || {}, {
+      error: safeErrorDetails(error)
+    })
+  );
+}
 
 const bhoomiMitraUI =
   createBhoomiMitraUI({
@@ -922,10 +958,7 @@ app.get("/land-map/:landId", async (req, res) => {
     `);
 
   } catch (error) {
-    console.error(
-      "Land map page error:",
-      error
-    );
+    logSafeError("Land map page error.", error);
 
     res
       .status(500)
@@ -958,12 +991,14 @@ const pendingLanguageSelections = {};
 const userLanguagePreferences = {};
 const pendingServiceSearches = {};
 const boundarySessions = {};
-const processedMessages = new Set();
 const recentExpertProblems = {};
 const expertAdviceSessions = {};
 const trainingRequestSessions = {};
 const schemeSearchSessions = {};
 const farmAlertSessions = {};
+const animalHusbandrySessions = {};
+const registrationCoordinator =
+  createRegistrationCoordinator();
 let sheetMetadataCache = null;
 let sheetMetadataCacheTime = 0;
 
@@ -1213,9 +1248,9 @@ async function resolveExpertAdviceLanguage(from) {
       return preferred;
     }
   } catch (error) {
-    console.error(
-      "Farmer language lookup failed during expert workflow:",
-      error && error.message ? error.message : error
+    logSafeError(
+      "Farmer language lookup failed during expert workflow.",
+      error
     );
   }
 
@@ -1337,11 +1372,9 @@ async function assignClickFirstExpertCase(options) {
       from
     );
   } catch (profileError) {
-    console.error(
-      "Farmer profile lookup failed during click-first expert escalation:",
-      profileError && profileError.message
-        ? profileError.message
-        : profileError
+    logSafeError(
+      "Farmer profile lookup failed during click-first expert escalation.",
+      profileError
     );
   }
 
@@ -2594,7 +2627,7 @@ async function updateNotificationLogRow(rowNumber, row) {
     });
     return true;
   } catch (error) {
-    console.error("Farm alert update error:", error && error.message ? error.message : error);
+    logSafeError("Farm alert update error.", error);
     return false;
   }
 }
@@ -2868,10 +2901,374 @@ async function completeFarmAlertTextInput(from, userText, sourceMessageId) {
   await bhoomiMitraUI.sendFarmOperationConfirmation(from, language, buildOperationConfirmation(session));
   return true;
 }
-app.post("/webhook", async function (req, res) {
-  res.status(200).send("EVENT_RECEIVED");
 
- try {
+function animalFlowLanguage(from) {
+  return userLanguagePreferences[from] === "Malayalam"
+    ? "Malayalam"
+    : "English";
+}
+
+function animalFlowMessage(language, english, malayalam) {
+  return language === "Malayalam" ? malayalam : english;
+}
+
+async function loadAnimalFarmer(from) {
+  const farmer = await findRegistrationByPhone(
+    "farmer",
+    from,
+    { requireUnique: true }
+  );
+  return farmer && farmer.success && farmer.memberId
+    ? farmer
+    : null;
+}
+
+async function appendAnimalRow(sheetName, row) {
+  return appendSafe(sheetName, row);
+}
+
+async function handleAnimalHusbandryAction(options) {
+  const input = options || {};
+  const action = input.action && input.action.action;
+  const from = input.from;
+  const language = animalFlowLanguage(from);
+  delete animalHusbandrySessions[from];
+
+  if (action === "OPEN") {
+    delete animalHusbandrySessions[from];
+    await bhoomiMitraUI.sendAnimalHusbandryMenu(from, language);
+    return true;
+  }
+
+  if (action === "MAIN_MENU") {
+    delete animalHusbandrySessions[from];
+    await bhoomiMitraUI.sendMainMenu(from, language);
+    return true;
+  }
+
+  if (action === "EXPERT") {
+    delete animalHusbandrySessions[from];
+    await handleExpertAdviceAction({
+      action: "DIRECT",
+      from: from,
+      sourceMessageId: input.sourceMessageId
+    });
+    return true;
+  }
+
+  if (action === "ADVISORY") {
+    animalHusbandrySessions[from] = {
+      flow: "advisory",
+      step: "awaiting_advisory",
+      language: language,
+      updatedAt: Date.now()
+    };
+    await sendWhatsAppMessage(
+      from,
+      animalFlowMessage(
+        language,
+        "Describe your animal-health or husbandry question in your own words. Include the animal type, age, symptoms, duration and any recent treatment. For an emergency, contact a veterinarian immediately.",
+        "മൃഗത്തിന്റെ ഇനം, പ്രായം, ലക്ഷണങ്ങൾ, എത്ര ദിവസമായി, നൽകിയ ചികിത്സ എന്നിവ ഉൾപ്പെടുത്തി ചോദ്യം എഴുതുക. അടിയന്തരാവസ്ഥയിൽ ഉടൻ വെറ്ററിനറി ഡോക്ടറെ ബന്ധപ്പെടുക."
+      )
+    );
+    return true;
+  }
+
+  const farmer = await loadAnimalFarmer(from);
+  if (!farmer) {
+    await sendWhatsAppMessage(
+      from,
+      animalFlowMessage(
+        language,
+        "Please complete an unambiguous BhoomiMitra Farmer registration before using linked animal records.",
+        "ബന്ധിപ്പിച്ച മൃഗരേഖകൾ ഉപയോഗിക്കുന്നതിന് മുമ്പ് BhoomiMitra കർഷക രജിസ്ട്രേഷൻ പൂർത്തിയാക്കുക."
+      )
+    );
+    return true;
+  }
+
+  if (action === "MY_ANIMALS") {
+    const result = await getOwnedAnimals({
+      readSheetRows: readSheetRows,
+      farmerId: farmer.memberId
+    });
+    await sendWhatsAppMessage(
+      from,
+      result.success
+        ? formatOwnedAnimals(result.animals, language)
+        : animalFlowMessage(language, "Animal records could not be loaded.", "മൃഗരേഖകൾ ലഭ്യമാക്കാനായില്ല.")
+    );
+    return true;
+  }
+
+  if (action === "ALERTS") {
+    const result = await getVerifiedDiseaseAlerts({
+      readSheetRows: readSheetRows,
+      district: farmer.district,
+      now: new Date()
+    });
+    await sendWhatsAppMessage(from, formatDiseaseAlerts(result.alerts, language));
+    return true;
+  }
+
+  if (action === "HISTORY") {
+    const result = await getAnimalRecords({
+      readSheetRows: readSheetRows,
+      farmerId: farmer.memberId
+    });
+    await sendWhatsAppMessage(
+      from,
+      result.success
+        ? formatAnimalRecords(result.records, language)
+        : animalFlowMessage(language, "Animal records could not be loaded.", "മൃഗരേഖകൾ ലഭ്യമാക്കാനായില്ല.")
+    );
+    return true;
+  }
+
+  if (action === "REGISTER") {
+    animalHusbandrySessions[from] = {
+      flow: "register",
+      step: "animal_type",
+      language: language,
+      farmerId: farmer.memberId,
+      data: {},
+      updatedAt: Date.now()
+    };
+    await sendWhatsAppMessage(
+      from,
+      animalFlowMessage(language, "What type of animal are you registering? Example: dairy cow, goat or chicken.", "ഏത് മൃഗത്തെയാണ് രജിസ്റ്റർ ചെയ്യുന്നത്? ഉദാ: കറവപ്പശു, ആട്, കോഴി.")
+    );
+    return true;
+  }
+
+  const flowByAction = {
+    HEALTH: "health",
+    PREVENTIVE: "preventive",
+    PRODUCTION: "production"
+  };
+  const flow = flowByAction[action];
+  if (flow) {
+    const animals = await getOwnedAnimals({
+      readSheetRows: readSheetRows,
+      farmerId: farmer.memberId
+    });
+    if (!animals.success || !animals.animals.length) {
+      await sendWhatsAppMessage(from, formatOwnedAnimals([], language));
+      return true;
+    }
+    animalHusbandrySessions[from] = {
+      flow: flow,
+      step: "animal_id",
+      language: language,
+      farmerId: farmer.memberId,
+      data: {},
+      updatedAt: Date.now()
+    };
+    await sendWhatsAppMessage(
+      from,
+      formatOwnedAnimals(animals.animals, language) + "\n\n" +
+        animalFlowMessage(language, "Reply with the Animal ID for this record.", "ഈ രേഖയ്ക്കുള്ള Animal ID അയയ്ക്കുക.")
+    );
+    return true;
+  }
+
+  return false;
+}
+
+async function completeAnimalHusbandryInput(from, userText, sourceMessageId) {
+  const session = animalHusbandrySessions[from];
+  if (!session) return false;
+  const language = session.language || animalFlowLanguage(from);
+  const text = String(userText || "").trim();
+  const normalized = text.toLowerCase();
+
+  if (["cancel", "back", "menu", "റദ്ദാക്കുക", "പിന്നോട്ട്", "മെനു"].includes(normalized)) {
+    delete animalHusbandrySessions[from];
+    await bhoomiMitraUI.sendAnimalHusbandryMenu(from, language);
+    return true;
+  }
+
+  if (!text) {
+    await sendWhatsAppMessage(from, animalFlowMessage(language, "Please enter a value or type CANCEL.", "വിവരം നൽകുക അല്ലെങ്കിൽ CANCEL ടൈപ്പ് ചെയ്യുക."));
+    return true;
+  }
+
+  session.updatedAt = Date.now();
+
+  if (session.flow === "advisory") {
+    delete animalHusbandrySessions[from];
+    const farmer = await loadAnimalFarmer(from);
+    let animalContext = "No linked animal profile was supplied.";
+    if (farmer) {
+      const owned = await getOwnedAnimals({ readSheetRows: readSheetRows, farmerId: farmer.memberId });
+      if (owned.success && owned.animals.length) {
+        animalContext = owned.animals.map(function (animal) {
+          return [animal.animalId, animal.animalType, animal.breed, animal.sex, animal.age].filter(Boolean).join(" | ");
+        }).join("; ");
+      }
+    }
+    const reply = await getAIReply(
+      "Veterinary advisory request. Give cautious Kerala-relevant husbandry guidance, do not claim a diagnosis, do not prescribe restricted medicines or invent a dose, and clearly identify emergency signs requiring an immediate veterinarian. Saved animal context: " + animalContext + "\n\nFarmer question: " + text,
+      "",
+      ""
+    );
+    await sendWhatsAppMessage(from, reply);
+    return true;
+  }
+
+  if (session.flow === "register") {
+    if (session.step === "animal_type") {
+      session.data.animalType = text;
+      session.step = "breed";
+      await sendWhatsAppMessage(from, animalFlowMessage(language, "Enter the breed, or type UNKNOWN.", "ഇനം (breed) നൽകുക; അറിയില്ലെങ്കിൽ UNKNOWN എന്ന് ടൈപ്പ് ചെയ്യുക."));
+      return true;
+    }
+    if (session.step === "breed") {
+      session.data.breed = /^unknown$/i.test(text) ? "" : text;
+      session.step = "sex";
+      await sendWhatsAppMessage(from, animalFlowMessage(language, "Enter sex: Female, Male or Unknown.", "ലിംഗം നൽകുക: Female, Male അല്ലെങ്കിൽ Unknown."));
+      return true;
+    }
+    if (session.step === "sex") {
+      session.data.sex = text;
+      session.step = "age";
+      await sendWhatsAppMessage(from, animalFlowMessage(language, "Enter age or date of birth. Example: 3 years or 2023-06-15.", "പ്രായമോ ജനനത്തീയതിയോ നൽകുക. ഉദാ: 3 years അല്ലെങ്കിൽ 2023-06-15."));
+      return true;
+    }
+    if (session.step === "age") {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(text)) session.data.dateOfBirth = text;
+      else session.data.age = text;
+      session.step = "tag";
+      await sendWhatsAppMessage(from, animalFlowMessage(language, "Enter the ear-tag/identification number, or type SKIP.", "ഇയർ ടാഗ്/തിരിച്ചറിയൽ നമ്പർ നൽകുക; ഇല്ലെങ്കിൽ SKIP ടൈപ്പ് ചെയ്യുക."));
+      return true;
+    }
+    if (session.step === "tag") {
+      session.data.tagNumber = /^skip$/i.test(text) ? "" : text;
+      const result = await registerAnimal({
+        sheets: sheets,
+        spreadsheetId: GOOGLE_SHEET_ID,
+        phone: from,
+        animal: Object.assign({}, session.data, { farmerId: session.farmerId })
+      });
+      if (result.success) delete animalHusbandrySessions[from];
+      await sendWhatsAppMessage(
+        from,
+        result.success
+          ? animalFlowMessage(language, "Animal registered and linked to Farmer ID " + session.farmerId + ".\nAnimal ID: " + result.animalId, "മൃഗത്തെ Farmer ID " + session.farmerId + "-യുമായി ബന്ധിപ്പിച്ച് രജിസ്റ്റർ ചെയ്തു.\nAnimal ID: " + result.animalId)
+          : animalFlowMessage(language, "Animal registration failed: " + (result.error || result.code || "unknown error"), "മൃഗ രജിസ്ട്രേഷൻ പരാജയപ്പെട്ടു: " + (result.error || result.code || "അജ്ഞാത പിശക്"))
+      );
+      return true;
+    }
+  }
+
+  if (session.step === "animal_id") {
+    const ownership = await verifyAnimalOwnership({
+      readSheetRows: readSheetRows,
+      farmerId: session.farmerId,
+      animalId: text
+    });
+    if (!ownership.success) {
+      await sendWhatsAppMessage(from, animalFlowMessage(language, "That Animal ID is not active under your Farmer ID. Try again or type CANCEL.", "ആ Animal ID നിങ്ങളുടെ Farmer ID-യിൽ സജീവമല്ല. വീണ്ടും ശ്രമിക്കുക അല്ലെങ്കിൽ CANCEL ടൈപ്പ് ചെയ്യുക."));
+      return true;
+    }
+    session.data.animalId = ownership.animal.animalId;
+    session.step = "details";
+    const prompts = {
+      health: "Enter: YYYY-MM-DD | symptom/observation | treatment or veterinarian notes",
+      preventive: "Enter: vaccination or deworming | YYYY-MM-DD | product | dose/result | next due date | veterinarian/notes",
+      production: "Enter: milk, egg, weight or breeding | YYYY-MM-DD | quantity/result | unit | details/notes"
+    };
+    await sendWhatsAppMessage(from, prompts[session.flow]);
+    return true;
+  }
+
+  if (session.step === "details") {
+    const parts = text.split("|").map(function (part) { return part.trim(); });
+    let result;
+    if (session.flow === "health") {
+      result = await saveHealthRecord({
+        readSheetRows: readSheetRows,
+        appendRow: appendAnimalRow,
+        farmerId: session.farmerId,
+        animalId: session.data.animalId,
+        phone: from,
+        recordDate: parts[0],
+        recordType: "Health observation",
+        observation: parts[1] || parts[0],
+        notes: parts.slice(2).join(" | "),
+        sourceMessageId: sourceMessageId
+      });
+    } else if (session.flow === "preventive") {
+      const type = (parts[0] || "").toLowerCase();
+      if (!/vaccin|deworm/.test(type)) {
+        await sendWhatsAppMessage(from, "Start with vaccination or deworming, followed by | and the record details.");
+        return true;
+      }
+      result = await saveHealthRecord({
+        readSheetRows: readSheetRows,
+        appendRow: appendAnimalRow,
+        farmerId: session.farmerId,
+        animalId: session.data.animalId,
+        phone: from,
+        recordType: /deworm/.test(type) ? "Deworming" : "Vaccination",
+        recordDate: parts[1],
+        product: parts[2],
+        doseOrResult: parts[3],
+        nextDueDate: parts[4],
+        veterinarian: parts[5],
+        sourceMessageId: sourceMessageId
+      });
+    } else {
+      result = await saveBreedingProductionRecord({
+        readSheetRows: readSheetRows,
+        appendRow: appendAnimalRow,
+        farmerId: session.farmerId,
+        animalId: session.data.animalId,
+        phone: from,
+        recordType: parts[0],
+        recordDate: parts[1],
+        quantityOrResult: parts[2],
+        unit: parts[3],
+        details: parts.slice(4).join(" | "),
+        sourceMessageId: sourceMessageId
+      });
+    }
+    if (result.success) delete animalHusbandrySessions[from];
+    await sendWhatsAppMessage(
+      from,
+      result.success
+        ? animalFlowMessage(language, "Animal record saved. Record ID: " + result.recordId, "മൃഗരേഖ സേവ് ചെയ്തു. Record ID: " + result.recordId)
+        : animalFlowMessage(language, "The record was not saved (" + (result.code || "unknown error") + ").", "രേഖ സേവ് ചെയ്തില്ല (" + (result.code || "അജ്ഞാത പിശക്") + ").")
+    );
+    return true;
+  }
+
+  return false;
+}
+app.post("/webhook", async function (req, res) {
+  let claimedMessageId = "";
+  let processingError = null;
+
+  try {
+    const signature = verifyMetaSignature(
+      req.rawBody,
+      req.get("x-hub-signature-256"),
+      META_APP_SECRET
+    );
+
+    if (!signature.valid) {
+      console.warn("WhatsApp webhook rejected.", {
+        reason: signature.code
+      });
+      return res
+        .status(
+          signature.code === "APP_SECRET_MISSING"
+            ? 503
+            : 401
+        )
+        .send("WEBHOOK_REJECTED");
+    }
+
     const body = req.body;
     if (!body || body.object !== "whatsapp_business_account") return;
 
@@ -2887,12 +3284,29 @@ app.post("/webhook", async function (req, res) {
     const message = value.messages && value.messages[0];
     if (!message) return;
 
-    if (processedMessages.has(message.id)) return;
-    processedMessages.add(message.id);
+    const claim = await webhookMessageLedger.claim(message.id);
+    if (!claim.accepted) {
+      if (claim.duplicate) {
+        console.log("Duplicate WhatsApp message skipped.",
+          safeMessageMetadata(message));
+      }
+      if (claim.code === "ALREADY_IN_FLIGHT") {
+        return res
+          .status(503)
+          .send("PROCESSING_IN_PROGRESS");
+      }
+      return;
+    }
+    claimedMessageId = message.id;
 
     const from = message.from;
 
-console.log("[TEXT TEST] type =", message.type, "text =", message.text && message.text.body);
+console.log(
+  "WhatsApp message processing started.",
+  Object.assign(safeMessageMetadata(message), {
+    recoveredAfterRestart: Boolean(claim.recovered)
+  })
+);
 
 let userText = "";
 let voiceTranscriptionSucceeded = true;
@@ -2934,6 +3348,20 @@ if (
         registrationSessions: sessions,
         menuSessions: userMenus
       });
+
+      const animalAction =
+        parseAnimalAction(uiSelection.id);
+
+      if (animalAction) {
+        await handleAnimalHusbandryAction({
+          action: animalAction,
+          from: from,
+          sourceMessageId: message.id
+        });
+        return;
+      }
+
+      delete animalHusbandrySessions[from];
 
       const farmAlertAction =
         parseFarmAlertAction(uiSelection.id);
@@ -3286,6 +3714,18 @@ if (landManagementCommand === "back") {
 
   if (
     message.type === "text" &&
+    animalHusbandrySessions[from]
+  ) {
+    await completeAnimalHusbandryInput(
+      from,
+      userText,
+      message.id
+    );
+    return;
+  }
+
+  if (
+    message.type === "text" &&
     farmAlertSessions[from] &&
     farmAlertSessions[from].step === "awaiting_operation_date"
   ) {
@@ -3388,11 +3828,9 @@ if (
       success: false,
       code: "WORKFLOW_ERROR"
     };
-    console.error(
-      "Farmer expert follow-up failed:",
-      followUpError && followUpError.message
-        ? followUpError.message
-        : followUpError
+    logSafeError(
+      "Farmer expert follow-up failed.",
+      followUpError
     );
   }
 
@@ -3467,11 +3905,9 @@ if (pilotParsedExpertReply) {
       success: false,
       code: "WORKFLOW_ERROR"
     };
-    console.error(
-      "Expert reply workflow failed:",
-      expertReplyError && expertReplyError.message
-        ? expertReplyError.message
-        : expertReplyError
+    logSafeError(
+      "Expert reply workflow failed.",
+      expertReplyError
     );
   }
 
@@ -3877,12 +4313,9 @@ if (
     return;
 
   } catch (boundaryCompleteError) {
-    console.error(
-      "Boundary completion error:",
-      boundaryCompleteError &&
-      boundaryCompleteError.message
-        ? boundaryCompleteError.message
-        : boundaryCompleteError
+    logSafeError(
+      "Boundary completion error.",
+      boundaryCompleteError
     );
 
     await sendWhatsAppMessage(
@@ -3911,7 +4344,9 @@ if (
         ? voiceResult.text
         : "Voice transcription failed.";
 
-    console.log("Voice Transcription:", userText);
+    console.log("Voice transcription completed.", {
+      success: voiceTranscriptionSucceeded
+    });
 } else if (message.type === "image") {
     const mediaId = message.image && message.image.id
         ? message.image.id
@@ -4061,12 +4496,7 @@ logAI(
   photoReply,
   "photo_diagnosis"
 ).catch(function (error) {
-  console.error(
-    "Background photo logging error:",
-    error && error.message
-      ? error.message
-      : error
-  );
+  logSafeError("Background photo logging error.", error);
 });
 
 return;
@@ -4205,13 +4635,7 @@ return;
       return;
 
     } catch (boundaryError) {
-      console.error(
-        "Boundary GPS capture error:",
-        boundaryError &&
-        boundaryError.message
-          ? boundaryError.message
-          : boundaryError
-      );
+      logSafeError("Boundary GPS capture error.", boundaryError);
 
       await sendWhatsAppMessage(
         from,
@@ -4332,13 +4756,7 @@ return;
       return;
 
     } catch (weatherError) {
-      console.error(
-        "Weather location error:",
-        weatherError &&
-        weatherError.message
-          ? weatherError.message
-          : weatherError
-      );
+      logSafeError("Weather location error.", weatherError);
 
       await sendWhatsAppMessage(
         from,
@@ -4392,13 +4810,7 @@ return;
       return;
 
     } catch (soilError) {
-      console.error(
-        "Soil location error:",
-        soilError &&
-        soilError.message
-          ? soilError.message
-          : soilError
-      );
+      logSafeError("Soil location error.", soilError);
 
       await sendWhatsAppMessage(
         from,
@@ -4428,6 +4840,25 @@ return;
 }
 
 const pendingTrainingRequest = trainingRequestSessions[from];
+
+if (
+  animalHusbandrySessions[from] &&
+  (message.type === "audio" || message.type === "voice")
+) {
+  if (!voiceTranscriptionSucceeded) {
+    await sendWhatsAppMessage(
+      from,
+      animalFlowMessage(
+        animalHusbandrySessions[from].language,
+        "The voice message could not be transcribed. Please send it again or type your answer.",
+        "വോയ്സ് സന്ദേശം മനസ്സിലാക്കാനായില്ല. വീണ്ടും അയയ്ക്കുക അല്ലെങ്കിൽ മറുപടി ടൈപ്പ് ചെയ്യുക."
+      )
+    );
+    return;
+  }
+  await completeAnimalHusbandryInput(from, userText, message.id);
+  return;
+}
 
 if (
   farmAlertSessions[from] &&
@@ -4632,13 +5063,7 @@ if (regReply) {
     regReply,
     "registration"
   ).catch(function (error) {
-    console.error(
-      "Background registration logging error:",
-      error &&
-      error.message
-        ? error.message
-        : error
-    );
+    logSafeError("Background registration logging error.", error);
   });
 
   return;
@@ -5634,13 +6059,7 @@ if (satelliteChoice === "2") {
     return;
 
   } catch (landListError) {
-    console.error(
-      "View land list error:",
-      landListError &&
-      landListError.message
-        ? landListError.message
-        : landListError
-    );
+    logSafeError("View land list error.", landListError);
 
     await sendWhatsAppMessage(
       from,
@@ -6618,13 +7037,7 @@ await sendWhatsAppMessage(
 
     return;
   } catch (healthError) {
-    console.error(
-      "Satellite farm health error:",
-      healthError &&
-      healthError.message
-        ? healthError.message
-        : healthError
-    );
+    logSafeError("Satellite farm health error.", healthError);
 
     await sendWhatsAppMessage(
       from,
@@ -6767,12 +7180,9 @@ const historyResult =
 
     return;
   } catch (historyError) {
-    console.error(
-      "Satellite observation history error:",
-      historyError &&
-      historyError.message
-        ? historyError.message
-        : historyError
+    logSafeError(
+      "Satellite observation history error.",
+      historyError
     );
 
     await sendWhatsAppMessage(
@@ -7082,13 +7492,7 @@ bhoomiMitraMapUrl,
     return;
 
   } catch (mapError) {
-    console.error(
-      "View land map error:",
-      mapError &&
-      mapError.message
-        ? mapError.message
-        : mapError
-    );
+    logSafeError("View land map error.", mapError);
 
     await sendWhatsAppMessage(
       from,
@@ -7305,13 +7709,7 @@ if (
     return;
 
   } catch (boundaryStartError) {
-    console.error(
-      "Boundary start error:",
-      boundaryStartError &&
-      boundaryStartError.message
-        ? boundaryStartError.message
-        : boundaryStartError
-    );
+    logSafeError("Boundary start error.", boundaryStartError);
 
     await sendWhatsAppMessage(
       from,
@@ -7642,13 +8040,7 @@ if (pendingServiceSearches[from]) {
     serviceReply,
     "service_search"
   ).catch(function (error) {
-    console.error(
-      "Service search logging error:",
-      error &&
-      error.message
-        ? error.message
-        : error
-    );
+    logSafeError("Service search logging error.", error);
   });
 
   return;
@@ -7812,19 +8204,15 @@ if (isServiceRequest(userText)) {
     serviceReply,
     "service_search"
   ).catch(function (error) {
-    console.error(
-      "Service search logging error:",
-      error &&
-      error.message
-        ? error.message
-        : error
-    );
+    logSafeError("Service search logging error.", error);
   });
 
   return;
 }    
 const detectedIntent = detectIntent(userText);
-console.log("Detected Intent:", detectedIntent);
+console.log("Message intent detected.", {
+  intent: detectedIntent || "unknown"
+});
 
 if (
   isDetailedFarmerProblem(userText) &&
@@ -7922,6 +8310,41 @@ if (
   return;
 }
 
+if (
+  detectedIntent !== "weather" &&
+  detectedIntent !== "market" &&
+  isAnimalNaturalLanguageQuery(userText)
+) {
+  const language = animalFlowLanguage(from);
+  const farmer = await loadAnimalFarmer(from);
+  let animalContext = "No verified linked animal record is available.";
+  if (farmer) {
+    const owned = await getOwnedAnimals({
+      readSheetRows: readSheetRows,
+      farmerId: farmer.memberId
+    });
+    if (owned.success && owned.animals.length) {
+      animalContext = owned.animals.map(function (animal) {
+        return [animal.animalId, animal.animalType, animal.breed, animal.sex, animal.age]
+          .filter(Boolean)
+          .join(" | ");
+      }).join("; ");
+    }
+  }
+  const animalReply = await getAIReply(
+    "The farmer's saved reply language is " + language +
+      ". Answer this direct animal-husbandry question entirely in that language. Use cautious Kerala-relevant veterinary guidance; do not claim a definitive diagnosis, do not invent medicine doses, and state urgent warning signs that require an immediate veterinarian when relevant. Linked animal context: " +
+      animalContext + "\n\nQuestion: " + userText,
+    "",
+    ""
+  );
+  await sendWhatsAppMessage(from, animalReply);
+  logAI(from, userText, animalReply, "animal_husbandry").catch(function (error) {
+    logSafeError("Animal advisory logging error.", error);
+  });
+  return;
+}
+
 if (detectedIntent === "weather") {
   const needsDistrict = await sendWeatherSheetReply(
     from,
@@ -7949,10 +8372,7 @@ if (detectedIntent === "market") {
       );
 
     if (!resolvedCommodity) {
-      console.log(
-        "Market commodity could not be resolved:",
-        userText
-      );
+      console.log("Market commodity could not be resolved.");
 
       finalReply =
         "ക്ഷമിക്കണം, നിങ്ങൾ ചോദിച്ച ഉൽപ്പന്നം തിരിച്ചറിയാനായില്ല. " +
@@ -7998,23 +8418,10 @@ const detectedDistrict =
     }
   ) || "";
 
-console.log(
-  "Market district detected:",
-  detectedDistrict ||
-    "not specified"
-);
-      console.log(
-        "Market commodity resolved:",
-        {
-          userMessage:
-            userText,
-
-          bhoomiMitraName:
-            commodity,
-
-          officialCommodity
-        }
-      );
+console.log("Market district detection completed.", {
+  districtSpecified: Boolean(detectedDistrict)
+});
+      console.log("Market commodity resolved.");
 
       /*
        * Check saved price only for the
@@ -8065,17 +8472,7 @@ console.log(
           !savedReplyIsValid
         ) {
           console.log(
-            "Rejected unrelated saved market result:",
-            {
-              requested:
-                commodity,
-
-              official:
-                officialCommodity,
-
-              savedReply:
-                savedResult.reply
-            }
+            "Rejected unrelated saved market result."
           );
         }
       }
@@ -8086,10 +8483,7 @@ console.log(
         finalReply =
           savedResult.reply;
       } else {
-        console.log(
-          "Checking AGMARKNET:",
-          officialCommodity
-        );
+        console.log("Checking AGMARKNET.");
 
    const liveRecords =
   await fetchAllSources({
@@ -8195,13 +8589,7 @@ console.log(
       }
     }
   } catch (marketError) {
-    console.error(
-      "Market module error:",
-      marketError &&
-      marketError.message
-        ? marketError.message
-        : marketError
-    );
+    logSafeError("Market module error.", marketError);
   }
 
   if (!finalReply) {
@@ -8221,12 +8609,7 @@ console.log(
   finalReply,
   "market"
 ).catch(function (error) {
-  console.error(
-    "Background market logging error:",
-    error && error.message
-      ? error.message
-      : error
-  );
+  logSafeError("Background market logging error.", error);
 });
 
 return;
@@ -8358,11 +8741,9 @@ if (needExpert) {
         from
       );
   } catch (profileError) {
-    console.error(
-      "Farmer profile lookup failed during expert escalation:",
-      profileError && profileError.message
-        ? profileError.message
-        : profileError
+    logSafeError(
+      "Farmer profile lookup failed during expert escalation.",
+      profileError
     );
   }
 
@@ -8481,17 +8862,12 @@ if (needExpert) {
 
     if (!assignmentResult.success) {
       console.error(
-        "Expert assignment not completed:",
-        assignmentResult.error
+        "Expert assignment not completed.",
+        { code: assignmentResult.code || "ASSIGNMENT_FAILED" }
       );
     }
   } catch (assignmentError) {
-    console.error(
-      "Expert assignment failed:",
-      assignmentError && assignmentError.message
-        ? assignmentError.message
-        : assignmentError
-    );
+    logSafeError("Expert assignment failed.", assignmentError);
 
     expertConfirmation =
       "We could not complete your expert request right now. Please try again shortly.";
@@ -8529,19 +8905,38 @@ Promise.all([
   )
 ])
 .catch(function (error) {
-  console.error(
-    "Background AI logging error:",
-    error
-  );
+  logSafeError("Background AI logging error.", error);
 });
 
 } catch (error) {
-  console.error(
-    "Webhook error:",
-    error && error.message
-      ? error.message
-      : error
-  );
+  processingError = error;
+  logSafeError("WhatsApp webhook processing failed.", error);
+} finally {
+  if (claimedMessageId) {
+    try {
+      if (processingError) {
+        await webhookMessageLedger.release(claimedMessageId);
+      } else {
+        await webhookMessageLedger.complete(claimedMessageId);
+      }
+    } catch (ledgerError) {
+      processingError = processingError || ledgerError;
+      logSafeError(
+        "WhatsApp message ledger update failed.",
+        ledgerError
+      );
+    }
+  }
+
+  if (!res.headersSent) {
+    res
+      .status(processingError ? 500 : 200)
+      .send(
+        processingError
+          ? "PROCESSING_FAILED"
+          : "EVENT_RECEIVED"
+      );
+  }
 }
 });
 // =====================================================
@@ -8876,7 +9271,8 @@ async function loadRegistrationSheet(
 
 async function findRegistrationByPhone(
   category,
-  phone
+  phone,
+  options
 ) {
   const sheetData =
     await loadRegistrationSheet(
@@ -8901,8 +9297,8 @@ async function findRegistrationByPhone(
     headerMap
   } = sheetData;
 
-  const matchedRow =
-    rows.slice(1).find(function (row) {
+  const matchedRows =
+    rows.slice(1).filter(function (row) {
       const savedMobile =
         registrationPhoneKey(
           getRegistrationValue(
@@ -8926,6 +9322,21 @@ async function findRegistrationByPhone(
         savedWhatsApp === incomingPhone
       );
     });
+
+  if (
+    matchedRows.length > 1 &&
+    options &&
+    options.requireUnique
+  ) {
+    return {
+      success: false,
+      alreadyRegistered: true,
+      code: "REGISTRATION_PHONE_AMBIGUITY",
+      matchCount: matchedRows.length
+    };
+  }
+
+  const matchedRow = matchedRows[0];
 
   if (!matchedRow) {
     return null;
@@ -9045,6 +9456,28 @@ async function findRegistrationByPhone(
         matchedRow,
         headerMap,
         config.serviceHeaders
+      ),
+    registrationDate:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        [
+          "Registration date",
+          "Registration Date",
+          "Registration_Date",
+          "Created date"
+        ]
+      ),
+    source:
+      getRegistrationValue(
+        matchedRow,
+        headerMap,
+        [
+          "Source",
+          "AI_Registration_Source",
+          "AI_Registration",
+          "AI Registration"
+        ]
       ),
     preferredLanguage:
       getFarmerPreferredLanguage(
@@ -9192,12 +9625,7 @@ async function updateFarmerPreferredLanguage(
 
     return true;
   } catch (error) {
-    console.error(
-      "Preferred language update error:",
-      error && error.message
-        ? error.message
-        : error
-    );
+    logSafeError("Preferred language update error.", error);
 
     return false;
   }
@@ -9507,10 +9935,38 @@ if (
     const existing =
       await findRegistrationByPhone(
         category,
-        from
+        from,
+        { requireUnique: true }
       );
 
     if (existing) {
+      if (!existing.success) {
+        const language = normalizePreferredLanguage(
+          userLanguagePreferences[from] ||
+          s.data.preferredLanguage
+        );
+        return language === "Malayalam"
+          ? "ഈ WhatsApp നമ്പറുമായി ഒന്നിലധികം രജിസ്ട്രേഷനുകൾ ബന്ധിപ്പിച്ചിരിക്കുന്നു. തിരിച്ചറിയൽ പരിശോധിക്കാൻ KVK ടീമുമായി ബന്ധപ്പെടുക."
+          : "More than one registration is linked to this WhatsApp number. Please contact the KVK team for identity verification.";
+      }
+
+      if (existing.category === "farmer") {
+        existing.masterSync =
+          await syncFarmerRegistration({
+            sheets,
+            spreadsheetId: GOOGLE_SHEET_ID,
+            registration: existing
+          });
+        existing.masterSyncPending =
+          !existing.masterSync.success;
+      }
+
+      clearCompletedRegistrationSession({
+        registrationSessions: sessions,
+        userKey: from,
+        result: existing
+      });
+
        return formatExistingRegistration(
         existing,
         from
@@ -9615,8 +10071,6 @@ if (
         registrationData
       );
 
-    delete sessions[from];
-
     if (!result || !result.success) {
       return (
         "ക്ഷമിക്കണം, കർഷക രജിസ്ട്രേഷൻ " +
@@ -9624,6 +10078,12 @@ if (
         "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
       );
     }
+
+    clearCompletedRegistrationSession({
+      registrationSessions: sessions,
+      userKey: from,
+      result
+    });
 
     if (result.alreadyRegistered) {
       return formatExistingRegistration(
@@ -9651,8 +10111,6 @@ if (
         s.data
       );
 
-    delete sessions[from];
-
     if (!result || !result.success) {
       return (
         "ക്ഷമിക്കണം, രജിസ്ട്രേഷൻ " +
@@ -9660,6 +10118,12 @@ if (
         "കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
       );
     }
+
+    clearCompletedRegistrationSession({
+      registrationSessions: sessions,
+      userKey: from,
+      result
+    });
 
     if (result.alreadyRegistered) {
       return formatExistingRegistration(
@@ -9678,6 +10142,23 @@ if (
 }
 
 async function saveRegistration(data) {
+  const input = data || {};
+  const category = input.category || "farmer";
+  const phone =
+    input.whatsapp ||
+    input.mobile ||
+    "";
+
+  return registrationCoordinator.runExclusive(
+    category,
+    phone,
+    function () {
+      return saveRegistrationLocked(input);
+    }
+  );
+}
+
+async function saveRegistrationLocked(data) {
   const category =
     data.category || "farmer";
 
@@ -9690,10 +10171,26 @@ async function saveRegistration(data) {
       category,
       data.whatsapp ||
       data.mobile ||
-      ""
+      "",
+      { requireUnique: true }
     );
 
   if (existing) {
+    if (!existing.success) {
+      return existing;
+    }
+
+    if (category === "farmer") {
+      existing.masterSync =
+        await syncFarmerRegistration({
+          sheets,
+          spreadsheetId: GOOGLE_SHEET_ID,
+          registration: existing
+        });
+      existing.masterSyncPending =
+        !existing.masterSync.success;
+    }
+
     return existing;
   }
 
@@ -9712,6 +10209,7 @@ async function saveRegistration(data) {
 
   const {
     config,
+    rows,
     headers,
     headerMap
   } = sheetData;
@@ -9720,8 +10218,16 @@ async function saveRegistration(data) {
     new Date().toISOString();
 
   const id =
-    config.idPrefix +
-    Date.now();
+    registrationCoordinator.generateId(
+      config.idPrefix,
+      rows.slice(1).map(function (existingRow) {
+        return getRegistrationValue(
+          existingRow,
+          headerMap,
+          config.idHeaders
+        );
+      })
+    );
 
   /*
    * Create a row having the same number
@@ -10155,60 +10661,33 @@ async function saveRegistration(data) {
   let masterSync = null;
 
   if (category === "farmer") {
-    try {
-      masterSync = await upsertMasterMember({
-        sheets,
-        spreadsheetId: GOOGLE_SHEET_ID,
-        member: {
-          bmId: id,
-          name: data.name || "",
-          memberType: "Farmer",
-          mobile:
-            data.mobile ||
-            data.whatsapp ||
-            "",
-          whatsapp: data.whatsapp || "",
-          district: data.district || "",
-          panchayath:
-            data.panchayath || "",
-          registrationDate: timestamp,
-          verificationStatus: "Approved",
-          activeStatus: "Active",
-          source: "WhatsApp Registration",
-          preferredLanguage:
-            data.preferredLanguage || "",
-          lastUpdated: timestamp
-        }
-      });
-
-      if (!masterSync || !masterSync.success) {
-        console.error(
-          "Master member sync failed after farmer save:",
-          {
-            farmerId: id,
-            code:
-              masterSync && masterSync.code
-                ? masterSync.code
-                : "UNKNOWN_MASTER_SYNC_ERROR",
-            details: masterSync || null
-          }
-        );
+    masterSync = await syncFarmerRegistration({
+      sheets,
+      spreadsheetId: GOOGLE_SHEET_ID,
+      now: timestamp,
+      registration: {
+        farmerId: id,
+        name: data.name || "",
+        mobile:
+          data.mobile ||
+          data.whatsapp ||
+          "",
+        whatsapp: data.whatsapp || "",
+        district: data.district || "",
+        panchayath: data.panchayath || "",
+        registrationDate: timestamp,
+        verificationStatus: "Pending",
+        activeStatus: "Active",
+        source: "WhatsApp Registration",
+        preferredLanguage:
+          data.preferredLanguage || ""
       }
-    } catch (masterSyncError) {
-      masterSync = {
-        success: false,
-        code: "MASTER_SYNC_EXCEPTION"
-      };
+    });
 
+    if (!masterSync.success) {
       console.error(
-        "Master member sync failed after farmer save:",
-        {
-          farmerId: id,
-          error:
-            masterSyncError && masterSyncError.message
-              ? masterSyncError.message
-              : masterSyncError
-        }
+        "Master member sync pending after farmer save.",
+        { code: masterSync.code }
       );
     }
   }
@@ -10275,7 +10754,10 @@ async function saveRegistration(data) {
         ? "Registered"
         : "Pending",
 
-    masterSync
+    masterSync,
+    masterSyncPending:
+      category === "farmer" &&
+      Boolean(masterSync && !masterSync.success)
   };
 }
 async function getLatestWeatherContext(userText) {
@@ -10315,12 +10797,7 @@ async function getLatestWeatherContext(userText) {
     ].join("\n");
 
   } catch (error) {
-  console.error(
-    "Weather read error:",
-    error.response && error.response.data
-      ? error.response.data
-      : error.message
-  );
+  logSafeError("Weather read error.", error);
 
   return "Weather data could not be read from BhoomiMitra database.";
 }
@@ -10344,10 +10821,7 @@ async function sendWeatherSheetReply(from, userText, preferredLanguage) {
         now: Date.now()
       });
     } catch (error) {
-      console.error(
-        "Weather sheet reply error:",
-        error && error.message ? error.message : error
-      );
+      logSafeError("Weather sheet reply error.", error);
       await sendWhatsAppMessage(
         from,
         getWeatherUnavailableReply(preferredLanguage),
@@ -10540,13 +11014,7 @@ if (
       .join("\n");
 
   } catch (error) {
-    console.error(
-      "Forecast read error:",
-      error.response &&
-      error.response.data
-        ? error.response.data
-        : error.message
-    );
+    logSafeError("Forecast read error.", error);
 
     return "Forecast data could not be read from BhoomiMitra database.";
   }
@@ -10767,7 +11235,7 @@ async function getAIReply(userText, weatherContext, forecastContext) {
     return limitWhatsAppText(reply);
 
   } catch (error) {
-    console.error("OpenAI error:", error.response && error.response.data ? error.response.data : error.message);
+    logSafeError("OpenAI request failed.", error);
     return "ക്ഷമിക്കണം, ഇപ്പോൾ BhoomiMitra മറുപടി നൽകാൻ കഴിഞ്ഞില്ല. കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക.";
   }
 }
@@ -10832,12 +11300,7 @@ async function applyPreferredReplyLanguage(
     return translated || originalText;
 
   } catch (error) {
-    console.error(
-      "Preferred language conversion error:",
-      error && error.message
-        ? error.message
-        : error
-    );
+    logSafeError("Preferred language conversion error.", error);
 
     // Never stop BhoomiMitra because translation failed.
     return originalText;
@@ -10957,15 +11420,10 @@ async function appendSafe(
     };
 
   } catch (error) {
-    console.error(
-      "Google Sheet append error for sheet:",
-      sheetName
-    );
-
-    console.error(
-      error.response && error.response.data
-        ? error.response.data
-        : error.message
+    logSafeError(
+      "Google Sheet append error.",
+      error,
+      { sheetName: String(sheetName || "unknown") }
     );
 
     return false;
@@ -11034,8 +11492,7 @@ async function updateExpertCaseByHeaders(input) {
 
       if (matchedIndex < 1) {
         console.error(
-          "Unable to locate appended Expert_Cases row for update:",
-          update.caseId
+          "Unable to locate appended Expert_Cases row for update."
         );
         return false;
       }
@@ -11062,14 +11519,7 @@ async function updateExpertCaseByHeaders(input) {
 
     return true;
   } catch (error) {
-    console.error(
-      "Expert_Cases update error:",
-      error && error.response && error.response.data
-        ? error.response.data
-        : error && error.message
-          ? error.message
-          : error
-    );
+    logSafeError("Expert_Cases update error.", error);
 
     return false;
   }
@@ -11104,15 +11554,9 @@ async function readSheetRows(sheetName, range) {
     const availableSheets =
       sheetMetadataCache || [];
 
-    console.log(
-      "Tabs visible to server:",
-      availableSheets.map(function (sheet) {
-        return {
-          sheetId: sheet.properties.sheetId,
-          title: sheet.properties.title
-        };
-      })
-    );
+    console.log("Google Sheet tabs loaded.", {
+      count: availableSheets.length
+    });
 
     function normalizeTitle(value) {
       return String(value || "")
@@ -11145,15 +11589,7 @@ async function readSheetRows(sheetName, range) {
     const fullRange =
       "'" + escapedSheetTitle + "'!" + requestedRange;
 
-    console.log(
-      "Resolved actual sheet title:",
-      JSON.stringify(actualSheetTitle)
-    );
-
-    console.log(
-      "Reading exact Google Sheet range:",
-      JSON.stringify(fullRange)
-    );
+    console.log("Google Sheet range resolved.");
 
     const response =
       await sheets.spreadsheets.values.get({
@@ -11164,15 +11600,10 @@ async function readSheetRows(sheetName, range) {
     return response.data.values || [];
 
   } catch (error) {
-    console.error(
-      "Google Sheet read error for sheet:",
-      sheetName
-    );
-
-    console.error(
-      error.response && error.response.data
-        ? error.response.data
-        : error.message
+    logSafeError(
+      "Google Sheet read error.",
+      error,
+      { sheetName: String(sheetName || "unknown") }
     );
 
     return [];
@@ -11208,6 +11639,29 @@ function limitWhatsAppText(text) {
 
   return cleanText.substring(0, 3400) + "\n\nമറുപടി ചുരുക്കി നൽകി. കൂടുതൽ വിവരങ്ങൾക്ക് തുടർചോദ്യം ചോദിക്കാം.";
 }
+
+app.use(function (error, _req, res, _next) {
+  logSafeError("HTTP request processing failed.", error);
+
+  if (res.headersSent) return;
+
+  const status =
+    error && error.type === "entity.parse.failed"
+      ? 400
+      : error && error.type === "entity.too.large"
+        ? 413
+        : 500;
+
+  res
+    .status(status)
+    .send(
+      status === 400
+        ? "INVALID_REQUEST"
+        : status === 413
+          ? "REQUEST_TOO_LARGE"
+          : "REQUEST_FAILED"
+    );
+});
 
 app.listen(PORT, "0.0.0.0", function () {
   console.log("BhoomiMitra Server v2.0 running on port " + PORT);

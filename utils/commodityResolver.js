@@ -519,13 +519,7 @@ async function resolveCommodity(
       originalMessage
     );
 
-  console.log(
-    "Commodity_Master query:",
-    {
-      originalMessage,
-      cleanedQuery
-    }
-  );
+  console.log("Commodity_Master query received.");
 
   if (!cleanedQuery) {
     console.log(
@@ -581,8 +575,6 @@ async function resolveCommodity(
     console.log(
       "Commodity_Master no match:",
       {
-        originalMessage,
-        cleanedQuery,
         bestScore
       }
     );
@@ -650,10 +642,9 @@ async function resolveCommodity(
       bestScore
   };
 
-  console.log(
-    "Commodity_Master resolved:",
-    resolved
-  );
+  console.log("Commodity_Master query resolved.", {
+    matchScore: bestScore
+  });
 
   return resolved;
 }

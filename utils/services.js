@@ -1,5 +1,6 @@
 "use strict";
 const axios = require("axios");
+const { safeErrorDetails } = require("./webhookSecurity");
 
 const OVERPASS_API_URLS = [
   "https://overpass.private.coffee/api/interpreter",
@@ -968,25 +969,8 @@ return locations
 
   } catch (error) {
   console.error(
-    "Public provider search error:",
-    {
-      message:
-        error && error.message
-          ? error.message
-          : String(error),
-
-      url:
-        error &&
-        error.config &&
-        error.config.url
-          ? error.config.url
-          : "unknown",
-
-      code:
-        error && error.code
-          ? error.code
-          : "unknown"
-    }
+    "Public provider search error.",
+    { error: safeErrorDetails(error) }
   );
 
   return [];
@@ -1236,12 +1220,11 @@ function createServiceFinder(options) {
 
     } catch (error) {
       console.error(
-        "Service directory read error:",
-        sheetName,
-        error &&
-        error.message
-          ? error.message
-          : error
+        "Service directory read error.",
+        {
+          sheetName: sheetName,
+          error: safeErrorDetails(error)
+        }
       );
 
       return [];

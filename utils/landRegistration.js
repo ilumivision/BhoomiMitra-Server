@@ -1,4 +1,5 @@
 "use strict";
+const { safeErrorDetails } = require("./webhookSecurity");
 
 const SHEET_NAME = "Land_Parcels";
 
@@ -177,11 +178,8 @@ async function registerLand(data) {
     };
   } catch (error) {
     console.error(
-      "Land registration error:",
-      error &&
-      error.message
-        ? error.message
-        : error
+      "Land registration error.",
+      { error: safeErrorDetails(error) }
     );
 
     return {
@@ -319,11 +317,8 @@ areaUnit:
     };
   } catch (error) {
     console.error(
-      "Get farmer lands error:",
-      error &&
-      error.message
-        ? error.message
-        : error
+      "Get farmer lands error.",
+      { error: safeErrorDetails(error) }
     );
 
     return {

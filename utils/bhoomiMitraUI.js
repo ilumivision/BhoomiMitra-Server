@@ -15,6 +15,9 @@ const {
   FARM_ALERT_ACTION_IDS,
   FARM_ALERT_PREFIXES
 } = require("./farmAlerts");
+const {
+  ANIMAL_ACTION_IDS
+} = require("./animalHusbandry");
 
 // =====================================================
 // BhoomiMitra UI
@@ -257,6 +260,20 @@ async function sendMainMenu(
               },
 
               {
+                id: ANIMAL_ACTION_IDS.OPEN,
+
+                title:
+                  isMalayalam
+                    ? "🐄 മൃഗസംരക്ഷണം"
+                    : "🐄 Animal Husbandry",
+
+                description:
+                  isMalayalam
+                    ? "മൃഗ രജിസ്ട്രേഷൻ, ആരോഗ്യം, ഉൽപ്പാദനം"
+                    : "Registration, health and production"
+              },
+
+              {
                 id: "HOME_EXPERT",
 
                 title:
@@ -332,6 +349,51 @@ async function sendMainMenu(
     }
   );
 }
+// ===================================================
+// ANIMAL HUSBANDRY MENU
+// ===================================================
+
+async function sendAnimalHusbandryMenu(to, language) {
+  const ml =
+    String(language || "").toLowerCase() ===
+    "malayalam";
+
+  const rows = [
+    [ANIMAL_ACTION_IDS.REGISTER, "Register Animal", "മൃഗ രജിസ്ട്രേഷൻ", "Add an animal to your Farmer ID", "Farmer ID-യിൽ മൃഗത്തെ ചേർക്കുക"],
+    [ANIMAL_ACTION_IDS.MY_ANIMALS, "My Animals", "എന്റെ മൃഗങ്ങൾ", "View animals linked to your Farmer ID", "Farmer ID-യുമായി ബന്ധിപ്പിച്ച മൃഗങ്ങൾ"],
+    [ANIMAL_ACTION_IDS.HEALTH, "Health Diary", "ആരോഗ്യ ഡയറി", "Record illness, symptoms or treatment", "രോഗം, ലക്ഷണം, ചികിത്സ രേഖപ്പെടുത്തുക"],
+    [ANIMAL_ACTION_IDS.PREVENTIVE, "Vaccination / Deworm", "വാക്സിൻ / വിരമരുന്ന്", "Record preventive animal care", "പ്രതിരോധ പരിചരണം രേഖപ്പെടുത്തുക"],
+    [ANIMAL_ACTION_IDS.PRODUCTION, "Breeding / Production", "പ്രജനനം / ഉൽപ്പാദനം", "Record breeding, milk, egg or weight data", "പ്രജനനം, പാൽ, മുട്ട, ഭാരം രേഖപ്പെടുത്തുക"],
+    [ANIMAL_ACTION_IDS.HISTORY, "View Animal Records", "മൃഗരേഖകൾ കാണുക", "View recent health and production records", "ആരോഗ്യ, ഉൽപ്പാദന രേഖകൾ കാണുക"],
+    [ANIMAL_ACTION_IDS.ADVISORY, "Veterinary Advisory", "വെറ്ററിനറി ഉപദേശം", "Ask a natural-language animal question", "മൃഗപരിചരണ ചോദ്യം നേരിട്ട് ചോദിക്കുക"],
+    [ANIMAL_ACTION_IDS.EXPERT, "Veterinary Expert", "വെറ്ററിനറി വിദഗ്ധൻ", "Request the existing expert consultation", "നിലവിലെ വിദഗ്ധ സഹായം അഭ്യർത്ഥിക്കുക"],
+    [ANIMAL_ACTION_IDS.ALERTS, "Disease Alerts", "മൃഗരോഗ അലർട്ടുകൾ", "Verified active official alerts only", "സ്ഥിരീകരിച്ച ഔദ്യോഗിക അലർട്ടുകൾ മാത്രം"],
+    [ANIMAL_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു", "Return to BhoomiMitra home", "BhoomiMitra പ്രധാന മെനുവിലേക്ക്"]
+  ].map(function (item) {
+    return {
+      id: item[0],
+      title: ml ? item[2] : item[1],
+      description: ml ? item[4] : item[3]
+    };
+  });
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: ml
+        ? "🐄 മൃഗസംരക്ഷണം\nആവശ്യമായ സേവനം തിരഞ്ഞെടുക്കുക. മൃഗങ്ങളെ Farmer ID ഉപയോഗിച്ച് സുരക്ഷിതമായി ബന്ധിപ്പിക്കുന്നു."
+        : "🐄 Animal Husbandry\nChoose a service. Animal records are securely linked through your Farmer ID."
+    },
+    action: {
+      button: ml ? "മൃഗ സേവനങ്ങൾ" : "Animal Services",
+      sections: [{
+        title: ml ? "മൃഗസംരക്ഷണ സേവനങ്ങൾ" : "Animal Husbandry",
+        rows: rows
+      }]
+    }
+  });
+}
+
 // ===================================================
 // ASK & DIAGNOSE MENU
 // Existing services: 1 and 2
@@ -2492,6 +2554,7 @@ return {
   sendMainMenu,
   sendAskMenu,
   sendFarmMenu,
+  sendAnimalHusbandryMenu,
   sendLandManagementMenu,
   sendSatelliteGpsMenu,
   sendExpertMenu,

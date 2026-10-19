@@ -1,6 +1,7 @@
 "use strict";
 
 const { fetchAgmarknet } = require("./fetchers/agmarknetFetcher");
+const { safeErrorDetails } = require("./webhookSecurity");
 
 /*
  * BhoomiMitra Market Fetcher
@@ -43,11 +44,8 @@ async function fetchAllSources(options) {
     );
   } catch (error) {
     console.error(
-      "AGMARKNET source failed:",
-      error.response &&
-      error.response.data
-        ? error.response.data
-        : error.message
+      "AGMARKNET source failed.",
+      { error: safeErrorDetails(error) }
     );
   }
   return prices;
