@@ -1,6 +1,7 @@
 "use strict";
 
 const axios = require("axios");
+const { safeErrorDetails } = require("./utils/webhookSecurity");
 
 const SOILGRIDS_API_URL =
   "https://rest.isric.org/soilgrids/v2.0/properties/query";
@@ -190,12 +191,8 @@ async function fetchSoilGridsData(
     };
   } catch (error) {
     console.error(
-      "SoilGrids request failed:",
-      error &&
-      error.response &&
-      error.response.status
-        ? error.response.status
-        : error.message
+      "SoilGrids request failed.",
+      { error: safeErrorDetails(error) }
     );
 
     return {

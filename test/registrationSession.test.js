@@ -13,6 +13,7 @@ const registrationModule =
   require("../utils/registration");
 const {
   closeRegistrationSessionForNavigation,
+  clearCompletedRegistrationSession,
   isExplicitRegistrationExit
 } = require("../utils/registrationSession");
 
@@ -91,6 +92,7 @@ function makeAnimalRows() {
   return [
     [
       "Animal_ID",
+      "Farmer_ID",
       "WhatsApp_No",
       "Animal_Type",
       "Breed",
@@ -103,6 +105,7 @@ function makeAnimalRows() {
     ],
     [
       "AN-1",
+      "BM-1001",
       PHONE,
       "Cow",
       "Jersey",
@@ -304,6 +307,41 @@ test("completed registration cleanup behavior is not changed", function () {
   assert.equal(state.menuSessions[PHONE].updatedAt, 1);
 });
 
+test("failed registration keeps its collected session data available for retry", function () {
+  const state = makeActiveRegistration("farmer");
+  state.registrationSessions[PHONE].step = "crop";
+  state.registrationSessions[PHONE].data.name = "Anu Farmer";
+
+  const cleared = clearCompletedRegistrationSession({
+    registrationSessions: state.registrationSessions,
+    userKey: PHONE,
+    result: { success: false, code: "SHEET_APPEND_FAILED" }
+  });
+
+  assert.equal(cleared, false);
+  assert.equal(state.registrationSessions[PHONE].step, "crop");
+  assert.equal(
+    state.registrationSessions[PHONE].data.name,
+    "Anu Farmer"
+  );
+});
+
+test("successful or recovered registration clears the completed session", function () {
+  const state = makeActiveRegistration("farmer");
+  const cleared = clearCompletedRegistrationSession({
+    registrationSessions: state.registrationSessions,
+    userKey: PHONE,
+    result: {
+      success: true,
+      alreadyRegistered: true,
+      memberId: "BM-1001"
+    }
+  });
+
+  assert.equal(cleared, true);
+  assert.equal(state.registrationSessions[PHONE], undefined);
+});
+
 test("Farmer registration can restart cleanly from Membership", async function () {
   const state = makeActiveRegistration("farmer");
 
@@ -343,9 +381,29 @@ test("all explicit top-level navigation IDs close unfinished registration", func
   const navigationIds = [
     "HOME_ASK",
     "HOME_FARM",
+    "FARM_WEATHER_ALERTS",
     "HOME_EXPERT",
+    "HOME_TRAINING",
+    "TRAINING_PROMOTED",
+    "HOME_SCHEMES",
+    "FARM_ALERTS_OPEN",
+    "TRAINING_REQUEST_START",
+    "TRAINING_MY_REQUESTS",
     "HOME_MARKET",
     "HOME_PROFILE",
+    "PROFILE_HELP",
+    "PROFILE_WHATS_NEW",
+    "PROFILE_ABOUT",
+    "ABOUT_TEAM",
+    "ABOUT_TEAM_PAGE_1",
+    "ABOUT_TEAM_PAGE_2",
+    "ABOUT_MEMBER_robert",
+    "PROFILE_TERMS_PRIVACY",
+    "PROFILE_SETTINGS",
+    "PRIVACY_READ_POLICY",
+    "WHATS_NEW_OPEN",
+    "WHATS_NEW_TRY",
+    "WHATS_NEW_DISMISS",
     "NAV_HOME",
     "CHANGE_LANGUAGE",
     "SERVICE_1",

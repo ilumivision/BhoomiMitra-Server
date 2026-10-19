@@ -1,3 +1,7 @@
+"use strict";
+
+const { safeErrorDetails } = require("./webhookSecurity");
+
 const SATELLITE_SHEET =
   "Satellite_Observations";
 const DEFAULT_SENTINEL_DAYS_BACK = 30;
@@ -1539,11 +1543,8 @@ async function readSatelliteSheet({
     };
   } catch (error) {
     console.error(
-      "Satellite sheet read error:",
-      error &&
-      error.message
-        ? error.message
-        : error
+      "Satellite sheet read error.",
+      { error: safeErrorDetails(error) }
     );
 
     return {

@@ -2,6 +2,24 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const {
+  createBhoomiMitraUI
+} = require("../utils/bhoomiMitraUI");
+const {
+  EXPERT_ADVICE_ACTION_IDS,
+  PILOT_CASE_STATUSES,
+  buildExpertCaseSelectionRows,
+  buildFarmerCaseView,
+  buildFarmerFollowUpPrompt,
+  buildFarmerAssignmentCard,
+  createExpertQuestionId,
+  findFarmerCases,
+  getExpertAdviceAction,
+  parseExpertCaseAction,
+  processExpertReply,
+  processFarmerFollowUp,
+  shouldCreateExpertCase
+} = require("../utils/expertAdviceFlow");
 
 const {
   EXPERT_CASE_HEADERS,
@@ -178,6 +196,79 @@ function makeHarness(overrides) {
   return { dependencies: dependencies, state: state };
 }
 
+function makeUiHarness() {
+  const calls = [];
+  const ui = createBhoomiMitraUI({
+    axios: {
+      post: async function (url, body, config) {
+        calls.push({
+          url: url,
+          body: body,
+          config: config
+        });
+        return {
+          data: {
+            messages: [{ id: "wamid.ui" }]
+          }
+        };
+      }
+    },
+    phoneNumberId: "phone-id",
+    whatsappToken: "token"
+  });
+
+  return { ui: ui, calls: calls };
+}
+
+function makePilotCaseRows(cases) {
+  return [EXPERT_CASE_HEADERS].concat(
+    (cases || []).map(function (caseValues) {
+      return buildRowFromHeaders(
+        EXPERT_CASE_HEADERS,
+        caseValues
+      );
+    })
+  );
+}
+
+function makePilotWorkflowHarness(cases) {
+  const state = {
+    rows: makePilotCaseRows(cases),
+    updates: [],
+    farmerSends: [],
+    expertSends: []
+  };
+
+  return {
+    state: state,
+    readSheetRows: async function () {
+      return state.rows;
+    },
+    updateCase: async function (update) {
+      state.updates.push(update);
+      return true;
+    },
+    sendFarmerMessage: async function (to, record, advice) {
+      state.farmerSends.push({
+        to: to,
+        record: record,
+        advice: advice
+      });
+      return {
+        accepted: true,
+        messageId: "wamid.farmer"
+      };
+    },
+    sendExpertMessage: async function (to, message) {
+      state.expertSends.push({ to: to, message: message });
+      return {
+        accepted: true,
+        messageId: "wamid.expert-follow-up"
+      };
+    }
+  };
+}
+
 function recoverProblemFromNotificationParts(parts) {
   return parts
     .filter(function (part) {
@@ -243,7 +334,7 @@ test("send without an accepted Meta message ID is treated as failure", async fun
   assert.doesNotMatch(result.farmerMessage, /has been assigned/i);
   assert.equal(
     harness.state.updates[0].valuesByHeader.Status,
-    "Expert Notification Failed"
+    "Pending Expert Notification"
   );
 });
 
@@ -300,6 +391,11 @@ test("expert notification contains Case ID, full question, farmer context, and m
   assert.match(notification, /Category:/);
   assert.match(notification, /Photo\/media available: Yes/);
   assert.match(notification, /AI provisional assessment:/);
+  assert.ok(
+    notification.includes(
+      encodeURIComponent("REPLY " + result.caseId + "\n")
+    )
+  );
   assert.equal(harness.state.sends[0].options.skipPreferredLanguageConversion, true);
 });
 
@@ -446,6 +542,575 @@ test("Get Me expert recovers and routes the prior live Mycorrhiza question", asy
     harness.state.sends[0].message,
     new RegExp(problem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
   );
+});
+
+test("click-first AI answer then Yes assigns the stored original problem", async function () {
+  const problem =
+    "I want to use mycorrhizal. Where can I get advice?";
+  const session = {
+    step: "awaiting_confirmation",
+    mode: "ai_first",
+    problem: problem,
+    crop: "",
+    category: "General Agriculture",
+    aiReply: "Mycorrhiza can support root nutrient uptake."
+  };
+  const action = getExpertAdviceAction(
+    EXPERT_ADVICE_ACTION_IDS.CONFIRM_YES,
+    ""
+  );
+  const harness = makeHarness({
+    expertRows: [
+      makeRincyExpertRow(),
+      makeRobertExpertRow()
+    ],
+    caseData: {
+      crop: session.crop,
+      problem: session.problem,
+      problemCategory: session.category,
+      aiDiagnosis: session.aiReply,
+      district: "Pathanamthitta"
+    }
+  });
+
+  assert.equal(action, "CONFIRM_YES");
+  assert.equal(
+    shouldCreateExpertCase(action, session),
+    true
+  );
+
+  const result = await assignExpertCase(
+    harness.dependencies
+  );
+  const card = buildFarmerAssignmentCard(
+    result,
+    session
+  );
+
+  assert.equal(result.success, true);
+  assert.equal(result.expert.expertName, "Dr C P Robert");
+  assert.match(harness.state.sends[0].message, /I want to use mycorrhizal/);
+  assert.ok(card);
+  assert.match(card.text, /Expert: Dr C P Robert/);
+});
+
+test("click-first No does not authorize expert-case creation", function () {
+  const session = {
+    step: "awaiting_confirmation",
+    problem: "Rambutan fruits are dropping after flowering."
+  };
+  const action = getExpertAdviceAction(
+    EXPERT_ADVICE_ACTION_IDS.CONFIRM_NO,
+    ""
+  );
+  const harness = makeHarness();
+
+  assert.equal(action, "CONFIRM_NO");
+  assert.equal(
+    shouldCreateExpertCase(action, session),
+    false
+  );
+  assert.equal(harness.state.appendedRows.length, 0);
+  assert.equal(harness.state.sends.length, 0);
+});
+
+test("direct expert mode still requires the stored problem and Yes confirmation", function () {
+  const directAction = getExpertAdviceAction(
+    EXPERT_ADVICE_ACTION_IDS.DIRECT,
+    ""
+  );
+  const sessionBeforeProblem = {
+    step: "awaiting_problem",
+    mode: "direct",
+    problem: ""
+  };
+
+  assert.equal(directAction, "DIRECT");
+  assert.equal(
+    shouldCreateExpertCase(directAction, sessionBeforeProblem),
+    false
+  );
+  assert.equal(
+    shouldCreateExpertCase("CONFIRM_YES", sessionBeforeProblem),
+    false
+  );
+});
+
+test("Mycorrhiza-only click-first case omits stale Rambutan context", async function () {
+  const problem =
+    "Can mycorrhizal inoculants improve nutrient uptake in the roots?";
+  const harness = makeHarness({
+    expertRows: [
+      makeRincyExpertRow(),
+      makeRobertExpertRow()
+    ],
+    caseData: {
+      crop: "",
+      problem: problem,
+      problemCategory: "General Agriculture",
+      district: "Pathanamthitta"
+    }
+  });
+  const result = await assignExpertCase(
+    harness.dependencies
+  );
+  const card = buildFarmerAssignmentCard(result, {
+    problem: problem,
+    crop: "",
+    category: "General Agriculture",
+    language: "English"
+  });
+
+  assert.equal(result.expert.expertName, "Dr C P Robert");
+  assert.match(harness.state.sends[0].message, /Topic: Mycorrhiza/);
+  assert.match(harness.state.sends[0].message, /Crop\/Animal: Not specified/);
+  assert.doesNotMatch(harness.state.sends[0].message, /Rambutan/i);
+  assert.match(card.text, /Topic: Mycorrhiza/);
+  assert.doesNotMatch(card.text, /Rambutan/i);
+});
+
+test("assignment card exists only after successful expert delivery", async function () {
+  const failedHarness = makeHarness({
+    expertRows: [makeRobertExpertRow()],
+    caseData: {
+      crop: "",
+      problem: "Should I apply Mycorrhiza to improve root growth?",
+      district: "Pathanamthitta"
+    },
+    sendResult: {
+      accepted: false,
+      messageId: ""
+    }
+  });
+  const failedResult = await assignExpertCase(
+    failedHarness.dependencies
+  );
+
+  assert.equal(failedResult.success, false);
+  assert.equal(
+    buildFarmerAssignmentCard(failedResult, {
+      problem: "Should I apply Mycorrhiza to improve root growth?"
+    }),
+    null
+  );
+});
+
+test("farmer assignment card shows a short Expert Qn ID without exposing the long Case ID", function () {
+  const caseId =
+    "BM-EXP-1234567890ABCDEF1234567890ABCDEF";
+  const card = buildFarmerAssignmentCard({
+    success: true,
+    caseId: caseId,
+    expert: {
+      expertName: "Dr C P Robert"
+    }
+  }, {
+    problem: "Is Mycorrhiza suitable for root growth?",
+    language: "English"
+  });
+
+  assert.equal(
+    card.expertQuestionId,
+    createExpertQuestionId(caseId)
+  );
+  assert.match(card.text, /Expert Qn ID: EQ-90ABCDEF/);
+  assert.doesNotMatch(card.text, /BM-EXP-/);
+});
+
+test("click-first follow-up view-case and main-menu IDs route without typed identifiers", function () {
+  [
+    [EXPERT_ADVICE_ACTION_IDS.FOLLOW_UP, "FOLLOW_UP"],
+    [EXPERT_ADVICE_ACTION_IDS.VIEW_CASE, "VIEW_CASE"],
+    [EXPERT_ADVICE_ACTION_IDS.MAIN_MENU, "MAIN_MENU"],
+    [EXPERT_ADVICE_ACTION_IDS.ASK_ANOTHER, "ASK_ANOTHER"]
+  ].forEach(function (scenario) {
+    assert.equal(
+      getExpertAdviceAction(scenario[0], ""),
+      scenario[1]
+    );
+  });
+});
+
+test("English and Malayalam click-first expert buttons use stable action IDs", async function () {
+  const english = makeUiHarness();
+  const malayalam = makeUiHarness();
+
+  await english.ui.sendExpertAdviceChoice(
+    "919876543211",
+    "English"
+  );
+  await english.ui.sendExpertConfirmation(
+    "919876543211",
+    "English",
+    false
+  );
+  await english.ui.sendExpertDeclinedMenu(
+    "919876543211",
+    "English"
+  );
+  await english.ui.sendExpertAssignmentCard(
+    "919876543211",
+    "English",
+    "👨‍🌾 Expert Consultation"
+  );
+  await malayalam.ui.sendExpertAdviceChoice(
+    "919876543211",
+    "Malayalam"
+  );
+  await malayalam.ui.sendExpertConfirmation(
+    "919876543211",
+    "Malayalam",
+    true
+  );
+
+  const englishIds = english.calls.flatMap(function (call) {
+    return call.body.interactive.action.buttons.map(
+      function (button) {
+        return button.reply.id;
+      }
+    );
+  });
+  const malayalamIds = malayalam.calls.flatMap(function (call) {
+    return call.body.interactive.action.buttons.map(
+      function (button) {
+        return button.reply.id;
+      }
+    );
+  });
+
+  assert.ok(englishIds.includes(EXPERT_ADVICE_ACTION_IDS.AI_FIRST));
+  assert.ok(englishIds.includes(EXPERT_ADVICE_ACTION_IDS.DIRECT));
+  assert.ok(englishIds.includes(EXPERT_ADVICE_ACTION_IDS.CONFIRM_YES));
+  assert.ok(englishIds.includes(EXPERT_ADVICE_ACTION_IDS.CONFIRM_NO));
+  assert.ok(englishIds.includes(EXPERT_ADVICE_ACTION_IDS.FOLLOW_UP));
+  assert.ok(englishIds.includes(EXPERT_ADVICE_ACTION_IDS.VIEW_CASE));
+  assert.ok(englishIds.includes(EXPERT_ADVICE_ACTION_IDS.MAIN_MENU));
+  assert.ok(malayalamIds.includes(EXPERT_ADVICE_ACTION_IDS.AI_FIRST));
+  assert.ok(malayalamIds.includes(EXPERT_ADVICE_ACTION_IDS.DIRECT));
+  assert.ok(malayalamIds.includes(EXPERT_ADVICE_ACTION_IDS.CONFIRM_YES));
+  assert.ok(malayalamIds.includes(EXPERT_ADVICE_ACTION_IDS.CONFIRM_NO));
+  assert.match(
+    malayalam.calls[0].body.interactive.body.text,
+    /വിദഗ്ധ സഹായം/
+  );
+});
+
+test("persisted expert reply reaches only the farmer stored for its Case ID", async function () {
+  const harness = makePilotWorkflowHarness([
+    {
+      Case_ID: "BM-EXP-CASE-A",
+      WhatsApp: "919111111111",
+      Problem: "Pepper leaves have yellow spots.",
+      Assigned_Expert: "Dr. Maya",
+      Assigned_Expert_WhatsApp: "919876543210",
+      Status: "Assigned",
+      Source_Message_ID: "wamid.case-a"
+    },
+    {
+      Case_ID: "BM-EXP-CASE-B",
+      WhatsApp: "919222222222",
+      Problem: "Banana leaves are torn.",
+      Assigned_Expert: "Dr. Maya",
+      Assigned_Expert_WhatsApp: "919876543210",
+      Status: "Assigned",
+      Source_Message_ID: "wamid.case-b"
+    }
+  ]);
+
+  const result = await processExpertReply({
+    caseId: "BM-EXP-CASE-A",
+    advice: "Remove affected leaves and monitor new growth.",
+    expertWhatsApp: "9876543210",
+    timestamp: "2026-10-17T10:00:00.000Z",
+    readSheetRows: harness.readSheetRows,
+    updateCase: harness.updateCase,
+    sendFarmerMessage: harness.sendFarmerMessage
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(harness.state.farmerSends.length, 1);
+  assert.equal(harness.state.farmerSends[0].to, "919111111111");
+  assert.equal(harness.state.updates[0].rowNumber, 2);
+  assert.equal(
+    harness.state.updates[0].valuesByHeader.Status,
+    PILOT_CASE_STATUSES.EXPERT_REPLIED
+  );
+  assert.match(
+    harness.state.updates[0].valuesByHeader.Expert_Remark,
+    /Remove affected leaves/
+  );
+});
+
+test("expert with several cases routes each reply by explicit Case ID", async function () {
+  const harness = makePilotWorkflowHarness([
+    {
+      Case_ID: "BM-EXP-FIRST",
+      WhatsApp: "919111111111",
+      Assigned_Expert: "Dr. Maya",
+      Assigned_Expert_WhatsApp: "919876543210",
+      Status: "Assigned"
+    },
+    {
+      Case_ID: "BM-EXP-SECOND",
+      WhatsApp: "919222222222",
+      Assigned_Expert: "Dr. Maya",
+      Assigned_Expert_WhatsApp: "919876543210",
+      Status: "Farmer Follow-up"
+    }
+  ]);
+
+  const result = await processExpertReply({
+    caseId: "BM-EXP-SECOND",
+    advice: "Use the second-case recommendation.",
+    expertWhatsApp: "919876543210",
+    readSheetRows: harness.readSheetRows,
+    updateCase: harness.updateCase,
+    sendFarmerMessage: harness.sendFarmerMessage
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(harness.state.farmerSends[0].to, "919222222222");
+  assert.equal(harness.state.updates[0].rowNumber, 3);
+});
+
+test("expert reply routing survives restart and unrelated farmer traffic because it reloads the Sheet", async function () {
+  const harness = makePilotWorkflowHarness([
+    {
+      Case_ID: "BM-EXP-PERSISTED",
+      WhatsApp: "919333333333",
+      Assigned_Expert: "Dr. Robert",
+      Assigned_Expert_WhatsApp: "919999999999",
+      Status: "Assigned"
+    }
+  ]);
+  const unrelatedMessages = [
+    { from: "919111111111", text: "weather" },
+    { from: "919222222222", text: "market price" }
+  ];
+
+  assert.equal(unrelatedMessages.length, 2);
+  assert.equal(
+    findFarmerCases(
+      harness.state.rows,
+      unrelatedMessages[0].from,
+      true
+    ).length,
+    0
+  );
+
+  const result = await processExpertReply({
+    caseId: "BM-EXP-PERSISTED",
+    advice: "This reply uses only persisted case routing.",
+    expertWhatsApp: "919999999999",
+    readSheetRows: harness.readSheetRows,
+    updateCase: harness.updateCase,
+    sendFarmerMessage: harness.sendFarmerMessage
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(harness.state.farmerSends[0].to, "919333333333");
+});
+
+test("invalid closed and wrong-expert replies fail without farmer delivery", async function () {
+  const harness = makePilotWorkflowHarness([
+    {
+      Case_ID: "BM-EXP-CLOSED",
+      WhatsApp: "919111111111",
+      Assigned_Expert: "Dr. Maya",
+      Assigned_Expert_WhatsApp: "919876543210",
+      Status: "Closed"
+    },
+    {
+      Case_ID: "BM-EXP-OWNED",
+      WhatsApp: "919222222222",
+      Assigned_Expert: "Dr. Robert",
+      Assigned_Expert_WhatsApp: "919999999999",
+      Status: "Assigned"
+    }
+  ]);
+  const common = {
+    advice: "Recommendation",
+    expertWhatsApp: "919876543210",
+    readSheetRows: harness.readSheetRows,
+    updateCase: harness.updateCase,
+    sendFarmerMessage: harness.sendFarmerMessage
+  };
+
+  const invalid = await processExpertReply(
+    Object.assign({}, common, { caseId: "BM-EXP-MISSING" })
+  );
+  const closed = await processExpertReply(
+    Object.assign({}, common, { caseId: "BM-EXP-CLOSED" })
+  );
+  const wrongExpert = await processExpertReply(
+    Object.assign({}, common, { caseId: "BM-EXP-OWNED" })
+  );
+
+  assert.equal(invalid.code, "INVALID_CASE");
+  assert.equal(closed.code, "CLOSED_CASE");
+  assert.equal(wrongExpert.code, "WRONG_EXPERT");
+  assert.equal(harness.state.farmerSends.length, 0);
+  assert.equal(harness.state.updates.length, 0);
+});
+
+test("farmer follow-up uses the selected persisted case and reaches its assigned expert", async function () {
+  const harness = makePilotWorkflowHarness([
+    {
+      Case_ID: "BM-EXP-FOLLOW-UP",
+      WhatsApp: "919111111111",
+      Problem: "My pepper vines are wilting.",
+      Assigned_Expert: "Dr. Maya",
+      Assigned_Expert_WhatsApp: "919876543210",
+      Status: "Expert Replied",
+      Source_Message_ID: "wamid.follow-up"
+    }
+  ]);
+
+  const result = await processFarmerFollowUp({
+    caseId: "BM-EXP-FOLLOW-UP",
+    farmerWhatsApp: "9111111111",
+    followUp: "The wilting continued after watering.",
+    timestamp: "2026-10-17T11:00:00.000Z",
+    readSheetRows: harness.readSheetRows,
+    updateCase: harness.updateCase,
+    sendExpertMessage: harness.sendExpertMessage
+  });
+
+  assert.equal(result.success, true);
+  assert.equal(harness.state.expertSends.length, 1);
+  assert.equal(harness.state.expertSends[0].to, "919876543210");
+  assert.match(harness.state.expertSends[0].message, /BM-EXP-FOLLOW-UP/);
+  assert.match(harness.state.expertSends[0].message, /wilting continued/);
+  assert.equal(
+    harness.state.updates[0].valuesByHeader.Status,
+    PILOT_CASE_STATUSES.FARMER_FOLLOW_UP
+  );
+  assert.match(
+    harness.state.updates[0].valuesByHeader.Farmer_Feedback,
+    /wilting continued/
+  );
+});
+
+test("farmer with multiple open cases receives unambiguous clickable case selections", function () {
+  const rows = makePilotCaseRows([
+    {
+      Case_ID: "BM-EXP-OPEN-A",
+      WhatsApp: "919111111111",
+      Problem: "Mycorrhiza application question",
+      Assigned_Expert: "Dr. Robert",
+      Status: "Assigned"
+    },
+    {
+      Case_ID: "BM-EXP-OPEN-B",
+      WhatsApp: "919111111111",
+      Problem: "Rambutan fruit drop",
+      Assigned_Expert: "Dr. Rincy",
+      Status: "Expert Replied"
+    },
+    {
+      Case_ID: "BM-EXP-CLOSED-C",
+      WhatsApp: "919111111111",
+      Problem: "Closed question",
+      Assigned_Expert: "Dr. Maya",
+      Status: "Closed"
+    },
+    {
+      Case_ID: "BM-EXP-OTHER-FARMER",
+      WhatsApp: "919222222222",
+      Problem: "Other farmer question",
+      Assigned_Expert: "Dr. Maya",
+      Status: "Assigned"
+    }
+  ]);
+  const openCases = findFarmerCases(rows, "9111111111", true);
+  const selectionRows = buildExpertCaseSelectionRows(
+    openCases,
+    "FOLLOW_UP"
+  );
+
+  assert.equal(openCases.length, 2);
+  assert.equal(selectionRows.length, 2);
+  assert.deepEqual(
+    selectionRows.map(function (row) {
+      return parseExpertCaseAction(row.id).caseId;
+    }).sort(),
+    ["BM-EXP-OPEN-A", "BM-EXP-OPEN-B"]
+  );
+});
+
+test("English and Malayalam multiple-case choices are sent as clickable lists", async function () {
+  const english = makeUiHarness();
+  const malayalam = makeUiHarness();
+  const rows = [
+    {
+      id: "EXPERT_FOLLOWUP_CASE:BM-EXP-OPEN-A",
+      title: "Mycorrhiza",
+      description: "EQ-OPENA • Dr. Robert • Assigned"
+    },
+    {
+      id: "EXPERT_FOLLOWUP_CASE:BM-EXP-OPEN-B",
+      title: "Rambutan",
+      description: "EQ-OPENB • Dr. Rincy • Expert Replied"
+    }
+  ];
+
+  await english.ui.sendExpertCaseList(
+    "919111111111",
+    "English",
+    "FOLLOW_UP",
+    rows
+  );
+  await malayalam.ui.sendExpertCaseList(
+    "919111111111",
+    "Malayalam",
+    "FOLLOW_UP",
+    rows
+  );
+
+  assert.equal(english.calls[0].body.interactive.type, "list");
+  assert.equal(
+    english.calls[0].body.interactive.action.sections[0].rows.length,
+    2
+  );
+  assert.match(
+    malayalam.calls[0].body.interactive.body.text,
+    /തുടർ ചോദ്യം/
+  );
+});
+
+test("farmer follow-up requires no typed Case ID in English or Malayalam", function () {
+  const english = buildFarmerFollowUpPrompt("English");
+  const malayalam = buildFarmerFollowUpPrompt("Malayalam");
+
+  assert.match(english, /do not need to type/i);
+  assert.match(malayalam, /ടൈപ്പ് ചെയ്യേണ്ടതില്ല/);
+  assert.doesNotMatch(english, /BM-EXP-/);
+  assert.doesNotMatch(malayalam, /BM-EXP-/);
+});
+
+test("farmer View Case contains only pilot-safe fields and latest expert reply", function () {
+  const view = buildFarmerCaseView({
+    caseId: "BM-EXP-1234567890ABCDEF",
+    originalQuestion: "Can I apply Mycorrhiza now?",
+    category: "General Agriculture",
+    crop: "",
+    expertName: "Dr. Robert",
+    status: "Expert Replied",
+    expertRemark:
+      "[2026-10-17T09:00:00.000Z] Expert reply\nFirst reply" +
+      "\n\n---\n\n" +
+      "[2026-10-17T10:00:00.000Z] Expert reply\nLatest reply"
+  }, "English");
+
+  assert.match(view, /Expert Qn ID:/);
+  assert.match(view, /Topic: Mycorrhiza/);
+  assert.match(view, /Expert: Dr\. Robert/);
+  assert.match(view, /Status: Expert Replied/);
+  assert.match(view, /Original question: Can I apply Mycorrhiza now/);
+  assert.match(view, /Latest expert reply: Latest reply/);
+  assert.doesNotMatch(view, /BM-EXP-/);
+  assert.doesNotMatch(view, /Source_Message_ID|Assigned_Expert_WhatsApp/);
+  assert.doesNotMatch(view, /First reply/);
 });
 
 test("live Malayalam problem is recovered for a later Malayalam expert-help command", function () {

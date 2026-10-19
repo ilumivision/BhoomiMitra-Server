@@ -2,12 +2,18 @@ const fs = require("fs");
 const path = require("path");
 const axios = require("axios");
 const OpenAI = require("openai");
+const {
+    hashIdentifier,
+    safeErrorDetails
+} = require("./webhookSecurity");
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY
 });
 
 async function voiceModule(data) {
+    let audioPath = "";
+
     try {
         const mediaId = data.mediaId;
         const whatsappToken = process.env.WHATSAPP_TOKEN;
@@ -44,7 +50,7 @@ async function voiceModule(data) {
             fs.mkdirSync(tempDir);
         }
 
-        const audioPath = path.join(tempDir, mediaId + ".ogg");
+        audioPath = path.join(tempDir, hashIdentifier(mediaId) + ".ogg");
 
         fs.writeFileSync(audioPath, audioResponse.data);
 
@@ -55,6 +61,7 @@ async function voiceModule(data) {
         });
 
         fs.unlinkSync(audioPath);
+        audioPath = "";
 
         return {
             success: true,
@@ -64,13 +71,29 @@ async function voiceModule(data) {
         };
 
     } catch (error) {
-        console.error("Voice transcription error:", error.response && error.response.data ? error.response.data : error.message);
+        console.error(
+            "Voice transcription failed.",
+            { error: safeErrorDetails(error) }
+        );
 
         return {
             success: false,
             module: "VOICE",
             reply: "Voice message received, but transcription failed. Please type your question or send voice again."
         };
+    } finally {
+        if (audioPath) {
+            try {
+                fs.unlinkSync(audioPath);
+            } catch (cleanupError) {
+                if (!cleanupError || cleanupError.code !== "ENOENT") {
+                    console.error(
+                        "Voice temporary file cleanup failed.",
+                        { error: safeErrorDetails(cleanupError) }
+                    );
+                }
+            }
+        }
     }
 }
 

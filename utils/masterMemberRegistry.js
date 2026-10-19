@@ -1,6 +1,11 @@
 "use strict";
 
+const {
+  createKeyedExecutor
+} = require("./registrationIntegrity");
+
 const MASTER_SHEET_NAME = "Master_Member_Registry";
+const masterMemberWrites = createKeyedExecutor();
 
 const PRIMARY_HEADERS = Object.freeze({
   bmId: "BM_ID",
@@ -226,7 +231,7 @@ async function updateMasterCells(
   });
 }
 
-async function upsertMasterMember(options) {
+async function upsertMasterMemberUnlocked(options) {
   const member = options.member || {};
   const bmId = String(member.bmId || "").trim();
   const phoneKeys = memberPhoneKeys(member);
@@ -354,6 +359,10 @@ async function upsertMasterMember(options) {
 
     const current = getCell(match.row, index);
 
+    if (options.preserveExistingValues && current) {
+      return;
+    }
+
     if (
       preserveWhenPresent.has(key) &&
       current
@@ -373,7 +382,11 @@ async function upsertMasterMember(options) {
   if (
     changes.length > 0 &&
     indexes.lastUpdated >= 0 &&
-    values.lastUpdated
+    values.lastUpdated &&
+    (
+      !options.preserveExistingValues ||
+      !getCell(match.row, indexes.lastUpdated)
+    )
   ) {
     changes.push({
       key: "lastUpdated",
@@ -410,6 +423,128 @@ async function upsertMasterMember(options) {
       return PRIMARY_HEADERS[change.key];
     })
   };
+}
+
+async function upsertMasterMember(options) {
+  const input = options || {};
+  const member = input.member || {};
+  const phoneKey =
+    normalizePhone(member.whatsapp) ||
+    normalizePhone(member.mobile);
+  const key =
+    "master:" +
+    (phoneKey || String(member.bmId || "missing").trim());
+
+  return masterMemberWrites.run(key, function () {
+    return upsertMasterMemberUnlocked(input);
+  });
+}
+
+async function syncFarmerRegistration(options) {
+  const input = options || {};
+  const registration = input.registration || {};
+  const farmerId = String(
+    registration.farmerId ||
+    registration.memberId ||
+    ""
+  ).trim();
+  const mobile = String(
+    registration.mobile ||
+    registration.whatsapp ||
+    ""
+  ).trim();
+  const whatsapp = String(
+    registration.whatsapp ||
+    registration.mobile ||
+    ""
+  ).trim();
+
+  if (!farmerId) {
+    return {
+      success: false,
+      code: "FARMER_ID_REQUIRED",
+      recoverable: false
+    };
+  }
+
+  if (!normalizePhone(mobile || whatsapp)) {
+    return {
+      success: false,
+      code: "PHONE_REQUIRED",
+      recoverable: false
+    };
+  }
+
+  const timestamp = String(
+    registration.registrationDate ||
+    input.now ||
+    new Date().toISOString()
+  );
+  const sync = typeof input.upsert === "function"
+    ? input.upsert
+    : upsertMasterMember;
+
+  try {
+    const result = await sync({
+      sheets: input.sheets,
+      spreadsheetId: input.spreadsheetId,
+      preserveExistingValues: true,
+      member: {
+        bmId: farmerId,
+        name: registration.name || "",
+        memberType: "Farmer",
+        mobile,
+        whatsapp,
+        district: registration.district || "",
+        panchayath: registration.panchayath || "",
+        registrationDate: timestamp,
+        verificationStatus:
+          registration.verificationStatus || "Pending",
+        activeStatus:
+          registration.activeStatus || "Active",
+        source:
+          registration.source || "WhatsApp Registration",
+        preferredLanguage:
+          registration.preferredLanguage || "",
+        lastUpdated: timestamp
+      }
+    });
+
+    if (!result || !result.success) {
+      const code =
+        result && result.code
+          ? result.code
+          : "MASTER_SYNC_FAILED";
+      const nonRecoverableCodes = new Set([
+        "BM_ID_REQUIRED",
+        "PHONE_REQUIRED",
+        "MASTER_BM_ID_CONFLICT",
+        "MASTER_PHONE_AMBIGUITY"
+      ]);
+
+      return {
+        ...(result || {}),
+        success: false,
+        code,
+        recoverable: !nonRecoverableCodes.has(code),
+        farmerId
+      };
+    }
+
+    return {
+      ...result,
+      success: true,
+      recoverable: false,
+      farmerId
+    };
+  } catch (_error) {
+    return {
+      success: false,
+      code: "MASTER_SYNC_EXCEPTION",
+      recoverable: true,
+      farmerId
+    };
+  }
 }
 
 function findFarmerHeader(headers, aliases) {
@@ -495,7 +630,55 @@ async function reconcileFarmersToMaster(options) {
     issues: []
   };
 
-  for (const row of rows.slice(1)) {
+  let farmerRows = rows.slice(1);
+  const requestedFarmerId =
+    String(options.farmerId || "").trim();
+
+  if (requestedFarmerId) {
+    summary.farmerId = requestedFarmerId;
+
+    const matches = farmerRows
+      .map(function (row, index) {
+        return {
+          row,
+          rowNumber: index + 2
+        };
+      })
+      .filter(function (item) {
+        return (
+          getCell(item.row, indexes.id) ===
+          requestedFarmerId
+        );
+      });
+
+    if (matches.length === 0) {
+      return {
+        ...summary,
+        success: false,
+        code: "FARMER_NOT_FOUND",
+        farmerId: requestedFarmerId
+      };
+    }
+
+    if (matches.length > 1) {
+      return {
+        ...summary,
+        success: false,
+        code: "FARMER_ID_AMBIGUITY",
+        farmerId: requestedFarmerId,
+        matchCount: matches.length,
+        rowNumbers: matches.map(function (match) {
+          return match.rowNumber;
+        })
+      };
+    }
+
+    // From this point onward, a targeted run cannot inspect or upsert any
+    // unrelated Farmer row.
+    farmerRows = [matches[0].row];
+  }
+
+  for (const row of farmerRows) {
     const bmId = getCell(row, indexes.id);
     const mobile = getCell(row, indexes.mobile);
     const whatsapp = getCell(row, indexes.whatsapp);
@@ -598,5 +781,6 @@ module.exports = {
   normalizePhone,
   findExactHeaderIndex,
   upsertMasterMember,
+  syncFarmerRegistration,
   reconcileFarmersToMaster
 };

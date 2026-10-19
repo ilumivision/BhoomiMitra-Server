@@ -1,5 +1,7 @@
 "use strict";
 
+const { safeErrorDetails } = require("./webhookSecurity");
+
 function weatherCodeText(code) {
   const value = Number(code);
 
@@ -583,11 +585,8 @@ async function weatherModule(
     };
   } catch (error) {
     console.error(
-      "Weather module error:",
-      error &&
-      error.message
-        ? error.message
-        : error
+      "Weather module error.",
+      { error: safeErrorDetails(error) }
     );
 
     return {

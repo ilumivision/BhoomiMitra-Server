@@ -135,6 +135,7 @@ function makeAnimalRows() {
   return [
     [
       "Animal_ID",
+      "Farmer_ID",
       "WhatsApp_No",
       "Animal_Type",
       "Breed",
@@ -147,6 +148,7 @@ function makeAnimalRows() {
     ],
     [
       "AN-1",
+      "BM-1001",
       "9847298918",
       "Cow",
       "Jersey",
@@ -241,7 +243,7 @@ test("returns explicit no-match state", async function () {
   assert.deepEqual(lookup.matches, []);
 });
 
-test("refuses multiple normalized-phone matches and reports Farmer IDs internally", async function () {
+test("refuses multiple normalized-phone matches without logging Farmer IDs or phone data", async function () {
   const farmers = [
     makeLiveHeaders(),
     makeFarmerRow({ farmerId: "BM-1001" }),
@@ -268,9 +270,10 @@ test("refuses multiple normalized-phone matches and reports Farmer IDs internall
     assert.equal(result.lookupState, "multiple_matches");
     assert.match(result.reply, /more than one Farmer record/i);
     assert.doesNotMatch(result.reply, /BM-1001|BM-1002|Anu Farmer|Second Farmer/);
-    assert.deepEqual(
-      warnings[0][1].farmerIds,
-      ["BM-1001", "BM-1002"]
+    assert.equal(warnings[0][1].matchCount, 2);
+    assert.doesNotMatch(
+      JSON.stringify(warnings),
+      /BM-1001|BM-1002|9847298918|Anu Farmer|Second Farmer/
     );
   } finally {
     console.warn = originalWarn;
@@ -438,7 +441,41 @@ test("My Lands route keeps the existing land retrieval behavior", async function
 
   assert.match(result.reply, /My Registered Lands/);
   assert.match(result.reply, /Land ID: LAND-1/);
+  assert.match(result.reply, /Area: 2 Acre/);
   assert.match(result.reply, /Main crop: Rambutan/);
+});
+
+test("My Lands reads established area fields and never displays a unit without a number", async function () {
+  const headers = [
+    "Land_ID",
+    "Phone",
+    "Farm_Name",
+    "District",
+    "Local_Body",
+    "Farmer_Reported_Area",
+    "Revenue_Record_Area",
+    "GPS_Calculated_Area",
+    "Area_Unit",
+    "Main_Crop"
+  ];
+  const valid = await runPersonalCommand({
+    userText: "my lands",
+    lands: [headers, [
+      "LAND-2", "+91 98472 98918", "Field", "Pathanamthitta", "Konni",
+      "1.5", "2", "1.7", "Acre", "Banana"
+    ]]
+  });
+  assert.match(valid.result.reply, /Area: 1\.5 Acre/);
+
+  const missing = await runPersonalCommand({
+    userText: "my lands",
+    lands: [headers, [
+      "LAND-3", "+91 98472 98918", "Hill", "Pathanamthitta", "Konni",
+      "", "invalid", "", "Cent", "Pepper"
+    ]]
+  });
+  assert.match(missing.result.reply, /Area: -/);
+  assert.doesNotMatch(missing.result.reply, /Area: Cent/);
 });
 
 test("My Animals route keeps the existing animal retrieval behavior", async function () {

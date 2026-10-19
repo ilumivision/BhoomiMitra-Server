@@ -4,6 +4,7 @@ const axios = require("axios");
 const {
   resolveCommodity
 } = require("../commodityResolver");
+const { safeErrorDetails } = require("../webhookSecurity");
 const RESOURCE_ID =
   "9ef84268-d588-465a-a308-a864a43d0070";
 
@@ -1512,17 +1513,13 @@ const aliases =
     requestedState
   );
 
-  console.log(
-    "AGMARKNET requested district:",
-    requestedDistrict ||
-    "not specified"
-  );
+  console.log("AGMARKNET district filter prepared.", {
+    specified: Boolean(requestedDistrict)
+  });
 
-  console.log(
-    "AGMARKNET requested market:",
-    requestedMarket ||
-    "not specified"
-  );
+  console.log("AGMARKNET market filter prepared.", {
+    specified: Boolean(requestedMarket)
+  });
 
   const allMatchedRecords =
     [];
@@ -1603,20 +1600,13 @@ const aliases =
         );
     } catch (error) {
       console.error(
-        "AGMARKNET page request failed:",
+        "AGMARKNET page request failed.",
         {
           page:
             page + 1,
 
           offset,
-
-          message:
-            error &&
-            error.message
-              ? error.message
-              : String(
-                  error
-                )
+          error: safeErrorDetails(error)
         }
       );
 
