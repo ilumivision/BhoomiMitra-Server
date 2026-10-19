@@ -5,6 +5,7 @@ const EXPLICIT_REGISTRATION_EXIT_IDS = new Set([
   "LANG_MALAYALAM",
   "HOME_ASK",
   "HOME_FARM",
+  "FARM_WEATHER_ALERTS",
   "ANIMAL_OPEN",
   "ANIMAL_REGISTER",
   "ANIMAL_MY_ANIMALS",
@@ -25,6 +26,15 @@ const EXPLICIT_REGISTRATION_EXIT_IDS = new Set([
   "TRAINING_MY_REQUESTS",
   "HOME_MARKET",
   "HOME_PROFILE",
+  "PROFILE_HELP",
+  "PROFILE_WHATS_NEW",
+  "PROFILE_ABOUT",
+  "PROFILE_TERMS_PRIVACY",
+  "PROFILE_SETTINGS",
+  "PRIVACY_READ_POLICY",
+  "WHATS_NEW_OPEN",
+  "WHATS_NEW_TRY",
+  "WHATS_NEW_DISMISS",
   "NAV_HOME",
   "CHANGE_LANGUAGE",
   "SERVICE_1",
@@ -69,7 +79,9 @@ const REGISTRATION_MENU_STEPS = new Set([
 
 function isExplicitRegistrationExit(selectionId) {
   const id = String(selectionId || "").trim();
-  return EXPLICIT_REGISTRATION_EXIT_IDS.has(id) || id.startsWith("CROP_FARM_");
+  return EXPLICIT_REGISTRATION_EXIT_IDS.has(id) ||
+    id.startsWith("CROP_FARM_") ||
+    id.startsWith("ABOUT_");
 }
 
 function closeRegistrationSessionForNavigation(options) {

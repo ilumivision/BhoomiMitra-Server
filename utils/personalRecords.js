@@ -500,19 +500,26 @@ async function getLandsByPhone(data) {
       ["local_body"]
     );
 
-  const areaIndex =
-    findFirstHeaderIndex(
-      headers,
-      [
-        "area",
-        "gps_calculated_area"
-      ]
-    );
+  const areaIndexes = [
+    "farmer_reported_area",
+    "revenue_record_area",
+    "gps_calculated_area",
+    "area"
+  ].map(function (header) {
+    return findFirstHeaderIndex(headers, [header]);
+  }).filter(function (index) {
+    return index >= 0;
+  });
 
   const areaUnitIndex =
     findFirstHeaderIndex(
       headers,
-      ["area_unit"]
+      [
+        "area_unit",
+        "farmer_reported_area_unit",
+        "revenue_record_area_unit",
+        "gps_calculated_area_unit"
+      ]
     );
 
   const mainCropIndex =
@@ -557,10 +564,9 @@ async function getLandsByPhone(data) {
             localBodyIndex
           ),
         area:
-          getCell(
-            row,
-            areaIndex
-          ),
+          areaIndexes.map(function (index) {
+            return getCell(row, index);
+          }).find(Boolean) || "",
         areaUnit:
           getCell(
             row,
@@ -823,14 +829,15 @@ function formatLands(lands) {
             .join(", ")
       );
 
+      const rawArea = String(land.area || "").trim();
+      const numericArea = Number(rawArea.replace(/,/g, ""));
+      const validArea = rawArea && Number.isFinite(numericArea) && numericArea > 0;
+
       lines.push(
         "Area: " +
-          [
-            land.area,
-            land.areaUnit
-          ]
-            .filter(Boolean)
-            .join(" ")
+          (validArea
+            ? [rawArea, land.areaUnit].filter(Boolean).join(" ")
+            : "-")
       );
 
       lines.push(

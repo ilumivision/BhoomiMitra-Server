@@ -21,6 +21,13 @@ const {
 const {
   CROP_FARM_ACTION_IDS
 } = require("./cropFarmRecords");
+const {
+  ABOUT_ACTION_IDS,
+  buildAboutText,
+  buildTeamDirectoryText,
+  buildTeamMemberText,
+  buildTeamRows
+} = require("./aboutBhoomiMitra");
 
 // =====================================================
 // BhoomiMitra UI
@@ -32,7 +39,11 @@ function createBhoomiMitraUI(options) {
   const {
     axios,
     phoneNumberId,
-    whatsappToken
+    whatsappToken,
+    welcomeMediaUrl,
+    welcomeMediaType,
+    policyUrl,
+    organisationContact
   } = options || {};
 
   if (!axios) {
@@ -83,6 +94,46 @@ function createBhoomiMitraUI(options) {
     );
   }
 
+  async function sendOptionalWelcomeMedia(to) {
+    const url = String(welcomeMediaUrl || "").trim();
+    const type = String(welcomeMediaType || "video")
+      .trim()
+      .toLowerCase();
+
+    if (!/^https:\/\//i.test(url) || !["image", "video"].includes(type)) {
+      return { sent: false, code: "NOT_CONFIGURED" };
+    }
+
+    try {
+      await axios.post(
+        apiUrl,
+        {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: to,
+          type: type,
+          [type]: {
+            link: url,
+            caption:
+              "പ്രകൃതിയുടെ അനുഗ്രഹം — Blessings of Nature\n\n" +
+              "ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം!\n" +
+              "മണ്ണിന്റെ നന്മയ്ക്ക്, കർഷകന്റെ കൂട്ടായി."
+          }
+        },
+        {
+          headers: {
+            Authorization: "Bearer " + whatsappToken,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      return { sent: true, code: "SENT" };
+    } catch (error) {
+      return { sent: false, code: "DELIVERY_FAILED" };
+    }
+  }
+
   // ===================================================
   // LANGUAGE SELECTION
   // ===================================================
@@ -95,10 +146,11 @@ function createBhoomiMitraUI(options) {
 
         body: {
           text:
-            "🌱 Welcome to BhoomiMitra\n" +
-            "Your Digital Farming Companion\n\n" +
-            "🌐 Choose your preferred language\n" +
-            "നിങ്ങളുടെ ഭാഷ തിരഞ്ഞെടുക്കുക"
+            "🌱 ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം!\n" +
+            "മണ്ണിന്റെ നന്മയ്ക്ക്, കർഷകന്റെ കൂട്ടായി.\n\n" +
+            "കൃഷി, മൃഗസംരക്ഷണം, കാലാവസ്ഥ, വിപണിവില, പരിശീലനം, സർക്കാർ പദ്ധതികൾ എന്നിവയിൽ സഹായം. ചോദിക്കാം, സംസാരിക്കാം, ഫോട്ടോ അയയ്ക്കാം.\n\n" +
+            "Welcome to BhoomiMitra, your farming companion. Ask by text or voice, or send a crop photo.\n\n" +
+            "🌐 ഭാഷ തിരഞ്ഞെടുക്കുക / Choose language"
         },
 
         action: {
@@ -121,6 +173,35 @@ function createBhoomiMitraUI(options) {
         }
       }
     );
+  }
+
+  async function sendConsentPrompt(to) {
+    const configuredPolicyUrl = /^https:\/\//i.test(String(policyUrl || "").trim())
+      ? "\nPolicy: " + String(policyUrl).trim()
+      : "";
+    const configuredContact = String(organisationContact || "").trim()
+      ? "\nContact: " + String(organisationContact).trim()
+      : "\nContact details: not configured; ask authorised BhoomiMitra/KVK staff.";
+
+    return sendInteractiveMessage(to, {
+      type: "button",
+      body: {
+        text: (
+          "🔐 സ്വകാര്യതയും സമ്മതവും\n\n" +
+          "പേര്, ഫോൺ, ഭാഷ, കൃഷി/മൃഗം/ഭൂമി വിവരങ്ങൾ, നിങ്ങൾ നൽകുന്ന GPS, ചിത്രം, ശബ്ദം എന്നിവ സേവനത്തിനായി ഉപയോഗിക്കാം. ആവശ്യമായ അംഗീകൃത സാങ്കേതിക സേവനദാതാക്കളോ വിദഗ്ധരോ ഇത് പ്രോസസ് ചെയ്തേക്കാം. AI, കാലാവസ്ഥ, വിപണി, സാറ്റലൈറ്റ് വിവരം തീരുമാനസഹായം മാത്രമാണ്. വിവരങ്ങൾ കാണാനും തിരുത്തലോ ഇല്ലാതാക്കലോ അഭ്യർത്ഥിക്കാനും സമ്മതം പിൻവലിക്കാനും കഴിയും.\n\n" +
+          "BhoomiMitra uses the personal and farm information you provide to deliver its services. Authorised technology providers or experts may process relevant data. AI and data services are decision support. You may request access, correction, deletion, or consent withdrawal.\n\n" +
+          "Project attribution (subject to institutional approval): ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta. Technology provider: Ilumivision, Manjadi, Thiruvalla." +
+          configuredPolicyUrl + configuredContact
+        ).slice(0, 1024)
+      },
+      action: {
+        buttons: [
+          { type: "reply", reply: { id: "CONSENT_AGREE", title: "I Agree" } },
+          { type: "reply", reply: { id: "CONSENT_POLICY", title: "Terms & Privacy" } },
+          { type: "reply", reply: { id: "CONSENT_DECLINE", title: "Not Now" } }
+        ]
+      }
+    });
   }
 
  // ===================================================
@@ -267,8 +348,8 @@ async function sendMainMenu(
 
                 title:
                   isMalayalam
-                    ? "👨‍🔬 വിദഗ്ധ സഹായം"
-                    : "👨‍🔬 Expert & Services",
+                    ? "👨‍🌾 വിദഗ്ധ സഹായം"
+                    : "👨‍🌾 Expert & Services",
 
                 description:
                   isMalayalam
@@ -281,8 +362,8 @@ async function sendMainMenu(
 
                 title:
                   isMalayalam
-                    ? "💹 വിപണി"
-                    : "💹 Market",
+                    ? "📈 വിപണി"
+                    : "📈 Market",
 
                 description:
                   isMalayalam
@@ -473,59 +554,17 @@ async function sendFarmMenu(
 
             rows: [
               {
-                id: "SERVICE_3",
-
-                title:
-                  isMalayalam
-                    ? "🧪 മണ്ണ് വിവരം"
-                    : "🧪 Soil Information",
-
-                description:
-                  isMalayalam
-                    ? "സ്ഥലാധിഷ്ഠിത മണ്ണ് വിവരവും നിർദേശവും"
-                    : "Location-based soil information"
-              },
-
-              {
-                id: "SERVICE_4",
-
-                title:
-                  isMalayalam
-                    ? "🌦️ കാലാവസ്ഥ & മഴ"
-                    : "🌦️ Weather & Rain",
-
-                description:
-                  isMalayalam
-                    ? "ഇപ്പോഴത്തെ കാലാവസ്ഥയും പ്രവചനവും"
-                    : "Current weather and forecast"
-              },
-
-              {
-                id: "SERVICE_9",
-
-                title:
-                  isMalayalam
-                    ? "🗺️ ഭൂമി & കൃഷിരേഖ"
-                    : "🗺️ Farm & Land",
-
-                description:
-                  isMalayalam
-                    ? "ഭൂമി, വിള, പ്രവർത്തനം, ഉപദേശം"
-                    : "Land, crops, activities and advisory history"
-              },
-
-              {
                 id: CROP_FARM_ACTION_IDS.OPEN,
 
                 title:
                   isMalayalam
-                    ? "🌱 വിളകളും കൃഷിരേഖകളും"
-                    : "🌱 Crop & Farm Records",
+                    ? "🌱 വിള കൃഷി"
+                    : "🌱 Crop Farming",
 
                 description:
                   isMalayalam
-                    ? "വിള, കൃഷിപ്പണി, അലർട്ട് രേഖകൾ"
-                    : "Crops, operations, history and alerts"
+                    ? "വിളകൾ, കൃഷിപ്പണി, ചരിത്രം, അലർട്ടുകൾ"
+                    : "Crops, activities, history and alerts"
               },
 
               {
@@ -538,8 +577,50 @@ async function sendFarmMenu(
 
                 description:
                   isMalayalam
-                    ? "മൃഗ രജിസ്ട്രേഷൻ, ആരോഗ്യം, ഉൽപ്പാദനം"
-                    : "Animal records, health and production"
+                    ? "മൃഗങ്ങൾ, ആരോഗ്യം, ഉൽപ്പാദനം, വിദഗ്ധർ"
+                    : "Animals, health, production and experts"
+              },
+
+              {
+                id: "SERVICE_9",
+
+                title:
+                  isMalayalam
+                    ? "🛰️ ഭൂമി & GPS"
+                    : "🛰️ Land, GPS & Satellite",
+
+                description:
+                  isMalayalam
+                    ? "ഭൂമി, അതിർത്തി, GPS, നിരീക്ഷണം"
+                    : "Land, boundaries, GPS and monitoring"
+              },
+
+              {
+                id: "FARM_WEATHER_ALERTS",
+
+                title:
+                  isMalayalam
+                    ? "🌦️ കാലാവസ്ഥ & അലർട്ടുകൾ"
+                    : "🌦️ Weather & Alerts",
+
+                description:
+                  isMalayalam
+                    ? "മഴ, പ്രവചനം, വിള/മൃഗ മുന്നറിയിപ്പുകൾ"
+                    : "Rain, forecast, crop and animal alerts"
+              },
+
+              {
+                id: "SERVICE_3",
+
+                title:
+                  isMalayalam
+                    ? "🧪 മണ്ണ് വിവരം"
+                    : "🧪 Soil Information",
+
+                description:
+                  isMalayalam
+                    ? "സ്ഥലാധിഷ്ഠിത മണ്ണ് വിവരവും നിർദേശവും"
+                    : "Location-based soil information"
               },
 
               {
@@ -561,6 +642,40 @@ async function sendFarmMenu(
       }
     }
   );
+}
+
+async function sendWeatherAlertsMenu(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const items = [
+    ["SERVICE_4", "Current Weather", "ഇപ്പോഴത്തെ കാലാവസ്ഥ", "Weather, rainfall and available forecast", "കാലാവസ്ഥ, മഴ, ലഭ്യമായ പ്രവചനം"],
+    [CROP_FARM_ACTION_IDS.ALERTS, "Farm & Crop Alerts", "കൃഷി/വിള അലർട്ടുകൾ", "Verified crop alerts and farmer-recorded plans", "സ്ഥിരീകരിച്ച വിള അലർട്ടുകളും കർഷകന്റെ പദ്ധതികളും"],
+    [ANIMAL_ACTION_IDS.ALERTS, "Animal Disease Alerts", "മൃഗരോഗ അലർട്ടുകൾ", "Verified active official alerts only", "സ്ഥിരീകരിച്ച ഔദ്യോഗിക അലർട്ടുകൾ മാത്രം"],
+    [FARM_ALERT_ACTION_IDS.OPEN, "Fertilizer Diary", "വളപ്രയോഗ ഡയറി", "Completed and planned fertilizer records", "പൂർത്തിയായതും ആസൂത്രിതവുമായ രേഖകൾ"],
+    ["HOME_FARM", "Back to My Farm", "എന്റെ കൃഷിയിടത്തിലേക്ക്", "Return to the My Farm menu", "എന്റെ കൃഷിയിടം മെനുവിലേക്ക്"],
+    ["NAV_HOME", "Main Menu", "പ്രധാന മെനു", "Return to BhoomiMitra home", "BhoomiMitra പ്രധാന മെനുവിലേക്ക്"]
+  ];
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: ml
+        ? "🌦️ കാലാവസ്ഥയും കൃഷി അലർട്ടുകളും\nലഭ്യമായ വിവരം തിരഞ്ഞെടുക്കുക. സ്ഥിരീകരിച്ച അലർട്ടുകൾ മാത്രമാണ് അലർട്ടായി കാണിക്കുന്നത്."
+        : "🌦️ Weather and Farm Alerts\nChoose available information. Only verified records are presented as alerts."
+    },
+    action: {
+      button: ml ? "വിവരം തിരഞ്ഞെടുക്കുക" : "Choose information",
+      sections: [{
+        title: ml ? "കാലാവസ്ഥയും അലർട്ടുകളും" : "Weather and alerts",
+        rows: items.map(function (item) {
+          return {
+            id: item[0],
+            title: (ml ? item[2] : item[1]).slice(0, 24),
+            description: (ml ? item[4] : item[3]).slice(0, 72)
+          };
+        })
+      }]
+    }
+  });
 }
 
 // ===================================================
@@ -1119,45 +1234,93 @@ async function sendProfileMenu(
 
             rows: [
               {
+                id: "PERSONAL_DETAILS",
+
+                title:
+                  isMalayalam
+                    ? "👤 എന്റെ പ്രൊഫൈൽ"
+                    : "👤 My Profile",
+
+                description:
+                  isMalayalam
+                    ? "രജിസ്റ്റർ ചെയ്ത പ്രൊഫൈൽ കാണുക"
+                    : "View your registered profile"
+              },
+
+              {
+                id: "PERSONAL_FARMER_ID",
+
+                title:
+                  isMalayalam
+                    ? "🪪 എന്റെ കർഷക ഐഡി"
+                    : "🪪 My Farmer ID",
+
+                description:
+                  isMalayalam
+                    ? "WhatsApp നമ്പറുമായി ബന്ധിപ്പിച്ച ഐഡി"
+                    : "ID linked to this WhatsApp number"
+              },
+
+              {
+                id: "PERSONAL_LANDS",
+
+                title:
+                  isMalayalam
+                    ? "🌾 എന്റെ ഭൂമി / ഫാം"
+                    : "🌾 My Lands / Farms",
+
+                description:
+                  isMalayalam
+                    ? "ഈ കർഷക ഐഡിയിലെ ഭൂമികൾ"
+                    : "Lands linked to your Farmer ID"
+              },
+
+              {
+                id: "PERSONAL_ANIMALS",
+                title: isMalayalam ? "🐄 എന്റെ മൃഗങ്ങൾ" : "🐄 My Animals",
+                description: isMalayalam
+                  ? "ഈ കർഷക ഐഡിയിലെ മൃഗങ്ങൾ"
+                  : "Animals linked to your Farmer ID"
+              },
+
+              {
                 id: "SERVICE_10",
-
-                title:
-                  isMalayalam
-                    ? "📋 വ്യക്തിഗത രേഖകൾ"
-                    : "📋 Personal Records",
-
-                description:
-                  isMalayalam
-                    ? "സംരക്ഷിച്ച വ്യക്തിഗത രേഖകൾ"
-                    : "View and manage saved records"
+                title: isMalayalam ? "📋 എന്റെ രേഖകൾ" : "📋 My Records",
+                description: isMalayalam
+                  ? "എല്ലാ വ്യക്തിഗത രേഖാ ഓപ്ഷനുകളും"
+                  : "Open all personal record options"
               },
 
               {
-                id: "SERVICE_11",
-
-                title:
-                  isMalayalam
-                    ? "✅ അംഗത്വം"
-                    : "✅ Membership",
-
-                description:
-                  isMalayalam
-                    ? "BhoomiMitra അംഗമായി രജിസ്റ്റർ ചെയ്യുക"
-                    : "Register as a BhoomiMitra member"
+                id: "PROFILE_HELP",
+                title: isMalayalam ? "❓ ഉപയോഗ സഹായം" : "❓ Help / How to Use",
+                description: isMalayalam
+                  ? "ഭൂമിമിത്ര എങ്ങനെ ഉപയോഗിക്കാം"
+                  : "Simple BhoomiMitra guidance"
               },
 
               {
-                id: "CHANGE_LANGUAGE",
+                id: "PROFILE_WHATS_NEW",
+                title: isMalayalam ? "✨ പുതിയ സേവനങ്ങൾ" : "✨ What's New",
+                description: isMalayalam
+                  ? "ലഭ്യമായ പുതിയ സൗകര്യം അറിയുക"
+                  : "Discover an available new feature"
+              },
 
-                title:
-                  isMalayalam
-                    ? "🌐 ഭാഷ മാറ്റുക"
-                    : "🌐 Change Language",
+              {
+                id: ABOUT_ACTION_IDS.OPEN,
+                title: isMalayalam ? "🌱 ഭൂമിമിത്രയെക്കുറിച്ച്" : "🌱 About BhoomiMitra",
+                description: isMalayalam
+                  ? "പദ്ധതി, സ്ഥാപനങ്ങൾ, ടീം"
+                  : "Project, institutions and team"
+              },
 
-               description:
-  isMalayalam
-    ? "English / മലയാളം"
-    : "English / Malayalam"
+              {
+                id: "PROFILE_SETTINGS",
+                title: isMalayalam ? "⚙️ അംഗത്വം & ഭാഷ" : "⚙️ Membership & Language",
+                description: isMalayalam
+                  ? "രജിസ്ട്രേഷൻ അല്ലെങ്കിൽ ഭാഷ മാറ്റം"
+                  : "Registration and language settings"
               },
 
               {
@@ -1179,6 +1342,209 @@ async function sendProfileMenu(
       }
     }
   );
+}
+
+async function sendProfileSettingsMenu(to, language) {
+  const ml = String(language || "").toLowerCase() !== "english";
+  const items = [
+    ["SERVICE_11", "Membership", "അംഗത്വം", "Register or recover an existing registration", "രജിസ്റ്റർ ചെയ്യുക അല്ലെങ്കിൽ നിലവിലെ രജിസ്ട്രേഷൻ കണ്ടെത്തുക"],
+    ["CHANGE_LANGUAGE", "Change Language", "ഭാഷ മാറ്റുക", "English / Malayalam", "English / മലയാളം"],
+    ["PROFILE_TERMS_PRIVACY", "Terms & Privacy", "സ്വകാര്യത & നിബന്ധന", "Policy, consent and farmer rights", "നയം, സമ്മതം, കർഷക അവകാശങ്ങൾ"],
+    ["HOME_PROFILE", "Back", "പിന്നോട്ട്", "Return to My BhoomiMitra", "എന്റെ BhoomiMitra-യിലേക്ക്"],
+    ["NAV_HOME", "Main Menu", "പ്രധാന മെനു", "Return to BhoomiMitra home", "BhoomiMitra പ്രധാന മെനുവിലേക്ക്"]
+  ];
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml ? "⚙️ അക്കൗണ്ടും സ്വകാര്യതയും" : "⚙️ Account and Privacy" },
+    action: {
+      button: ml ? "ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക" : "Choose option",
+      sections: [{
+        title: ml ? "അക്കൗണ്ട് ക്രമീകരണം" : "Account settings",
+        rows: items.map(function (item) {
+          return {
+            id: item[0],
+            title: (ml ? item[2] : item[1]).slice(0, 24),
+            description: (ml ? item[4] : item[3]).slice(0, 72)
+          };
+        })
+      }]
+    }
+  });
+}
+
+async function sendAboutMenu(to, language) {
+  const ml = String(language || "").toLowerCase() !== "english";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: buildAboutText(language).slice(0, 1024) },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: ABOUT_ACTION_IDS.TEAM, title: ml ? "👥 ഞങ്ങളുടെ ടീം" : "👥 Our Team" } },
+        { type: "reply", reply: { id: "HOME_PROFILE", title: ml ? "↩️ പിന്നോട്ട്" : "↩️ Back" } },
+        { type: "reply", reply: { id: "NAV_HOME", title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+      ]
+    }
+  });
+}
+
+async function sendTeamDirectory(to, language, page) {
+  const safePage = Number(page) === 2 ? 2 : 1;
+  const ml = String(language || "").toLowerCase() !== "english";
+  const directoryRows = buildTeamRows(language, safePage);
+  if (safePage === 1) {
+    directoryRows.push({
+      id: ABOUT_ACTION_IDS.TEAM_PAGE_2,
+      title: ml ? "➡️ അടുത്ത പേജ്" : "➡️ Next Page",
+      description: ml ? "ടീം അംഗങ്ങൾ 8–11" : "Team members 8–11"
+    });
+  } else {
+    directoryRows.push({
+      id: ABOUT_ACTION_IDS.TEAM_PAGE_1,
+      title: ml ? "⬅️ മുൻ പേജ്" : "⬅️ Previous Page",
+      description: ml ? "ടീം അംഗങ്ങൾ 1–7" : "Team members 1–7"
+    });
+  }
+  directoryRows.push(
+    {
+      id: ABOUT_ACTION_IDS.OPEN,
+      title: ml ? "↩️ പദ്ധതിയെക്കുറിച്ച്" : "↩️ About",
+      description: ml ? "ഭൂമിമിത്ര വിവരത്തിലേക്ക്" : "Return to About BhoomiMitra"
+    },
+    {
+      id: "NAV_HOME",
+      title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu",
+      description: ml ? "ഭൂമിമിത്ര പ്രധാന മെനു" : "BhoomiMitra home"
+    }
+  );
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: buildTeamDirectoryText(language, safePage) },
+    action: {
+      button: ml ? "ടീം അംഗത്തെ കാണുക" : "View team member",
+      sections: [{
+        title: ml ? "ഭൂമിമിത്ര ടീം" : "BhoomiMitra Team",
+        rows: directoryRows
+      }]
+    }
+  });
+}
+
+async function sendTeamMemberProfile(to, language, member, page) {
+  const ml = String(language || "").toLowerCase() !== "english";
+  const backId = Number(page) === 2
+    ? ABOUT_ACTION_IDS.TEAM_PAGE_2
+    : ABOUT_ACTION_IDS.TEAM_PAGE_1;
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: buildTeamMemberText(member, language).slice(0, 1024) },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: backId, title: ml ? "↩️ ടീം" : "↩️ Team" } },
+        { type: "reply", reply: { id: ABOUT_ACTION_IDS.OPEN, title: ml ? "🌱 പദ്ധതിയെക്കുറിച്ച്" : "🌱 About" } },
+        { type: "reply", reply: { id: "NAV_HOME", title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+      ]
+    }
+  });
+}
+
+async function sendHelpMenu(to, language) {
+  const ml = String(language || "").toLowerCase() !== "english";
+  const text = ml
+    ? [
+        "❓ ഭൂമിമിത്ര എങ്ങനെ ഉപയോഗിക്കാം",
+        "",
+        "• ചോദ്യം ടൈപ്പ് ചെയ്യുക അല്ലെങ്കിൽ വോയ്സ് അയയ്ക്കുക.",
+        "• വിള പ്രശ്നത്തിന്റെ വ്യക്തമായ ഫോട്ടോ അയയ്ക്കുക.",
+        "• കൃഷിരേഖകൾക്ക് My Farm ഉപയോഗിക്കുക.",
+        "• വിദഗ്ധർ/സേവനങ്ങൾക്ക് Expert & Services ഉപയോഗിക്കുക.",
+        "• ലഭ്യമായ വിലയ്ക്ക് Market ഉപയോഗിക്കുക.",
+        "• പ്രധാന മെനുവിലേക്ക് MENU എന്ന് അയയ്ക്കുക.",
+        "",
+        "ഉദാ: എന്റെ തെങ്ങിന്റെ ഇല മഞ്ഞയാകുന്നു. / നാളെ മഴയുണ്ടാകുമോ? / എനിക്ക് കാർഷിക പരിശീലനം വേണം."
+      ].join("\n")
+    : [
+        "❓ How to Use BhoomiMitra",
+        "",
+        "• Type a question or send a voice message.",
+        "• Send a clear photo of a crop problem.",
+        "• Use My Farm for farm records.",
+        "• Use Expert & Services for specialist help.",
+        "• Use Market for available price information.",
+        "• Type MENU to return to the Main Menu.",
+        "",
+        "Examples: My coconut leaves are yellow. / Will it rain tomorrow? / I need agricultural training."
+      ].join("\n");
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text },
+    action: { buttons: [
+      { type: "reply", reply: { id: "HOME_PROFILE", title: ml ? "↩️ പിന്നോട്ട്" : "↩️ Back" } },
+      { type: "reply", reply: { id: "NAV_HOME", title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+    ] }
+  });
+}
+
+async function sendTermsPrivacyMenu(to, language) {
+  const ml = String(language || "").toLowerCase() !== "english";
+  const url = /^https:\/\//i.test(String(policyUrl || "").trim())
+    ? "\n" + String(policyUrl).trim()
+    : "\n" + (ml ? "അംഗീകൃത നയ URL ക്രമീകരിച്ചിട്ടില്ല." : "An approved policy URL is not configured.");
+  const contact = String(organisationContact || "").trim()
+    ? "\n" + (ml ? "ബന്ധപ്പെടുക: " : "Contact: ") + String(organisationContact).trim()
+    : "\n" + (ml ? "സ്ഥാപനത്തിന്റെ ബന്ധപ്പെടൽ വിവരം ക്രമീകരിച്ചിട്ടില്ല." : "Organisation contact details are not configured.");
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: ((ml
+        ? "🔐 നിബന്ധനകളും സ്വകാര്യതയും\n\nവിവരങ്ങൾ കാണാനും തിരുത്തലോ ഇല്ലാതാക്കലോ അഭ്യർത്ഥിക്കാനും സമ്മതം പിൻവലിക്കാനും കഴിയും. പൂർണ്ണ നയം വായിക്കുക.\n\nപദ്ധതി അംഗീകാരത്തിന് വിധേയമായ പൊതുവിവരം: ICAR–കൃഷി വിജ്ഞാന കേന്ദ്രം, CARD, പത്തനംതിട്ട. സാങ്കേതിക പിന്തുണ: Ilumivision, മഞ്ഞാടി, തിരുവല്ല"
+        : "🔐 Terms & Privacy\n\nYou may access your information and request correction, deletion, or consent withdrawal. Read the complete policy.\n\nProject attribution (subject to institutional approval): ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta. Technology provider: Ilumivision, Manjadi, Thiruvalla") + url + contact).slice(0, 1024)
+    },
+    action: { buttons: [
+      { type: "reply", reply: { id: "PRIVACY_READ_POLICY", title: ml ? "📄 പൂർണ്ണ നയം" : "📄 Full Policy" } },
+      { type: "reply", reply: { id: "HOME_PROFILE", title: ml ? "↩️ പിന്നോട്ട്" : "↩️ Back" } },
+      { type: "reply", reply: { id: "NAV_HOME", title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+    ] }
+  });
+}
+
+async function sendWhatsNewAnnouncement(to, language, feature, explicit) {
+  const ml = String(language || "").toLowerCase() !== "english";
+  const item = feature || {};
+  const title = ml ? item.titleMalayalam : item.titleEnglish;
+  const description = ml ? item.descriptionMalayalam : item.descriptionEnglish;
+  const instructions = ml ? item.instructionsMalayalam : item.instructionsEnglish;
+  const text = item.id
+    ? [
+        ml ? "🌱 ഭൂമിമിത്രയിൽ പുതിയ സേവനം!" : "🌱 What's New in BhoomiMitra!",
+        "",
+        title,
+        "",
+        description,
+        "",
+        ml ? "ഉപയോഗിക്കാൻ:" : "How to use:",
+        instructions
+      ].join("\n")
+    : (ml ? "ഇപ്പോൾ പ്രഖ്യാപിക്കാനുള്ള പുതിയ ലഭ്യമായ സേവനം ഇല്ല." : "There is no newly available feature to announce right now.");
+  const buttons = item.id
+    ? [
+        { type: "reply", reply: { id: "WHATS_NEW_TRY", title: ml ? "തുറക്കുക" : "Try Now" } },
+        { type: "reply", reply: { id: "WHATS_NEW_DISMISS", title: ml ? "ഒഴിവാക്കുക" : "Dismiss" } },
+        { type: "reply", reply: { id: explicit ? "NAV_HOME" : "WHATS_NEW_OPEN", title: explicit ? (ml ? "പ്രധാന മെനു" : "Main Menu") : (ml ? "പുതിയ സേവനങ്ങൾ" : "What's New") } }
+      ]
+    : [
+        { type: "reply", reply: { id: "HOME_PROFILE", title: ml ? "↩️ പിന്നോട്ട്" : "↩️ Back" } },
+        { type: "reply", reply: { id: "NAV_HOME", title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+      ];
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text.slice(0, 1024) },
+    action: { buttons: buttons }
+  });
 }
  async function sendPersonalRecordsMenu(
   to,
@@ -2779,6 +3145,9 @@ function getLegacyServiceCommand(selectionId) {
     SERVICE_9: "9",
     SERVICE_10: "10",
     SERVICE_11: "11",
+    CONSENT_AGREE: "AGREE",
+    CONSENT_POLICY: "POLICY",
+    CONSENT_DECLINE: "DECLINE",
 
 PERSONAL_DETAILS: "my details",
 PERSONAL_FARMER_ID: "my farmer id",
@@ -2833,6 +3202,16 @@ function getNavigationAction(selectionId) {
     HOME_EXPERT: "EXPERT_MENU",
     HOME_MARKET: "MARKET_MENU",
     HOME_PROFILE: "PROFILE_MENU",
+    FARM_WEATHER_ALERTS: "WEATHER_ALERTS_MENU",
+    PROFILE_HELP: "HELP_MENU",
+    PROFILE_WHATS_NEW: "WHATS_NEW",
+    PROFILE_ABOUT: "ABOUT_MENU",
+    PROFILE_TERMS_PRIVACY: "TERMS_PRIVACY_MENU",
+    PROFILE_SETTINGS: "PROFILE_SETTINGS_MENU",
+    PRIVACY_READ_POLICY: "PRIVACY_POLICY",
+    WHATS_NEW_OPEN: "WHATS_NEW",
+    WHATS_NEW_TRY: "WHATS_NEW_TRY",
+    WHATS_NEW_DISMISS: "WHATS_NEW_DISMISS",
     LAND_SATELLITE_GPS:
       "SATELLITE_GPS_MENU",
 
@@ -2849,10 +3228,13 @@ function getNavigationAction(selectionId) {
 
 return {
   sendInteractiveMessage,
+  sendOptionalWelcomeMedia,
   sendLanguageSelection,
+  sendConsentPrompt,
   sendMainMenu,
   sendAskMenu,
   sendFarmMenu,
+  sendWeatherAlertsMenu,
   sendAnimalHusbandryMenu,
   sendLandManagementMenu,
   sendSatelliteGpsMenu,
@@ -2909,6 +3291,13 @@ return {
   sendCropFarmConfirmation,
   sendMarketMenu,
   sendProfileMenu,
+  sendProfileSettingsMenu,
+  sendAboutMenu,
+  sendTeamDirectory,
+  sendTeamMemberProfile,
+  sendHelpMenu,
+  sendTermsPrivacyMenu,
+  sendWhatsNewAnnouncement,
   sendPersonalRecordsMenu,
   getInteractiveSelection,
   getLanguageFromSelection,

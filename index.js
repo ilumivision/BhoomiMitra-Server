@@ -87,9 +87,24 @@ const {
   getLandAuthorizedUsers
 } = require("./utils/landAccess");
 const {
+  AGREEMENT_VERSION,
+  PRIVACY_POLICY_VERSION,
   getLatestConsent,
   saveConsent
 } = require("./utils/privacy");
+const {
+  formatPrivacyPolicy
+} = require("./utils/privacySelfService");
+const {
+  createFeatureDiscovery
+} = require("./utils/whatsNew");
+const {
+  getReturningWelcome,
+  hasCurrentConsent
+} = require("./utils/onboarding");
+const {
+  parseAboutAction
+} = require("./utils/aboutBhoomiMitra");
 const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
@@ -481,7 +496,15 @@ const bhoomiMitraUI =
   createBhoomiMitraUI({
     axios: axios,
     phoneNumberId: PHONE_NUMBER_ID,
-    whatsappToken: WHATSAPP_TOKEN
+    whatsappToken: WHATSAPP_TOKEN,
+    welcomeMediaUrl:
+      process.env.BHOOMIMITRA_WELCOME_MEDIA_URL,
+    welcomeMediaType:
+      process.env.BHOOMIMITRA_WELCOME_MEDIA_TYPE,
+    policyUrl:
+      process.env.BHOOMIMITRA_POLICY_URL,
+    organisationContact:
+      process.env.BHOOMIMITRA_ORGANISATION_CONTACT
   });
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -1033,6 +1056,8 @@ const schemeSearchSessions = {};
 const farmAlertSessions = {};
 const cropFarmSessions = {};
 const animalHusbandrySessions = {};
+const whatsNewSelections = {};
+const featureDiscovery = createFeatureDiscovery();
 const registrationCoordinator =
   createRegistrationCoordinator();
 let sheetMetadataCache = null;
@@ -1042,6 +1067,24 @@ const SHEET_METADATA_CACHE_MS =
   10 * 60 * 1000;
 const EXPERT_PROBLEM_CONTEXT_MS =
   6 * 60 * 60 * 1000;
+
+async function showWhatsNew(from, language, explicit) {
+  const feature = explicit
+    ? featureDiscovery.firstAvailable({ userCategory: "FARMER" })
+    : featureDiscovery.select(from, { userCategory: "FARMER" });
+
+  if (feature) {
+    whatsNewSelections[from] = feature;
+    featureDiscovery.markShown(from, feature.id);
+  }
+
+  await bhoomiMitraUI.sendWhatsNewAnnouncement(
+    from,
+    language,
+    feature,
+    Boolean(explicit)
+  );
+}
 
 const SHEETS = {
   farmers: "Farmers",
@@ -4064,9 +4107,107 @@ if (
           userLanguagePreferences[from] ||
           "English";
 
+        const aboutAction =
+          parseAboutAction(uiSelection.id);
+
+        if (aboutAction) {
+          if (aboutAction.type === "ABOUT") {
+            await bhoomiMitraUI.sendAboutMenu(
+              from,
+              preferredUiLanguage
+            );
+          } else if (aboutAction.type === "TEAM") {
+            await bhoomiMitraUI.sendTeamDirectory(
+              from,
+              preferredUiLanguage,
+              aboutAction.page
+            );
+          } else if (aboutAction.type === "MEMBER") {
+            await bhoomiMitraUI.sendTeamMemberProfile(
+              from,
+              preferredUiLanguage,
+              aboutAction.member,
+              aboutAction.page
+            );
+          }
+          return;
+        }
+
         // -----------------------------------------
         // MAIN NAVIGATION
         // -----------------------------------------
+
+        if (navigationAction === "WHATS_NEW_TRY") {
+          const selectedFeature =
+            whatsNewSelections[from] ||
+            featureDiscovery.firstAvailable({ userCategory: "FARMER" });
+
+          if (selectedFeature) {
+            featureDiscovery.acknowledge(from, selectedFeature.id);
+          }
+          delete whatsNewSelections[from];
+
+          if (selectedFeature && selectedFeature.destination === "HOME_TRAINING") {
+            await sendTrainingHome(from, preferredUiLanguage);
+          } else if (
+            selectedFeature &&
+            selectedFeature.destination === "LAND_SATELLITE_GPS"
+          ) {
+            userMenus[from] = userMenus[from] || createMenuSession();
+            userMenus[from].step = "satellite_gps_menu";
+            userMenus[from].currentService = "farm";
+            userMenus[from].updatedAt = Date.now();
+            await bhoomiMitraUI.sendSatelliteGpsMenu(from, preferredUiLanguage);
+          } else {
+            await bhoomiMitraUI.sendMainMenu(from, preferredUiLanguage);
+          }
+          return;
+        }
+
+        if (navigationAction === "WHATS_NEW_DISMISS") {
+          const selectedFeature = whatsNewSelections[from];
+          if (selectedFeature) {
+            featureDiscovery.acknowledge(from, selectedFeature.id);
+          }
+          delete whatsNewSelections[from];
+          await bhoomiMitraUI.sendMainMenu(from, preferredUiLanguage);
+          return;
+        }
+
+        if (navigationAction === "WHATS_NEW") {
+          await showWhatsNew(from, preferredUiLanguage, true);
+          return;
+        }
+
+        if (navigationAction === "HELP_MENU") {
+          await bhoomiMitraUI.sendHelpMenu(from, preferredUiLanguage);
+          return;
+        }
+
+        if (navigationAction === "TERMS_PRIVACY_MENU") {
+          await bhoomiMitraUI.sendTermsPrivacyMenu(from, preferredUiLanguage);
+          return;
+        }
+
+        if (navigationAction === "PRIVACY_POLICY") {
+          await sendWhatsAppMessage(
+            from,
+            formatPrivacyPolicy(preferredUiLanguage),
+            { skipPreferredLanguageConversion: true }
+          );
+          await bhoomiMitraUI.sendTermsPrivacyMenu(from, preferredUiLanguage);
+          return;
+        }
+
+        if (navigationAction === "PROFILE_SETTINGS_MENU") {
+          await bhoomiMitraUI.sendProfileSettingsMenu(from, preferredUiLanguage);
+          return;
+        }
+
+        if (navigationAction === "WEATHER_ALERTS_MENU") {
+          await bhoomiMitraUI.sendWeatherAlertsMenu(from, preferredUiLanguage);
+          return;
+        }
 
         if (navigationAction === "ASK_MENU") {
           await bhoomiMitraUI.sendAskMenu(
@@ -4554,6 +4695,14 @@ if (
       from,
       registrationReply
     );
+
+    if (!sessions[from]) {
+      userMenus[from] = createMenuSession();
+      await bhoomiMitraUI.sendMainMenu(
+        from,
+        userLanguagePreferences[from] || "Malayalam"
+      );
+    }
     return;
   }
 }
@@ -4795,16 +4944,11 @@ if (consentChoice === "POLICY") {
     ].join("\n")
   );
 
+  await bhoomiMitraUI.sendConsentPrompt(from);
 return;
 }
 
-await sendWhatsAppMessage(
-  from,
-  [
-    "Please reply AGREE, DECLINE or POLICY.",
-    "AGREE, DECLINE അല്ലെങ്കിൽ POLICY എന്ന് മറുപടി നൽകുക."
-  ].join("\n")
-);
+await bhoomiMitraUI.sendConsentPrompt(from);
 return;
 }
    // =====================================================
@@ -5604,23 +5748,41 @@ const existingFarmerAfterLanguageSelection =
     { requireUnique: true }
   );
 
-if (!existingFarmerAfterLanguageSelection) {
+if (
+  !existingFarmerAfterLanguageSelection ||
+  existingFarmerAfterLanguageSelection.success === false
+) {
+  const existingConsent = await getLatestConsent({
+    sheets,
+    spreadsheetId: GOOGLE_SHEET_ID,
+    whatsapp: from
+  });
+  const currentConsentAccepted = hasCurrentConsent(existingConsent, {
+    agreementVersion: AGREEMENT_VERSION,
+    privacyPolicyVersion: PRIVACY_POLICY_VERSION
+  });
+
   userMenus[from] = {
     ...(userMenus[from] || createMenuSession()),
-    step: "registration_active",
+    step: currentConsentAccepted
+      ? "registration_active"
+      : "privacy_consent_pending",
     updatedAt: Date.now()
   };
 
-  const registrationStartReply =
-    await handleRegistration(from, "register");
-
-  if (registrationStartReply) {
-    await sendWhatsAppMessage(
-      from,
-      registrationStartReply
-    );
+  if (currentConsentAccepted) {
+    const registrationStartReply = await handleRegistration(from, "register");
+    if (registrationStartReply) {
+      await sendWhatsAppMessage(from, registrationStartReply);
+    }
+  } else {
+    await bhoomiMitraUI.sendConsentPrompt(from);
   }
 } else {
+  await sendWhatsAppMessage(
+    from,
+    getReturningWelcome(selectedLanguage)
+  );
   await bhoomiMitraUI.sendMainMenu(
     from,
     selectedLanguage
@@ -5650,6 +5812,10 @@ if (!userLanguagePreferences[from]) {
       savedPreferredLanguage;
   } else {
     pendingLanguageSelections[from] = true;
+
+    if (!existingFarmerForLanguage) {
+      await bhoomiMitraUI.sendOptionalWelcomeMedia(from);
+    }
 
    await bhoomiMitraUI.sendLanguageSelection(
   from
@@ -5747,13 +5913,58 @@ if (
   return;
 }
 if (isMenuCommand(userText)) {
+  const returningFarmer =
+    await findRegistrationByPhone(
+      "farmer",
+      from,
+      { requireUnique: true }
+    );
+
+  if (!returningFarmer || returningFarmer.success === false) {
+    const existingConsent = await getLatestConsent({
+      sheets,
+      spreadsheetId: GOOGLE_SHEET_ID,
+      whatsapp: from
+    });
+    const currentConsentAccepted = hasCurrentConsent(existingConsent, {
+      agreementVersion: AGREEMENT_VERSION,
+      privacyPolicyVersion: PRIVACY_POLICY_VERSION
+    });
+
+    userMenus[from] = {
+      ...(userMenus[from] || createMenuSession()),
+      step: currentConsentAccepted
+        ? "registration_active"
+        : "privacy_consent_pending",
+      updatedAt: Date.now()
+    };
+
+    if (currentConsentAccepted) {
+      const registrationStartReply = await handleRegistration(from, "register");
+      if (registrationStartReply) {
+        await sendWhatsAppMessage(from, registrationStartReply);
+      }
+    } else {
+      await bhoomiMitraUI.sendConsentPrompt(from);
+    }
+    return;
+  }
+
   userMenus[from] =
     createMenuSession();
 
+  const welcomeLanguage = userLanguagePreferences[from] || "English";
+  await sendWhatsAppMessage(
+    from,
+    getReturningWelcome(welcomeLanguage)
+  );
+
  await bhoomiMitraUI.sendMainMenu(
   from,
-  userLanguagePreferences[from] || "English"
+  welcomeLanguage
 );
+
+  await showWhatsNew(from, welcomeLanguage, false);
 
   return;
 }
@@ -5774,6 +5985,92 @@ if (naturalFeatureEntry === "SCHEMES") {
   await bhoomiMitraUI.sendSchemesMenu(
     from,
     userLanguagePreferences[from] || "English"
+  );
+  return;
+}
+
+if (naturalFeatureEntry === "MY_ANIMALS") {
+  await handleAnimalHusbandryAction({
+    action: { action: "MY_ANIMALS" },
+    from: from,
+    sourceMessageId: message.id
+  });
+  return;
+}
+
+if (naturalFeatureEntry === "ANIMAL_REGISTRATION") {
+  await handleAnimalHusbandryAction({
+    action: { action: "REGISTER" },
+    from: from,
+    sourceMessageId: message.id
+  });
+  return;
+}
+
+if (naturalFeatureEntry === "CROP_ALERTS") {
+  await handleCropFarmAction({
+    cropFarmAction: { action: "ALERTS" },
+    from: from,
+    sourceMessageId: message.id
+  });
+  return;
+}
+
+if (naturalFeatureEntry === "SATELLITE") {
+  userMenus[from] = userMenus[from] || createMenuSession();
+  userMenus[from].step = "satellite_gps_menu";
+  userMenus[from].currentService = "farm";
+  userMenus[from].updatedAt = Date.now();
+  await bhoomiMitraUI.sendSatelliteGpsMenu(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
+  return;
+}
+
+if (naturalFeatureEntry === "MARKET") {
+  await bhoomiMitraUI.sendMarketMenu(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
+  return;
+}
+
+if (naturalFeatureEntry === "FARM") {
+  await bhoomiMitraUI.sendFarmMenu(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
+  return;
+}
+
+if (naturalFeatureEntry === "HELP") {
+  await bhoomiMitraUI.sendHelpMenu(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
+  return;
+}
+
+if (naturalFeatureEntry === "WHATS_NEW") {
+  await showWhatsNew(
+    from,
+    userLanguagePreferences[from] || "English",
+    true
+  );
+  return;
+}
+
+if (["WEATHER", "SOIL"].includes(naturalFeatureEntry)) {
+  const selectionText = naturalFeatureEntry === "WEATHER" ? "4" : "3";
+  const selections = parseServiceSelections(selectionText);
+  userMenus[from] = startSelectedServices(
+    userMenus[from] || createMenuSession(),
+    selections
+  );
+  await sendWhatsAppMessage(
+    from,
+    getServicePrompt(userMenus[from].currentService)
   );
   return;
 }
@@ -8492,7 +8789,9 @@ if (registrationSelected) {
     consentResult.success &&
     consentResult.found &&
     consentResult.consent &&
-    consentResult.consent.consentStatus === "AGREED";
+    consentResult.consent.consentStatus === "AGREED" &&
+    consentResult.consent.agreementVersion === AGREEMENT_VERSION &&
+    consentResult.consent.privacyPolicyVersion === PRIVACY_POLICY_VERSION;
 
   if (!hasAgreed) {
     userMenus[from] = {
@@ -8503,36 +8802,8 @@ if (registrationSelected) {
         Date.now()
     };
 
-    await sendWhatsAppMessage(
-      from,
-    [
-  "🔐 BhoomiMitra User Agreement & Privacy Notice",
-  "🔐 ഭൂമിമിത്ര ഉപയോക്തൃ കരാറും സ്വകാര്യതാ അറിയിപ്പും",
-  "",
-  "Please read before registration.",
-  "രജിസ്ട്രേഷൻ ആരംഭിക്കുന്നതിന് മുമ്പ് ദയവായി വായിക്കുക.",
-  "",
-  "BhoomiMitra may collect and use your name, mobile number, farm/crop details, GPS/location, land details, soil data, photographs, voice messages and satellite information to provide agricultural and farm-management services.",
-  "",
-  "കാർഷികവും ഫാം മാനേജ്മെന്റ് സേവനങ്ങളും നൽകുന്നതിനായി പേര്, മൊബൈൽ നമ്പർ, കൃഷിയിടം/വിള വിവരങ്ങൾ, GPS/സ്ഥലം, ഭൂമി വിവരങ്ങൾ, മണ്ണ് വിവരങ്ങൾ, ചിത്രങ്ങൾ, ശബ്ദ സന്ദേശങ്ങൾ, സാറ്റലൈറ്റ് വിവരങ്ങൾ എന്നിവ ഭൂമിമിത്ര ഉപയോഗിക്കാം.",
-  "",
-  "Reasonable safeguards are used to protect your information. Some digital, network and third-party risks may remain.",
-  "",
-  "നിങ്ങളുടെ വിവരങ്ങൾ സംരക്ഷിക്കാൻ യുക്തിസഹമായ സുരക്ഷാ നടപടികൾ സ്വീകരിക്കുന്നു. ചില ഡിജിറ്റൽ, നെറ്റ്‌വർക്ക്, മൂന്നാംകക്ഷി അപകടസാധ്യതകൾ നിലനിൽക്കാം.",
-  "",
-  "Agricultural, AI, weather, market, GPS and satellite information is decision support and may require expert or field verification.",
-  "",
-  "കാർഷിക, AI, കാലാവസ്ഥ, വിപണി, GPS, സാറ്റലൈറ്റ് വിവരങ്ങൾ തീരുമാനസഹായത്തിനായുള്ളതാണ്; ആവശ്യമായിടത്ത് വിദഗ്ധ/ഫീൽഡ് പരിശോധന വേണം.",
-  "",
-  "Type POLICY for the full User Agreement & Privacy Policy.",
-  "പൂർണ്ണ നയം വായിക്കാൻ POLICY എന്ന് ടൈപ്പ് ചെയ്യുക.",
-  "",
-  "AGREE — I accept / ഞാൻ അംഗീകരിക്കുന്നു",
-  "DECLINE — I do not accept / ഞാൻ അംഗീകരിക്കുന്നില്ല"
-].join("\n")
-);
-
-return;
+    await bhoomiMitraUI.sendConsentPrompt(from);
+    return;
   }
 
  userMenus[from] = {

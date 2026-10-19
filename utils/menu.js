@@ -137,6 +137,10 @@ function getNaturalFeatureEntry(text) {
     "training programs",
     "training programme",
     "training programmes",
+    "i need agricultural training",
+    "i need training",
+    "എനിക്ക് പരിശീലനം വേണം",
+    "എനിക്ക് കാർഷിക പരിശീലനം വേണം",
     "പരിശീലനം",
     "പരിശീലനങ്ങൾ",
     "പരിശീലന പരിപാടികൾ"
@@ -154,8 +158,48 @@ function getNaturalFeatureEntry(text) {
     "സർക്കാർ പദ്ധതികൾ"
   ];
 
+  const exactEntries = new Map([
+    ["my animals", "MY_ANIMALS"],
+    ["show my animals", "MY_ANIMALS"],
+    ["എന്റെ മൃഗങ്ങൾ", "MY_ANIMALS"],
+    ["എന്റെ പശുക്കൾ", "MY_ANIMALS"],
+    ["animal registration", "ANIMAL_REGISTRATION"],
+    ["register animal", "ANIMAL_REGISTRATION"],
+    ["മൃഗ രജിസ്ട്രേഷൻ", "ANIMAL_REGISTRATION"],
+    ["crop alerts", "CROP_ALERTS"],
+    ["crop disease alerts", "CROP_ALERTS"],
+    ["വിളരോഗ മുന്നറിയിപ്പ്", "CROP_ALERTS"],
+    ["വിള രോഗ മുന്നറിയിപ്പ്", "CROP_ALERTS"],
+    ["satellite monitoring", "SATELLITE"],
+    ["satellite information", "SATELLITE"],
+    ["സാറ്റലൈറ്റ് വിവരം", "SATELLITE"],
+    ["സാറ്റലൈറ്റ് നിരീക്ഷണം", "SATELLITE"],
+    ["today's market price", "MARKET"],
+    ["todays market price", "MARKET"],
+    ["market price", "MARKET"],
+    ["ഇന്നത്തെ വിപണിവില", "MARKET"],
+    ["വിപണി വില", "MARKET"],
+    ["show my farm", "FARM"],
+    ["my farm", "FARM"],
+    ["എന്റെ കൃഷിയിടം", "FARM"],
+    ["weather", "WEATHER"],
+    ["weather information", "WEATHER"],
+    ["കാലാവസ്ഥ", "WEATHER"],
+    ["soil information", "SOIL"],
+    ["soil", "SOIL"],
+    ["മണ്ണ് വിവരം", "SOIL"],
+    ["how to use bhoomimitra", "HELP"],
+    ["how to use", "HELP"],
+    ["സഹായം എങ്ങനെ", "HELP"],
+    ["ഭൂമിമിത്ര എങ്ങനെ ഉപയോഗിക്കാം", "HELP"],
+    ["what's new", "WHATS_NEW"],
+    ["whats new", "WHATS_NEW"],
+    ["പുതിയ സേവനങ്ങൾ", "WHATS_NEW"]
+  ]);
+
   if (trainingEntries.includes(normalized)) return "TRAINING";
   if (schemeEntries.includes(normalized)) return "SCHEMES";
+  if (exactEntries.has(normalized)) return exactEntries.get(normalized);
   return "";
 }
 
@@ -168,7 +212,8 @@ function getWelcomeMessage(language = "English") {
     return [
       "🌱 ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം",
       "കേരളത്തിന്റെ കാർഷിക AI സഹായി",
-      "Ilumivision വികസിപ്പിച്ചത്",
+      "ICAR–കൃഷി വിജ്ഞാന കേന്ദ്രം, CARD, പത്തനംതിട്ടയുടെ പദ്ധതി",
+      "സാങ്കേതിക പിന്തുണ: Ilumivision, മഞ്ഞാടി, തിരുവല്ല",
       "",
       "താങ്കൾക്ക് ആവശ്യമായ സേവനം തിരഞ്ഞെടുക്കുക:",
       "",
@@ -204,7 +249,8 @@ function getWelcomeMessage(language = "English") {
     return [
       "🌱 Welcome to BhoomiMitra / ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം",
       "Kerala’s Agriculture AI Assistant / കേരളത്തിന്റെ കാർഷിക AI സഹായി",
-      "Developed by Ilumivision",
+      "A Project of: ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta",
+      "Powered by: Ilumivision, Manjadi, Thiruvalla",
       "",
       "Please select the service you need / ആവശ്യമായ സേവനം തിരഞ്ഞെടുക്കുക:",
       "",
@@ -235,7 +281,8 @@ function getWelcomeMessage(language = "English") {
   return [
     "🌱 Welcome to BhoomiMitra",
     "Kerala’s Agriculture AI Assistant",
-    "Developed by Ilumivision",
+    "A Project of: ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta",
+    "Powered by: Ilumivision, Manjadi, Thiruvalla",
     "",
     "Please select the service you need:",
     "",

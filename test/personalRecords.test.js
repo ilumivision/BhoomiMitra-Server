@@ -441,7 +441,41 @@ test("My Lands route keeps the existing land retrieval behavior", async function
 
   assert.match(result.reply, /My Registered Lands/);
   assert.match(result.reply, /Land ID: LAND-1/);
+  assert.match(result.reply, /Area: 2 Acre/);
   assert.match(result.reply, /Main crop: Rambutan/);
+});
+
+test("My Lands reads established area fields and never displays a unit without a number", async function () {
+  const headers = [
+    "Land_ID",
+    "Phone",
+    "Farm_Name",
+    "District",
+    "Local_Body",
+    "Farmer_Reported_Area",
+    "Revenue_Record_Area",
+    "GPS_Calculated_Area",
+    "Area_Unit",
+    "Main_Crop"
+  ];
+  const valid = await runPersonalCommand({
+    userText: "my lands",
+    lands: [headers, [
+      "LAND-2", "+91 98472 98918", "Field", "Pathanamthitta", "Konni",
+      "1.5", "2", "1.7", "Acre", "Banana"
+    ]]
+  });
+  assert.match(valid.result.reply, /Area: 1\.5 Acre/);
+
+  const missing = await runPersonalCommand({
+    userText: "my lands",
+    lands: [headers, [
+      "LAND-3", "+91 98472 98918", "Hill", "Pathanamthitta", "Konni",
+      "", "invalid", "", "Cent", "Pepper"
+    ]]
+  });
+  assert.match(missing.result.reply, /Area: -/);
+  assert.doesNotMatch(missing.result.reply, /Area: Cent/);
 });
 
 test("My Animals route keeps the existing animal retrieval behavior", async function () {
