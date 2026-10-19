@@ -15,6 +15,7 @@ const {
   buildSchemeSearchRows,
   currentAdvisories,
   filterSchemesByCategory,
+  filterSchemesByGovernment,
   findScheme,
   parseSchemeAction,
   readSchemeInterests,
@@ -163,6 +164,18 @@ test("crop livestock machinery financial and insurance category filters use reco
   assert.deepEqual(filterSchemesByCategory(activeSchemes(sampleSchemes(), new Date("2026-08-01")), "MACHINERY").map(function (s) { return s.id; }), ["SCH-003"]);
 });
 
+test("fisheries enterprise and government-level filters use verified record fields", function () {
+  const records = [
+    { id: "FISH", name: "Aquaculture support", category: "Fisheries", government: "Kerala" },
+    { id: "ENT", name: "Farm startup support", category: "Agricultural Enterprise", government: "Central" }
+  ];
+
+  assert.deepEqual(filterSchemesByCategory(records, "FISHERIES").map(function (item) { return item.id; }), ["FISH"]);
+  assert.deepEqual(filterSchemesByCategory(records, "ENTERPRISE").map(function (item) { return item.id; }), ["ENT"]);
+  assert.deepEqual(filterSchemesByGovernment(records, "Kerala").map(function (item) { return item.id; }), ["FISH"]);
+  assert.deepEqual(filterSchemesByGovernment(records, "Central").map(function (item) { return item.id; }), ["ENT"]);
+});
+
 test("scheme details show only stored facts official link and eligibility warning", function () {
   const scheme = findScheme(sampleSchemes(), "SCH-001");
   const details = buildSchemeDetails(scheme, "English", true);
@@ -266,14 +279,18 @@ test("English schemes UI is click-first and carries no typed scheme IDs", async 
   const harness = makeUiHarness();
   const scheme = findScheme(sampleSchemes(), "SCH-001");
   await harness.ui.sendMainMenu("919111111111", "English");
+  await harness.ui.sendExpertMenu("919111111111", "English");
   await harness.ui.sendSchemesMenu("919111111111", "English");
   await harness.ui.sendSchemeDetails("919111111111", "English", buildSchemeDetails(scheme, "English"), scheme.id, false);
   const mainRows = harness.calls[0].body.interactive.action.sections[0].rows;
-  const menuRows = harness.calls[1].body.interactive.action.sections[0].rows;
-  const detailActions = harness.calls[2].body.interactive.action.sections[0].rows;
-  assert.ok(mainRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.OPEN; }));
-  assert.equal(menuRows.length, 10);
-  assert.ok(menuRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.SEARCH; }));
+  const expertRows = harness.calls[1].body.interactive.action.sections[0].rows;
+  const menuRows = harness.calls[2].body.interactive.action.sections[0].rows;
+  const detailActions = harness.calls[3].body.interactive.action.sections[0].rows;
+  assert.equal(mainRows.length, 5);
+  assert.ok(expertRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.OPEN; }));
+  assert.equal(menuRows.length, 9);
+  assert.ok(menuRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.FISHERIES; }));
+  assert.ok(menuRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.ENTERPRISE; }));
   assert.equal(detailActions.length, 4);
   assert.ok(detailActions.some(function (row) {
     return row.id === SCHEME_DYNAMIC_PREFIXES.INTEREST + scheme.id;

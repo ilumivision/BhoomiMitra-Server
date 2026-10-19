@@ -105,20 +105,58 @@ function isMenuCommand(text) {
     "service",
     "help",
     "start",
+    "home",
     "hi",
     "hello",
     "hai",
+    "what service",
+    "what services",
+    "what can you do",
     "മെനു",
+    "പ്രധാന മെനു",
     "സേവനങ്ങൾ",
     "സഹായം",
     "തുടങ്ങുക",
     "ഹായ്",
-    "ഹലോ"
+    "ഹലോ",
+    "ഹി",
+    "നമസ്കാരം"
   ];
 
   return commands.includes(
     normalized
   );
+}
+
+function getNaturalFeatureEntry(text) {
+  const normalized = normalizeMenuText(text);
+  const trainingEntries = [
+    "training",
+    "trainings",
+    "training program",
+    "training programs",
+    "training programme",
+    "training programmes",
+    "പരിശീലനം",
+    "പരിശീലനങ്ങൾ",
+    "പരിശീലന പരിപാടികൾ"
+  ];
+  const schemeEntries = [
+    "scheme",
+    "schemes",
+    "government scheme",
+    "government schemes",
+    "sarkkar padhathi",
+    "sarkkar padhathikal",
+    "പദ്ധതി",
+    "പദ്ധതികൾ",
+    "സർക്കാർ പദ്ധതി",
+    "സർക്കാർ പദ്ധതികൾ"
+  ];
+
+  if (trainingEntries.includes(normalized)) return "TRAINING";
+  if (schemeEntries.includes(normalized)) return "SCHEMES";
+  return "";
 }
 
 function getWelcomeMessage(language = "English") {
@@ -588,6 +626,7 @@ module.exports = {
   SERVICE_OPTIONS,
   normalizeMenuText,
   isMenuCommand,
+  getNaturalFeatureEntry,
   getWelcomeMessage,
   parseServiceSelections,
   isPureMenuSelection,

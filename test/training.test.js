@@ -6,8 +6,10 @@ const assert = require("node:assert/strict");
 const {
   createBhoomiMitraUI
 } = require("../utils/bhoomiMitraUI");
+const { getNaturalFeatureEntry } = require("../utils/menu");
 const {
   TRAINING_ACTION_IDS,
+  TRAINING_COORDINATION,
   TRAINING_DYNAMIC_PREFIXES,
   TRAINING_MODES,
   TRAINING_TIMES,
@@ -16,6 +18,9 @@ const {
   buildTrainingRequestAlert,
   buildTrainingDetails,
   buildTrainingListRows,
+  captureTrainingRequestDate,
+  captureTrainingRequestLocation,
+  captureTrainingRequestRemarks,
   captureTrainingRequest,
   changeTrainingRequest,
   createTrainingRequestSession,
@@ -23,6 +28,7 @@ const {
   findTrainingProgram,
   getMyTrainings,
   getPromotedTrainingPrograms,
+  inferTrainingCategory,
   parseTrainingAction,
   readTrainingRequests,
   readTrainingPrograms,
@@ -79,6 +85,32 @@ const REGISTRATION_HEADERS = [
   "Remarks"
 ];
 
+const REQUEST_HEADERS = [
+  "Request_ID",
+  "Farmer_ID",
+  "Mobile_No",
+  "Farmer_Name",
+  "District",
+  "Training_Category",
+  "Training_Topic",
+  "Preferred_Mode",
+  "Preferred_Time",
+  "Preferred_Location",
+  "Preferred_Date",
+  "Remarks",
+  "Request_Status",
+  "Assigned_Coordinator",
+  "Overall_Coordinator",
+  "Training_Coordinator",
+  "Created_At",
+  "Updated_At",
+  "Source_Message_ID",
+  "Confirmed_Training_ID",
+  "Confirmed_Training_Title",
+  "Confirmed_Date",
+  "Confirmed_Location"
+];
+
 const NOW = new Date("2026-10-17T00:00:00.000Z");
 
 function programRow(values) {
@@ -97,6 +129,17 @@ function registrationRow(values) {
 
 function valueFromRow(row, header) {
   return row[REGISTRATION_HEADERS.indexOf(header)];
+}
+
+function requestRow(values) {
+  const input = values || {};
+  return REQUEST_HEADERS.map(function (header) {
+    return input[header] == null ? "" : input[header];
+  });
+}
+
+function valueFromRequestRow(row, header) {
+  return row[REQUEST_HEADERS.indexOf(header)];
 }
 
 function samplePrograms() {
@@ -203,6 +246,13 @@ test("training category filtering returns only matching programmes", function ()
 
   assert.equal(horticulture.length, 1);
   assert.equal(horticulture[0].title, "Rambutan Orchard Care");
+});
+
+test("English and Malayalam natural-language entries open training and schemes", function () {
+  assert.equal(getNaturalFeatureEntry("training programmes"), "TRAINING");
+  assert.equal(getNaturalFeatureEntry("പരിശീലനങ്ങൾ"), "TRAINING");
+  assert.equal(getNaturalFeatureEntry("government schemes"), "SCHEMES");
+  assert.equal(getNaturalFeatureEntry("സർക്കാർ പദ്ധതികൾ"), "SCHEMES");
 });
 
 test("training details are farmer-friendly and hide the internal programme ID", function () {
@@ -361,8 +411,12 @@ test("English training menu and confirmation use click-first actions", async fun
     return row.id === TRAINING_ACTION_IDS.UPCOMING;
   }));
   assert.ok(menuRows.some(function (row) {
-    return row.id === TRAINING_ACTION_IDS.MY_TRAININGS;
+    return row.id === TRAINING_ACTION_IDS.MY_REQUESTS;
   }));
+  assert.ok(menuRows.some(function (row) {
+    return row.id === TRAINING_ACTION_IDS.ENTREPRENEURSHIP;
+  }));
+  assert.equal(menuRows.length, 8);
   assert.match(
     harness.calls[1].body.interactive.body.text,
     /Training Registration Confirmed/
@@ -511,7 +565,7 @@ test("submitting a training request stores identity from the farmer record by he
     topic: "Rambutan fruit fly management",
     language: "English",
     sourceMessageId: "wamid.training-request-submit",
-    registrationRows: [REGISTRATION_HEADERS],
+    requestRows: [REQUEST_HEADERS],
     now: NOW,
     appendRegistration: async function (sheetName, row) {
       appended.push({ sheetName: sheetName, row: row });
@@ -521,15 +575,16 @@ test("submitting a training request stores identity from the farmer record by he
 
   assert.equal(result.success, true);
   assert.equal(appended.length, 1);
-  assert.equal(appended[0].sheetName, "Service_Request");
-  assert.equal(valueFromRow(appended[0].row, "Farmer_ID"), "BM-F-100");
-  assert.equal(valueFromRow(appended[0].row, "Farmer_Name"), "Anu");
-  assert.equal(valueFromRow(appended[0].row, "Mobile_No"), "919111111111");
-  assert.equal(valueFromRow(appended[0].row, "District"), "Pathanamthitta");
-  assert.equal(valueFromRow(appended[0].row, "Panchayath"), "Konni");
-  assert.equal(valueFromRow(appended[0].row, "Request_Category"), "Training Request");
-  assert.equal(valueFromRow(appended[0].row, "Request_Description"), "Rambutan fruit fly management");
-  assert.equal(valueFromRow(appended[0].row, "Status"), "Requested");
+  assert.equal(appended[0].sheetName, "Training_Requests");
+  assert.equal(valueFromRequestRow(appended[0].row, "Farmer_ID"), "BM-F-100");
+  assert.equal(valueFromRequestRow(appended[0].row, "Farmer_Name"), "Anu");
+  assert.equal(valueFromRequestRow(appended[0].row, "Mobile_No"), "919111111111");
+  assert.equal(valueFromRequestRow(appended[0].row, "District"), "Pathanamthitta");
+  assert.equal(valueFromRequestRow(appended[0].row, "Training_Topic"), "Rambutan fruit fly management");
+  assert.equal(valueFromRequestRow(appended[0].row, "Training_Category"), "Crop Production Training");
+  assert.equal(valueFromRequestRow(appended[0].row, "Request_Status"), "Requested");
+  assert.equal(valueFromRequestRow(appended[0].row, "Assigned_Coordinator"), TRAINING_COORDINATION.TRAINING);
+  assert.equal(valueFromRequestRow(appended[0].row, "Overall_Coordinator"), TRAINING_COORDINATION.OVERALL);
 });
 
 test("farmer never supplies internal identity in the training request topic", async function () {
@@ -538,7 +593,7 @@ test("farmer never supplies internal identity in the training request topic", as
     farmer: { memberId: "BM-F-777", name: "Binu", whatsapp: "919222222222" },
     topic: "Pruning of fruit crops",
     sourceMessageId: "wamid.no-typed-id",
-    registrationRows: [REGISTRATION_HEADERS],
+    requestRows: [REQUEST_HEADERS],
     now: NOW,
     appendRegistration: async function (sheetName, row) {
       savedRow = row;
@@ -546,8 +601,8 @@ test("farmer never supplies internal identity in the training request topic", as
     }
   });
 
-  assert.equal(valueFromRow(savedRow, "Farmer_ID"), "BM-F-777");
-  assert.doesNotMatch(valueFromRow(savedRow, "Request_Description"), /BM-F-777/);
+  assert.equal(valueFromRequestRow(savedRow, "Farmer_ID"), "BM-F-777");
+  assert.doesNotMatch(valueFromRequestRow(savedRow, "Training_Topic"), /BM-F-777/);
 });
 
 test("Change replaces pending text and no request is written before Submit", function () {
@@ -591,14 +646,14 @@ test("Cancel button is available before submission and creates no request", asyn
 
 test("duplicate Submit webhook uses a deterministic request ID and appends once", async function () {
   const sourceMessageId = "wamid.duplicate-training-request";
-  const firstRows = [REGISTRATION_HEADERS];
+  const firstRows = [REQUEST_HEADERS];
   let appendCount = 0;
   let appendedRow = null;
   const input = {
     farmer: { memberId: "BM-F-100", name: "Anu" },
     topic: "Mushroom cultivation",
     sourceMessageId: sourceMessageId,
-    registrationRows: firstRows,
+    requestRows: firstRows,
     now: NOW,
     appendRegistration: async function (sheetName, row) {
       appendCount += 1;
@@ -608,7 +663,7 @@ test("duplicate Submit webhook uses a deterministic request ID and appends once"
   };
   const first = await submitTrainingRequest(input);
   const second = await submitTrainingRequest(Object.assign({}, input, {
-    registrationRows: [REGISTRATION_HEADERS, appendedRow]
+    requestRows: [REQUEST_HEADERS, appendedRow]
   }));
 
   assert.equal(first.requestId, trainingRequestId(sourceMessageId));
@@ -619,22 +674,22 @@ test("duplicate Submit webhook uses a deterministic request ID and appends once"
 
 test("My Training Requests returns only the inbound farmer's records", function () {
   const rows = [
-    REGISTRATION_HEADERS,
-    registrationRow({
+    REQUEST_HEADERS,
+    requestRow({
       Request_ID: "BM-TRQ-A",
-      Request_Date: "2026-10-17T10:00:00.000Z",
+      Created_At: "2026-10-17T10:00:00.000Z",
       Farmer_ID: "BM-F-100",
-      Request_Category: "Training Request",
-      Request_Description: "Mushroom cultivation",
-      Status: "Requested"
+      Training_Topic: "Mushroom cultivation",
+      Request_Status: "Requested",
+      Preferred_Mode: "Online",
+      Preferred_Time: TRAINING_TIMES.AFTERNOON
     }),
-    registrationRow({
+    requestRow({
       Request_ID: "BM-TRQ-B",
-      Request_Date: "2026-10-17T11:00:00.000Z",
+      Created_At: "2026-10-17T11:00:00.000Z",
       Farmer_ID: "BM-F-200",
-      Request_Category: "Training Request",
-      Request_Description: "Dairy feed preparation",
-      Status: "Pending"
+      Training_Topic: "Dairy feed preparation",
+      Request_Status: "Pending"
     })
   ];
   const mine = readTrainingRequests(rows, "BM-F-100");
@@ -642,6 +697,7 @@ test("My Training Requests returns only the inbound farmer's records", function 
   assert.equal(mine.length, 1);
   assert.equal(mine[0].topic, "Mushroom cultivation");
   assert.equal(mine[0].status, "Requested");
+  assert.equal(mine[0].preferredTime, TRAINING_TIMES.AFTERNOON);
 });
 
 test("English Request a Training flow is click-first through confirmation", async function () {
@@ -660,7 +716,7 @@ test("English Request a Training flow is click-first through confirmation", asyn
     "Mushroom cultivation"
   );
 
-  assert.match(harness.calls[0].body.interactive.body.text, /ask KVK/);
+  assert.match(harness.calls[0].body.interactive.body.text, /registrations and popular trainings/);
   assert.match(harness.calls[1].body.interactive.body.text, /type your need or send a voice message/);
   assert.match(harness.calls[2].body.interactive.body.text, /Submit this request to KVK/);
   assert.match(harness.calls[3].body.interactive.body.text, /Training Request Submitted/);
@@ -718,7 +774,7 @@ test("missing KVK alert destination does not send and does not affect stored req
     farmer: { memberId: "BM-F-100", name: "Anu" },
     topic: "Mushroom cultivation",
     sourceMessageId: "wamid.no-alert-config",
-    registrationRows: [REGISTRATION_HEADERS],
+    requestRows: [REQUEST_HEADERS],
     now: NOW,
     appendRegistration: async function () {
       appendCount += 1;
@@ -772,7 +828,7 @@ test("Offline mode selection skips the online time question", function () {
 
   assert.equal(selected.success, true);
   assert.equal(selected.session.mode, "Offline / In-person");
-  assert.equal(selected.session.step, "awaiting_confirmation");
+  assert.equal(selected.session.step, "awaiting_location");
   assert.equal(selected.session.preferredTime, "Not applicable");
 });
 
@@ -785,8 +841,46 @@ test("Either mode selection skips the online time question", function () {
 
   assert.equal(selected.success, true);
   assert.equal(selected.session.mode, "Either");
-  assert.equal(selected.session.step, "awaiting_confirmation");
+  assert.equal(selected.session.step, "awaiting_location");
   assert.equal(selected.session.preferredTime, "Not applicable");
+});
+
+test("location date and remarks advance the request to confirmation", function () {
+  const modeSelected = selectTrainingRequestMode(
+    capturedTrainingRequest(),
+    TRAINING_MODES.OFFLINE,
+    NOW
+  );
+  const location = captureTrainingRequestLocation(
+    modeSelected.session,
+    "Konni",
+    NOW
+  );
+  const date = captureTrainingRequestDate(
+    location.session,
+    "15 November 2026",
+    NOW
+  );
+  const remarks = captureTrainingRequestRemarks(
+    date.session,
+    "Morning preferred",
+    NOW
+  );
+
+  assert.equal(location.session.step, "awaiting_date");
+  assert.equal(date.session.step, "awaiting_remarks");
+  assert.equal(remarks.session.step, "awaiting_confirmation");
+  assert.equal(remarks.session.preferredLocation, "Konni");
+  assert.equal(remarks.session.preferredDate, "15 November 2026");
+  assert.equal(remarks.session.remarks, "Morning preferred");
+});
+
+test("training categories are inferred conservatively from the requested topic", function () {
+  assert.equal(inferTrainingCategory("Mushroom cultivation"), "Crop Production Training");
+  assert.equal(inferTrainingCategory("Dairy feed preparation"), "Animal Husbandry Training");
+  assert.equal(inferTrainingCategory("Farm business planning"), "Agricultural Entrepreneurship Training");
+  assert.equal(inferTrainingCategory("Food processing and packaging"), "Value Addition Training");
+  assert.equal(inferTrainingCategory("A topic without a known category"), "Other / Farmer requested");
 });
 
 [
@@ -807,33 +901,36 @@ test("Either mode selection skips the online time question", function () {
     );
 
     assert.equal(timeSelected.success, true);
-    assert.equal(timeSelected.session.step, "awaiting_confirmation");
+    assert.equal(timeSelected.session.step, "awaiting_location");
     assert.equal(timeSelected.session.preferredTime, preferredTime);
   });
 });
 
-test("training request preferences are stored in existing Service_Request fields", async function () {
+test("training request preferences are stored in dedicated Training_Requests fields", async function () {
   let savedRow = null;
   const result = await submitTrainingRequest({
     farmer: { memberId: "BM-F-100", name: "Anu" },
     topic: "Mushroom cultivation",
     mode: TRAINING_MODES.ONLINE,
     preferredTime: TRAINING_TIMES.EVENING,
+    preferredLocation: "Online",
+    preferredDate: "November 2026",
+    remarks: "Weekend preferred",
     sourceMessageId: "wamid.preference-storage",
-    registrationRows: [REGISTRATION_HEADERS],
+    requestRows: [REQUEST_HEADERS],
     now: NOW,
     appendRegistration: async function (sheetName, row) {
       savedRow = row;
       return true;
     }
   });
-  const remarks = valueFromRow(savedRow, "Remarks");
-
   assert.equal(result.success, true);
-  assert.equal(valueFromRow(savedRow, "Service_Type"), "Training Request");
-  assert.equal(valueFromRow(savedRow, "Request_Description"), "Mushroom cultivation");
-  assert.match(remarks, /Training Mode: Online/);
-  assert.match(remarks, /Preferred Time: 7:00–10:00 PM/);
+  assert.equal(valueFromRequestRow(savedRow, "Training_Topic"), "Mushroom cultivation");
+  assert.equal(valueFromRequestRow(savedRow, "Preferred_Mode"), "Online");
+  assert.equal(valueFromRequestRow(savedRow, "Preferred_Time"), TRAINING_TIMES.EVENING);
+  assert.equal(valueFromRequestRow(savedRow, "Preferred_Location"), "Online");
+  assert.equal(valueFromRequestRow(savedRow, "Preferred_Date"), "November 2026");
+  assert.equal(valueFromRequestRow(savedRow, "Remarks"), "Weekend preferred");
 });
 
 test("request confirmation shows topic mode and time", async function () {
@@ -844,13 +941,19 @@ test("request confirmation shows topic mode and time", async function () {
     "English",
     "Mushroom cultivation",
     TRAINING_MODES.ONLINE,
-    TRAINING_TIMES.AFTERNOON
+    TRAINING_TIMES.AFTERNOON,
+    "Online",
+    "November 2026",
+    "Weekend preferred"
   );
 
   const text = harness.calls[0].body.interactive.body.text;
   assert.match(text, /Requested training:\nMushroom cultivation/);
   assert.match(text, /Preferred mode: Online/);
   assert.match(text, /Preferred time: 2:00–5:00 PM/);
+  assert.match(text, /Preferred location: Online/);
+  assert.match(text, /Preferred date: November 2026/);
+  assert.match(text, /Remarks: Weekend preferred/);
 });
 
 test("My Training Requests includes stored mode and time preferences", async function () {

@@ -4,6 +4,12 @@ const crypto = require("crypto");
 
 const TRAINING_PROGRAM_SHEET = "Training_Events_";
 const TRAINING_REGISTRATION_SHEET = "Service_Request";
+const TRAINING_REQUEST_SHEET = "Training_Requests";
+
+const TRAINING_COORDINATION = Object.freeze({
+  OVERALL: "Dr. Sindhu Sadanandan",
+  TRAINING: "Sri Binu John"
+});
 
 const TRAINING_ACTION_IDS = Object.freeze({
   OPEN: "HOME_TRAINING",
@@ -11,6 +17,7 @@ const TRAINING_ACTION_IDS = Object.freeze({
   CROP_PRODUCTION: "TRAINING_CAT_CROP",
   HORTICULTURE: "TRAINING_CAT_HORTICULTURE",
   ANIMAL_HUSBANDRY: "TRAINING_CAT_ANIMAL",
+  ENTREPRENEURSHIP: "TRAINING_CAT_ENTREPRENEURSHIP",
   PLANT_PROTECTION: "TRAINING_CAT_PROTECTION",
   VALUE_ADDITION: "TRAINING_CAT_VALUE",
   FARM_MACHINERY: "TRAINING_CAT_MACHINERY",
@@ -28,6 +35,7 @@ const TRAINING_ACTION_IDS = Object.freeze({
   REQUEST_CHANGE: "TRAINING_REQUEST_CHANGE",
   REQUEST_CANCEL: "TRAINING_REQUEST_CANCEL",
   MY_REQUESTS: "TRAINING_MY_REQUESTS",
+  INFORMATION: "TRAINING_INFORMATION",
   MORE: "TRAINING_MORE",
   MAIN_MENU: "TRAINING_HOME"
 });
@@ -153,6 +161,7 @@ function readTrainingPrograms(sheetRows) {
       date: clean(getValue(row, headerMap, ["Date", "Training_Date", "Event_Date"])),
       time: clean(getValue(row, headerMap, ["Time", "Training_Time", "Event_Time"])),
       venue: clean(getValue(row, headerMap, ["Venue", "Location", "Mode"])),
+      mode: clean(getValue(row, headerMap, ["Mode", "Training_Mode", "Delivery_Mode"])),
       district: clean(getValue(row, headerMap, ["District"])),
       organizer: clean(getValue(row, headerMap, ["Organizer", "Organisation", "Organization"])),
       category: clean(getValue(row, headerMap, ["category", "Category", "Subject", "Topic"])),
@@ -199,7 +208,8 @@ function categoryMatches(programCategory, filter) {
     /animal|livestock|dairy|poultry|veterinary/,
     /plant protection|pest|disease|entomology|pathology/,
     /value addition|processing|post harvest|food/,
-    /machinery|mechanization|mechanisation|equipment/
+    /machinery|mechanization|mechanisation|equipment/,
+    /entrepreneur|enterprise|business|startup|self employment/
   ];
   const patternsByFilter = {
     CROP_PRODUCTION: knownPatterns[0],
@@ -207,7 +217,8 @@ function categoryMatches(programCategory, filter) {
     ANIMAL_HUSBANDRY: knownPatterns[2],
     PLANT_PROTECTION: knownPatterns[3],
     VALUE_ADDITION: knownPatterns[4],
-    FARM_MACHINERY: knownPatterns[5]
+    FARM_MACHINERY: knownPatterns[5],
+    ENTREPRENEURSHIP: knownPatterns[6]
   };
 
   if (filter === "ALL" || filter === "UPCOMING") {
@@ -286,6 +297,7 @@ function parseTrainingAction(selectionId) {
   fixed[TRAINING_ACTION_IDS.CROP_PRODUCTION] = { action: "LIST", filter: "CROP_PRODUCTION" };
   fixed[TRAINING_ACTION_IDS.HORTICULTURE] = { action: "LIST", filter: "HORTICULTURE" };
   fixed[TRAINING_ACTION_IDS.ANIMAL_HUSBANDRY] = { action: "LIST", filter: "ANIMAL_HUSBANDRY" };
+  fixed[TRAINING_ACTION_IDS.ENTREPRENEURSHIP] = { action: "LIST", filter: "ENTREPRENEURSHIP" };
   fixed[TRAINING_ACTION_IDS.PLANT_PROTECTION] = { action: "LIST", filter: "PLANT_PROTECTION" };
   fixed[TRAINING_ACTION_IDS.VALUE_ADDITION] = { action: "LIST", filter: "VALUE_ADDITION" };
   fixed[TRAINING_ACTION_IDS.FARM_MACHINERY] = { action: "LIST", filter: "FARM_MACHINERY" };
@@ -321,6 +333,7 @@ function parseTrainingAction(selectionId) {
   fixed[TRAINING_ACTION_IDS.REQUEST_CHANGE] = { action: "REQUEST_CHANGE" };
   fixed[TRAINING_ACTION_IDS.REQUEST_CANCEL] = { action: "REQUEST_CANCEL" };
   fixed[TRAINING_ACTION_IDS.MY_REQUESTS] = { action: "MY_REQUESTS" };
+  fixed[TRAINING_ACTION_IDS.INFORMATION] = { action: "INFORMATION" };
   fixed[TRAINING_ACTION_IDS.MORE] = { action: "OPEN" };
   fixed[TRAINING_ACTION_IDS.MAIN_MENU] = { action: "MAIN_MENU" };
 
@@ -469,6 +482,8 @@ function buildTrainingDetails(program, language, options) {
         "തീയതി: " + (clean(program && program.date) || "ലഭ്യമല്ല"),
         "സമയം: " + (clean(program && program.time) || "ലഭ്യമല്ല"),
         "വേദി: " + (clean(program && program.venue) || "ലഭ്യമല്ല"),
+        "രീതി: " + (clean(program && program.mode) || "ലഭ്യമല്ല"),
+        "സംഘാടകർ: " + (clean(program && program.organizer) || "ലഭ്യമല്ല"),
         "വിഷയം: " + (clean(program && program.category) || "ലഭ്യമല്ല"),
         "പങ്കെടുക്കാവുന്നവർ: " + (clean(program && program.audience) || "വിവരം ലഭ്യമല്ല")
       ]
@@ -479,6 +494,8 @@ function buildTrainingDetails(program, language, options) {
         "Date: " + (clean(program && program.date) || "Not provided"),
         "Time: " + (clean(program && program.time) || "Not provided"),
         "Venue: " + (clean(program && program.venue) || "Not provided"),
+        "Mode: " + (clean(program && program.mode) || "Not provided"),
+        "Organiser: " + (clean(program && program.organizer) || "Not provided"),
         "Topic: " + (clean(program && program.category) || "Not provided"),
         "Who can attend: " + (clean(program && program.audience) || "Not provided")
       ];
@@ -586,6 +603,52 @@ function requiredRegistrationHeadersPresent(headers) {
   });
 }
 
+function requiredTrainingRequestHeadersPresent(headers) {
+  const map = makeHeaderMap(headers);
+  const required = [
+    "Request_ID",
+    "Farmer_ID",
+    "Mobile_No",
+    "Farmer_Name",
+    "District",
+    "Training_Category",
+    "Training_Topic",
+    "Preferred_Mode",
+    "Preferred_Time",
+    "Preferred_Location",
+    "Preferred_Date",
+    "Remarks",
+    "Request_Status",
+    "Assigned_Coordinator",
+    "Overall_Coordinator",
+    "Training_Coordinator",
+    "Created_At"
+  ];
+
+  return required.every(function (header) {
+    return map[normalizeHeader(header)] !== undefined;
+  });
+}
+
+function inferTrainingCategory(topic) {
+  const value = normalizeTrainingRequestTopic(topic).toLowerCase();
+
+  if (/animal|livestock|dairy|cattle|goat|poultry|veterinary|fish|fishery/.test(value)) {
+    return "Animal Husbandry Training";
+  }
+  if (/value addition|processing|preserv|packag|post harvest|food product/.test(value)) {
+    return "Value Addition Training";
+  }
+  if (/entrepreneur|enterprise|business|startup|marketing|self employment/.test(value)) {
+    return "Agricultural Entrepreneurship Training";
+  }
+  if (/crop|cultivat|production|plant|soil|seed|nursery|orchard|fruit|vegetable|mushroom|pest|disease|prun/.test(value)) {
+    return "Crop Production Training";
+  }
+
+  return "Other / Farmer requested";
+}
+
 function normalizeTrainingRequestTopic(value) {
   return clean(value).replace(/\s+/g, " ").slice(0, 500);
 }
@@ -604,6 +667,9 @@ function createTrainingRequestSession(farmer, language, now) {
     inputType: "",
     mode: "",
     preferredTime: "",
+    preferredLocation: "",
+    preferredDate: "",
+    remarks: "",
     updatedAt: now instanceof Date ? now.getTime() : Date.now()
   };
 }
@@ -636,7 +702,7 @@ function selectTrainingRequestMode(session, mode, now) {
 
   const online = normalizedMode === TRAINING_MODES.ONLINE;
   const updated = Object.assign({}, session, {
-    step: online ? "awaiting_time" : "awaiting_confirmation",
+    step: online ? "awaiting_time" : "awaiting_location",
     mode: normalizedMode,
     preferredTime: online ? "" : TRAINING_TIMES.NOT_APPLICABLE,
     updatedAt: now instanceof Date ? now.getTime() : Date.now()
@@ -667,8 +733,58 @@ function selectTrainingRequestTime(session, preferredTime, now) {
   return {
     success: true,
     session: Object.assign({}, session, {
-      step: "awaiting_confirmation",
+      step: "awaiting_location",
       preferredTime: normalizedTime,
+      updatedAt: now instanceof Date ? now.getTime() : Date.now()
+    })
+  };
+}
+
+function optionalTrainingRequestValue(value, maximum) {
+  const text = clean(value);
+  if (/^(?:skip|none|n\/a|not applicable|ഒഴിവാക്കുക|വേണ്ട)$/i.test(text)) {
+    return "";
+  }
+  return trainingRequestSheetValue(text).slice(0, maximum || 300);
+}
+
+function captureTrainingRequestLocation(session, value, now) {
+  if (!session || session.step !== "awaiting_location") {
+    return { success: false, code: "INVALID_LOCATION_STATE", session: session || null };
+  }
+  return {
+    success: true,
+    session: Object.assign({}, session, {
+      step: "awaiting_date",
+      preferredLocation: optionalTrainingRequestValue(value, 200),
+      updatedAt: now instanceof Date ? now.getTime() : Date.now()
+    })
+  };
+}
+
+function captureTrainingRequestDate(session, value, now) {
+  if (!session || session.step !== "awaiting_date") {
+    return { success: false, code: "INVALID_DATE_STATE", session: session || null };
+  }
+  return {
+    success: true,
+    session: Object.assign({}, session, {
+      step: "awaiting_remarks",
+      preferredDate: optionalTrainingRequestValue(value, 100),
+      updatedAt: now instanceof Date ? now.getTime() : Date.now()
+    })
+  };
+}
+
+function captureTrainingRequestRemarks(session, value, now) {
+  if (!session || session.step !== "awaiting_remarks") {
+    return { success: false, code: "INVALID_REMARKS_STATE", session: session || null };
+  }
+  return {
+    success: true,
+    session: Object.assign({}, session, {
+      step: "awaiting_confirmation",
+      remarks: optionalTrainingRequestValue(value, 500),
       updatedAt: now instanceof Date ? now.getTime() : Date.now()
     })
   };
@@ -685,6 +801,9 @@ function changeTrainingRequest(session, now) {
     inputType: "",
     mode: "",
     preferredTime: "",
+    preferredLocation: "",
+    preferredDate: "",
+    remarks: "",
     updatedAt: now instanceof Date ? now.getTime() : Date.now()
   });
 }
@@ -733,11 +852,16 @@ function readTrainingRequests(registrationRows, farmerId) {
   const headers = rows[0] || [];
   const headerMap = makeHeaderMap(headers);
   const targetFarmer = clean(farmerId).toUpperCase();
+  const isDedicatedSheet =
+    headerMap[normalizeHeader("Training_Topic")] !== undefined;
 
   return rows.slice(1).filter(function (row) {
     return (
       clean(getValue(row, headerMap, ["Farmer_ID"])).toUpperCase() === targetFarmer &&
-      clean(getValue(row, headerMap, ["Request_Category"])).toLowerCase() === "training request"
+      (
+        isDedicatedSheet ||
+        clean(getValue(row, headerMap, ["Request_Category"])).toLowerCase() === "training request"
+      )
     );
   }).map(function (row) {
     const preferences = parseTrainingRequestPreferences(
@@ -746,11 +870,20 @@ function readTrainingRequests(registrationRows, farmerId) {
 
     return {
       requestId: clean(getValue(row, headerMap, ["Request_ID"])),
-      requestedAt: clean(getValue(row, headerMap, ["Request_Date"])),
-      topic: clean(getValue(row, headerMap, ["Request_Description"])),
-      status: clean(getValue(row, headerMap, ["Status"])) || "Requested",
-      mode: preferences.mode,
-      preferredTime: preferences.preferredTime
+      requestedAt: clean(getValue(row, headerMap, ["Created_At", "Request_Date"])),
+      topic: clean(getValue(row, headerMap, ["Training_Topic", "Request_Description"])),
+      status: clean(getValue(row, headerMap, ["Request_Status", "Status"])) || "Requested",
+      mode: clean(getValue(row, headerMap, ["Preferred_Mode"])) || preferences.mode,
+      preferredTime: clean(getValue(row, headerMap, ["Preferred_Time"])) || preferences.preferredTime,
+      category: clean(getValue(row, headerMap, ["Training_Category"])),
+      preferredLocation: clean(getValue(row, headerMap, ["Preferred_Location"])),
+      preferredDate: clean(getValue(row, headerMap, ["Preferred_Date"])),
+      remarks: clean(getValue(row, headerMap, ["Remarks"])),
+      assignedCoordinator: clean(getValue(row, headerMap, ["Assigned_Coordinator"])),
+      confirmedTrainingId: clean(getValue(row, headerMap, ["Confirmed_Training_ID"])),
+      confirmedTrainingTitle: clean(getValue(row, headerMap, ["Confirmed_Training_Title"])),
+      confirmedDate: clean(getValue(row, headerMap, ["Confirmed_Date"])),
+      confirmedLocation: clean(getValue(row, headerMap, ["Confirmed_Location"]))
     };
   }).sort(function (left, right) {
     const leftTime = Date.parse(left.requestedAt) || 0;
@@ -767,6 +900,23 @@ async function submitTrainingRequest(options) {
   const preferredTime = mode === TRAINING_MODES.ONLINE
     ? clean(input.preferredTime)
     : TRAINING_TIMES.NOT_APPLICABLE;
+  const preferredLocation = optionalTrainingRequestValue(
+    input.preferredLocation,
+    200
+  );
+  const preferredDate = optionalTrainingRequestValue(
+    input.preferredDate,
+    100
+  );
+  const remarks = optionalTrainingRequestValue(input.remarks, 500);
+  const category = optionalTrainingRequestValue(
+    input.category || inferTrainingCategory(topic),
+    150
+  );
+  const assignedCoordinator = optionalTrainingRequestValue(
+    input.programCoordinator || input.assignedCoordinator || TRAINING_COORDINATION.TRAINING,
+    150
+  );
 
   if (!clean(farmer.memberId)) {
     return { success: false, code: "FARMER_REQUIRED" };
@@ -791,13 +941,15 @@ async function submitTrainingRequest(options) {
     return { success: false, code: "TIME_REQUIRED" };
   }
 
-  const rows = Array.isArray(input.registrationRows)
-    ? input.registrationRows
+  const rows = Array.isArray(input.requestRows)
+    ? input.requestRows
+    : Array.isArray(input.registrationRows)
+      ? input.registrationRows
     : [];
   const headers = rows[0] || [];
 
-  if (!requiredRegistrationHeadersPresent(headers)) {
-    return { success: false, code: "REGISTRATION_SCHEMA_UNAVAILABLE" };
+  if (!requiredTrainingRequestHeadersPresent(headers)) {
+    return { success: false, code: "TRAINING_REQUEST_SCHEMA_UNAVAILABLE" };
   }
 
   const requestId = trainingRequestId(input.sourceMessageId);
@@ -813,31 +965,36 @@ async function submitTrainingRequest(options) {
       requestId: requestId,
       topic: topic,
       mode: mode,
-      preferredTime: preferredTime
+      preferredTime: preferredTime,
+      category: category,
+      assignedCoordinator: assignedCoordinator
     };
   }
 
   const now = input.now instanceof Date ? input.now : new Date(input.now || Date.now());
   const row = buildRowFromHeaders(headers, {
     Request_ID: requestId,
-    Request_Date: now.toISOString(),
-    BM_ID: farmer.memberId,
     Farmer_ID: farmer.memberId,
-    Farmer_Name: farmer.name || "",
     Mobile_No: farmer.whatsapp || farmer.mobile || input.farmerWhatsApp || "",
+    Farmer_Name: farmer.name || "",
     District: farmer.district || "",
-    Panchayath: farmer.panchayath || "",
-    Request_Category: "Training Request",
-    Service_Type: "Training Request",
-    Request_Description: trainingRequestSheetValue(topic),
-    Priority: "Normal",
-    Status: "Requested",
-    Preferred_Language: input.language || farmer.preferredLanguage || "",
-    Language: input.language || farmer.preferredLanguage || "",
-    Remarks: formatTrainingRequestRemarks(mode, preferredTime)
+    Training_Category: category,
+    Training_Topic: trainingRequestSheetValue(topic),
+    Preferred_Mode: mode,
+    Preferred_Time: preferredTime,
+    Preferred_Location: preferredLocation,
+    Preferred_Date: preferredDate,
+    Remarks: remarks,
+    Request_Status: "Requested",
+    Assigned_Coordinator: assignedCoordinator,
+    Created_At: now.toISOString(),
+    Updated_At: now.toISOString(),
+    Overall_Coordinator: TRAINING_COORDINATION.OVERALL,
+    Training_Coordinator: TRAINING_COORDINATION.TRAINING,
+    Source_Message_ID: clean(input.sourceMessageId)
   });
   const appendResult = await input.appendRegistration(
-    TRAINING_REGISTRATION_SHEET,
+    TRAINING_REQUEST_SHEET,
     row
   );
   const appended = appendResult === true ||
@@ -851,6 +1008,11 @@ async function submitTrainingRequest(options) {
         topic: topic,
         mode: mode,
         preferredTime: preferredTime,
+        preferredLocation: preferredLocation,
+        preferredDate: preferredDate,
+        remarks: remarks,
+        category: category,
+        assignedCoordinator: assignedCoordinator,
         row: row
       }
     : { success: false, code: "REQUEST_SAVE_FAILED", topic: topic };
@@ -977,7 +1139,10 @@ async function registerFarmerForTraining(options) {
     Request_Description: program.title,
     Priority: "Normal",
     Preferred_Date: program.date,
-    Assigned_To_Name: program.organizer,
+    Assigned_To_Name:
+      program.coordinator ||
+      program.organizer ||
+      TRAINING_COORDINATION.TRAINING,
     Status: "Registered",
     "Service Fee": program.fee || "",
     Remarks: "WhatsApp training registration"
@@ -1033,14 +1198,19 @@ module.exports = {
   TRAINING_ACTION_IDS,
   TRAINING_DYNAMIC_PREFIXES,
   TRAINING_MODES,
+  TRAINING_COORDINATION,
   TRAINING_PROGRAM_SHEET,
   TRAINING_REGISTRATION_SHEET,
+  TRAINING_REQUEST_SHEET,
   TRAINING_TIMES,
   buildPromotedTrainingDetails,
   buildPromotedTrainingListRows,
   buildTrainingRequestAlert,
   buildTrainingDetails,
   buildTrainingListRows,
+  captureTrainingRequestDate,
+  captureTrainingRequestLocation,
+  captureTrainingRequestRemarks,
   captureTrainingRequest,
   categoryMatches,
   changeTrainingRequest,
@@ -1052,11 +1222,13 @@ module.exports = {
   formatTrainingRequestRemarks,
   getMyTrainings,
   getPromotedTrainingPrograms,
+  inferTrainingCategory,
   isUpcoming,
   parseTrainingAction,
   parseTrainingRequestPreferences,
   readTrainingRequests,
   readTrainingPrograms,
+  requiredTrainingRequestHeadersPresent,
   registerFarmerForTraining,
   registrationAvailability,
   resolveTrainingAlertDestination,

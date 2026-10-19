@@ -177,6 +177,52 @@ const TAB_SCHEMAS = {
     ),
     expectedPositions: { 0: ["Animal_ID", "Animal ID"] }
   },
+  Crop_Registry: {
+    idAliases: ["Crop_ID", "Crop ID"],
+    idPrefix: "BM-C-",
+    required: fields(
+      ["Crop_ID", "Crop ID"],
+      ["Farmer_ID", "Farmer ID"],
+      ["Land_ID", "Land ID"],
+      ["Crop_Name", "Crop Name"]
+    ),
+    expectedPositions: { 0: ["Crop_ID", "Crop ID"] }
+  },
+  Government_Schemes: {
+    idAliases: ["Scheme_ID", "Scheme ID"],
+    required: fields(
+      ["Scheme_ID", "Scheme ID"],
+      ["Scheme_Name", "Scheme Name"],
+      ["Government", "Government_Level", "Scheme_Level"],
+      ["Category", "Scheme_Category"],
+      ["Status", "Active_Status"],
+      ["Source", "Official_Source"],
+      ["Official_URL", "Official_Link", "Application_Link"],
+      ["Last_Checked", "Last_Updated", "Updated_On"]
+    )
+  },
+  Training_Requests: {
+    idAliases: ["Request_ID", "Request ID"],
+    idPrefix: "BM-TRQ-",
+    required: fields(
+      ["Request_ID", "Request ID"],
+      ["Farmer_ID", "Farmer ID"],
+      ["Mobile_No", "Mobile No", "WhatsApp"],
+      ["Farmer_Name", "Farmer Name"],
+      ["District"],
+      ["Training_Category", "Training Category"],
+      ["Training_Topic", "Training Topic"],
+      ["Preferred_Mode", "Preferred Mode"],
+      ["Preferred_Time", "Preferred Time"],
+      ["Preferred_Location", "Preferred Location"],
+      ["Preferred_Date", "Preferred Date"],
+      ["Request_Status", "Request Status"],
+      ["Assigned_Coordinator", "Assigned Coordinator"],
+      ["Overall_Coordinator", "Overall Coordinator"],
+      ["Training_Coordinator", "Training Coordinator"],
+      ["Created_At", "Created At"]
+    )
+  },
   Satellite_Observations: {
     idAliases: ["Observation_ID", "Observation ID"],
     idPrefix: "SAT-",
@@ -744,7 +790,9 @@ function relationAudit(lookup, sourceTab, sourceAliases, targetTab, targetAliase
 function auditCrossTabRelations(lookup) {
   return [
     relationAudit(lookup, "Land_Parcels", ["Farmer_ID", "Farmer ID"], "Farmers", TAB_SCHEMAS.Farmers.idAliases),
+    relationAudit(lookup, "Crop_Registry", ["Farmer_ID", "Farmer ID"], "Farmers", TAB_SCHEMAS.Farmers.idAliases),
     relationAudit(lookup, "Animal_Registry", ["Farmer_ID", "Farmer ID"], "Farmers", TAB_SCHEMAS.Farmers.idAliases),
+    relationAudit(lookup, "Training_Requests", ["Farmer_ID", "Farmer ID"], "Farmers", TAB_SCHEMAS.Farmers.idAliases),
     relationAudit(lookup, "User_Consent_Log", ["Farmer_ID", "Farmer ID"], "Farmers", TAB_SCHEMAS.Farmers.idAliases),
     relationAudit(lookup, "Land_Boundary_Points", ["Land_ID", "Land ID"], "Land_Parcels", TAB_SCHEMAS.Land_Parcels.idAliases),
     relationAudit(lookup, "Land_Access", ["Land_ID", "Land ID"], "Land_Parcels", TAB_SCHEMAS.Land_Parcels.idAliases),

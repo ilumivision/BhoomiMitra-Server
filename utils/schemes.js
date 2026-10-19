@@ -10,15 +10,21 @@ const SCHEME_ANIMAL_SHEET = "Animal_Registry";
 
 const SCHEME_ACTION_IDS = Object.freeze({
   OPEN: "HOME_SCHEMES",
+  CENTRAL: "SCHEME_GOV_CENTRAL",
+  KERALA: "SCHEME_GOV_KERALA",
   RELEVANT: "SCHEME_RELEVANT",
   CROP: "SCHEME_CAT_CROP",
   LIVESTOCK: "SCHEME_CAT_LIVESTOCK",
+  FISHERIES: "SCHEME_CAT_FISHERIES",
+  ENTERPRISE: "SCHEME_CAT_ENTERPRISE",
   MACHINERY: "SCHEME_CAT_MACHINERY",
   FINANCIAL: "SCHEME_CAT_FINANCIAL",
   INSURANCE: "SCHEME_CAT_INSURANCE",
   ADVISORIES: "SCHEME_ADVISORIES",
   SEARCH: "SCHEME_SEARCH",
   MY_INTERESTS: "SCHEME_MY_INTERESTS",
+  MORE_CATEGORIES: "SCHEME_MORE_CATEGORIES",
+  APPLICATION_GUIDANCE: "SCHEME_APPLICATION_GUIDANCE",
   MAIN_MENU: "SCHEME_HOME"
 });
 
@@ -204,7 +210,9 @@ function schemeSearchText(scheme) {
 
 const CATEGORY_PATTERNS = {
   CROP: /crop|agriculture|horticulture|coconut|fruit|vegetable|spice|plantation|replant/,
-  LIVESTOCK: /livestock|animal|dairy|cattle|goat|poultry|fish|fishery|veterinary/,
+  LIVESTOCK: /livestock|animal|dairy|cattle|goat|poultry|veterinary/,
+  FISHERIES: /fish|fishery|fisheries|aquaculture|marine|inland fishing|fisherfolk/,
+  ENTERPRISE: /enterprise|entrepreneur|business|startup|self employment|value addition|processing|marketing/,
   MACHINERY: /machinery|mechanization|mechanisation|equipment|irrigation|drip|sprinkler|pump/,
   FINANCIAL: /subsid|financial|assistance|grant|credit|loan|income|support/,
   INSURANCE: /insurance|risk|compensation|disaster|damage|relief|claim/
@@ -215,6 +223,24 @@ function filterSchemesByCategory(schemes, category) {
   if (!pattern) return schemes || [];
   return (schemes || []).filter(function (scheme) {
     return pattern.test(schemeSearchText(scheme));
+  });
+}
+
+function filterSchemesByGovernment(schemes, level) {
+  const target = clean(level).toLowerCase();
+
+  return (schemes || []).filter(function (scheme) {
+    const government = clean(scheme && scheme.government).toLowerCase();
+
+    if (target === "central") {
+      return /central|government of india|union/.test(government);
+    }
+
+    if (target === "kerala") {
+      return /kerala|state/.test(government);
+    }
+
+    return false;
   });
 }
 
@@ -473,15 +499,21 @@ function parseSchemeAction(selectionId) {
   const id = clean(selectionId);
   const fixed = {};
   fixed[SCHEME_ACTION_IDS.OPEN] = { action: "OPEN" };
+  fixed[SCHEME_ACTION_IDS.CENTRAL] = { action: "GOVERNMENT", level: "Central" };
+  fixed[SCHEME_ACTION_IDS.KERALA] = { action: "GOVERNMENT", level: "Kerala" };
   fixed[SCHEME_ACTION_IDS.RELEVANT] = { action: "RELEVANT" };
   fixed[SCHEME_ACTION_IDS.CROP] = { action: "LIST", category: "CROP" };
   fixed[SCHEME_ACTION_IDS.LIVESTOCK] = { action: "LIST", category: "LIVESTOCK" };
+  fixed[SCHEME_ACTION_IDS.FISHERIES] = { action: "LIST", category: "FISHERIES" };
+  fixed[SCHEME_ACTION_IDS.ENTERPRISE] = { action: "LIST", category: "ENTERPRISE" };
   fixed[SCHEME_ACTION_IDS.MACHINERY] = { action: "LIST", category: "MACHINERY" };
   fixed[SCHEME_ACTION_IDS.FINANCIAL] = { action: "LIST", category: "FINANCIAL" };
   fixed[SCHEME_ACTION_IDS.INSURANCE] = { action: "LIST", category: "INSURANCE" };
   fixed[SCHEME_ACTION_IDS.ADVISORIES] = { action: "ADVISORIES" };
   fixed[SCHEME_ACTION_IDS.SEARCH] = { action: "SEARCH" };
   fixed[SCHEME_ACTION_IDS.MY_INTERESTS] = { action: "MY_INTERESTS" };
+  fixed[SCHEME_ACTION_IDS.MORE_CATEGORIES] = { action: "MORE_CATEGORIES" };
+  fixed[SCHEME_ACTION_IDS.APPLICATION_GUIDANCE] = { action: "APPLICATION_GUIDANCE" };
   fixed[SCHEME_ACTION_IDS.MAIN_MENU] = { action: "MAIN_MENU" };
   if (fixed[id]) return fixed[id];
   for (const entry of [
@@ -756,6 +788,7 @@ module.exports = {
   buildFarmerSchemeProfile,
   currentAdvisories,
   filterSchemesByCategory,
+  filterSchemesByGovernment,
   findAdvisory,
   findScheme,
   isActiveScheme,

@@ -126,6 +126,7 @@ const {
 } = require("./utils/services");
 const {
   isMenuCommand,
+  getNaturalFeatureEntry,
   getWelcomeMessage,
   getServicePrompt,
   getUnavailableFarmOptionReply,
@@ -179,10 +180,14 @@ const {
 const {
   TRAINING_PROGRAM_SHEET,
   TRAINING_REGISTRATION_SHEET,
+  TRAINING_REQUEST_SHEET,
   buildPromotedTrainingDetails,
   buildPromotedTrainingListRows,
   buildTrainingDetails,
   buildTrainingListRows,
+  captureTrainingRequestDate,
+  captureTrainingRequestLocation,
+  captureTrainingRequestRemarks,
   captureTrainingRequest,
   changeTrainingRequest,
   createTrainingRequestSession,
@@ -196,7 +201,6 @@ const {
   registerFarmerForTraining,
   selectTrainingRequestMode,
   selectTrainingRequestTime,
-  sendTrainingRequestAlert,
   submitTrainingRequest
 } = require("./utils/training");
 const {
@@ -213,6 +217,7 @@ const {
   buildSchemeSearchRows,
   currentAdvisories,
   filterSchemesByCategory,
+  filterSchemesByGovernment,
   findScheme,
   parseSchemeAction,
   readSchemeInterests,
@@ -455,8 +460,6 @@ const WHATSAPP_MESSAGE_STATE_FILE =
     ".runtime",
     "whatsapp-message-state.json"
   );
-const KVK_TRAINING_ALERT_WHATSAPP =
-  process.env.KVK_TRAINING_ALERT_WHATSAPP || "";
 
 const webhookMessageLedger = createMessageLedger({
   filePath: WHATSAPP_MESSAGE_STATE_FILE,
@@ -1633,6 +1636,61 @@ async function sendTrainingHome(from, language) {
   await bhoomiMitraUI.sendTrainingRequestShortcuts(from, language);
 }
 
+async function completeTrainingRequestInput(from, value, inputType) {
+  const session = trainingRequestSessions[from];
+
+  if (!session) return false;
+
+  const language = session.language || "English";
+  let captured;
+
+  if (session.step === "awaiting_request") {
+    captured = captureTrainingRequest(session, value, inputType, new Date());
+    if (!captured.success) {
+      await bhoomiMitraUI.sendTrainingRequestPrompt(from, language);
+      return true;
+    }
+    trainingRequestSessions[from] = captured.session;
+    await bhoomiMitraUI.sendTrainingModePreference(from, language);
+    return true;
+  }
+
+  if (session.step === "awaiting_location") {
+    captured = captureTrainingRequestLocation(session, value, new Date());
+    if (!captured.success) return false;
+    trainingRequestSessions[from] = captured.session;
+    await bhoomiMitraUI.sendTrainingDatePrompt(from, language);
+    return true;
+  }
+
+  if (session.step === "awaiting_date") {
+    captured = captureTrainingRequestDate(session, value, new Date());
+    if (!captured.success) return false;
+    trainingRequestSessions[from] = captured.session;
+    await bhoomiMitraUI.sendTrainingRemarksPrompt(from, language);
+    return true;
+  }
+
+  if (session.step === "awaiting_remarks") {
+    captured = captureTrainingRequestRemarks(session, value, new Date());
+    if (!captured.success) return false;
+    trainingRequestSessions[from] = captured.session;
+    await bhoomiMitraUI.sendTrainingRequestConfirmation(
+      from,
+      language,
+      captured.session.topic,
+      captured.session.mode,
+      captured.session.preferredTime,
+      captured.session.preferredLocation,
+      captured.session.preferredDate,
+      captured.session.remarks
+    );
+    return true;
+  }
+
+  return false;
+}
+
 async function handleTrainingAction(options) {
   const input = options || {};
   const action = input.trainingAction || {};
@@ -1649,6 +1707,12 @@ async function handleTrainingAction(options) {
   if (action.action === "MAIN_MENU") {
     delete trainingRequestSessions[from];
     await bhoomiMitraUI.sendMainMenu(from, language);
+    return true;
+  }
+
+  if (action.action === "INFORMATION") {
+    delete trainingRequestSessions[from];
+    await bhoomiMitraUI.sendTrainingInformation(from, language);
     return true;
   }
 
@@ -1699,13 +1763,7 @@ async function handleTrainingAction(options) {
     if (selected.session.step === "awaiting_time") {
       await bhoomiMitraUI.sendTrainingTimePreference(from, language);
     } else {
-      await bhoomiMitraUI.sendTrainingRequestConfirmation(
-        from,
-        language,
-        selected.session.topic,
-        selected.session.mode,
-        selected.session.preferredTime
-      );
+      await bhoomiMitraUI.sendTrainingLocationPrompt(from, language);
     }
     return true;
   }
@@ -1730,13 +1788,7 @@ async function handleTrainingAction(options) {
     }
 
     trainingRequestSessions[from] = selected.session;
-    await bhoomiMitraUI.sendTrainingRequestConfirmation(
-      from,
-      language,
-      selected.session.topic,
-      selected.session.mode,
-      selected.session.preferredTime
-    );
+    await bhoomiMitraUI.sendTrainingLocationPrompt(from, language);
     return true;
   }
 
@@ -1805,12 +1857,12 @@ async function handleTrainingAction(options) {
       return true;
     }
 
-    const registrationRows = await readSheetRows(
-      TRAINING_REGISTRATION_SHEET,
-      "A:AD"
+    const requestRows = await readSheetRows(
+      TRAINING_REQUEST_SHEET,
+      "A:AZ"
     );
 
-    if (!registrationRows || !registrationRows[0]) {
+    if (!requestRows || !requestRows[0]) {
       await sendWhatsAppMessage(
         from,
         isMalayalam
@@ -1826,9 +1878,12 @@ async function handleTrainingAction(options) {
       topic: session.topic,
       mode: session.mode,
       preferredTime: session.preferredTime,
+      preferredLocation: session.preferredLocation,
+      preferredDate: session.preferredDate,
+      remarks: session.remarks,
       language: language,
       sourceMessageId: input.sourceMessageId,
-      registrationRows: registrationRows,
+      requestRows: requestRows,
       now: new Date(),
       appendRegistration: function (sheetName, row) {
         return appendSafe(sheetName, row, { returnDetails: true });
@@ -1846,27 +1901,6 @@ async function handleTrainingAction(options) {
     }
 
     delete trainingRequestSessions[from];
-
-    if (!requestResult.duplicate) {
-      const alertResult = await sendTrainingRequestAlert({
-        destination: KVK_TRAINING_ALERT_WHATSAPP,
-        farmer: farmer,
-        topic: requestResult.topic,
-        mode: requestResult.mode,
-        preferredTime: requestResult.preferredTime,
-        sendAlert: function (to, text) {
-          return sendWhatsAppMessage(
-            to,
-            text,
-            { skipPreferredLanguageConversion: true }
-          );
-        }
-      });
-
-      if (alertResult.code === "ALERT_FAILED") {
-        console.error("KVK training request alert failed.");
-      }
-    }
 
     await bhoomiMitraUI.sendTrainingRequestSubmitted(
       from,
@@ -1891,12 +1925,12 @@ async function handleTrainingAction(options) {
       return true;
     }
 
-    const registrationRows = await readSheetRows(
-      TRAINING_REGISTRATION_SHEET,
-      "A:AD"
+    const requestRows = await readSheetRows(
+      TRAINING_REQUEST_SHEET,
+      "A:AZ"
     );
 
-    if (!registrationRows || !registrationRows[0]) {
+    if (!requestRows || !requestRows[0]) {
       await sendWhatsAppMessage(
         from,
         isMalayalam
@@ -1907,7 +1941,7 @@ async function handleTrainingAction(options) {
     }
 
     const requests = readTrainingRequests(
-      registrationRows,
+      requestRows,
       farmer.memberId
     );
 
@@ -2271,6 +2305,18 @@ async function handleSchemeAction(options) {
     return true;
   }
 
+  if (action.action === "MORE_CATEGORIES") {
+    delete schemeSearchSessions[from];
+    await bhoomiMitraUI.sendSchemeMoreMenu(from, language);
+    return true;
+  }
+
+  if (action.action === "APPLICATION_GUIDANCE") {
+    delete schemeSearchSessions[from];
+    await bhoomiMitraUI.sendSchemeApplicationGuidance(from, language);
+    return true;
+  }
+
   if (action.action === "SEARCH") {
     schemeSearchSessions[from] = {
       step: "awaiting_query",
@@ -2353,6 +2399,39 @@ async function handleSchemeAction(options) {
         ml
           ? "ഈ വിഭാഗത്തിൽ നിലവിൽ സജീവമായ പദ്ധതികളൊന്നും പ്രസിദ്ധീകരിച്ചിട്ടില്ല."
           : "No active schemes are currently published in this category."
+      );
+      await bhoomiMitraUI.sendSchemesMenu(from, language);
+      return true;
+    }
+    await bhoomiMitraUI.sendSchemeList(
+      from,
+      language,
+      buildSchemeListRows(matches, language),
+      false
+    );
+    return true;
+  }
+
+  if (action.action === "GOVERNMENT") {
+    delete schemeSearchSessions[from];
+    const rows = await readSheetRows(SCHEME_CATALOG_SHEET, "A:Z");
+    if (!rows || !rows[0]) {
+      await sendWhatsAppMessage(
+        from,
+        ml ? "പദ്ധതി വിവരങ്ങൾ ഇപ്പോൾ ലഭ്യമല്ല." : "Scheme information is temporarily unavailable."
+      );
+      return true;
+    }
+    const matches = filterSchemesByGovernment(
+      activeSchemes(rows, new Date()),
+      action.level
+    );
+    if (matches.length === 0) {
+      await sendWhatsAppMessage(
+        from,
+        ml
+          ? "ഈ സർക്കാർ വിഭാഗത്തിൽ പരിശോധിച്ച സജീവ പദ്ധതികളൊന്നും നിലവിലെ രേഖകളിൽ ലഭ്യമല്ല."
+          : "No verified active schemes are available in the current records for that government level."
       );
       await bhoomiMitraUI.sendSchemesMenu(from, language);
       return true;
@@ -4272,30 +4351,14 @@ if (landManagementCommand === "back") {
 
   if (
     message.type === "text" &&
-    pendingTypedTrainingRequest &&
-    pendingTypedTrainingRequest.step === "awaiting_request"
+    pendingTypedTrainingRequest
   ) {
-    const capturedRequest = captureTrainingRequest(
-      pendingTypedTrainingRequest,
-      userText,
-      "text",
-      new Date()
-    );
-
-    if (!capturedRequest.success) {
-      await bhoomiMitraUI.sendTrainingRequestPrompt(
-        from,
-        pendingTypedTrainingRequest.language || "English"
-      );
-      return;
-    }
-
-    trainingRequestSessions[from] = capturedRequest.session;
-    await bhoomiMitraUI.sendTrainingModePreference(
+    const trainingInputHandled = await completeTrainingRequestInput(
       from,
-      capturedRequest.session.language
+      userText,
+      "text"
     );
-    return;
+    if (trainingInputHandled) return;
   }
 
   const pendingTypedSchemeSearch = schemeSearchSessions[from];
@@ -5406,7 +5469,6 @@ if (
 
 if (
   pendingTrainingRequest &&
-  pendingTrainingRequest.step === "awaiting_request" &&
   (
     message.type === "audio" ||
     message.type === "voice"
@@ -5428,21 +5490,12 @@ if (
     return;
   }
 
-  const capturedRequest = captureTrainingRequest(
-    pendingTrainingRequest,
+  const trainingInputHandled = await completeTrainingRequestInput(
+    from,
     userText,
-    message.type === "text" ? "text" : "voice",
-    new Date()
+    "voice"
   );
-
-  if (!capturedRequest.success) {
-    await bhoomiMitraUI.sendTrainingRequestPrompt(from, language);
-    return;
-  }
-
-  trainingRequestSessions[from] = capturedRequest.session;
-  await bhoomiMitraUI.sendTrainingModePreference(from, language);
-  return;
+  if (trainingInputHandled) return;
 }
 
 const pendingVoiceSchemeSearch = schemeSearchSessions[from];
@@ -5544,10 +5597,35 @@ delete pendingLanguageSelections[from];
   languageConfirmation
 );
 
-await bhoomiMitraUI.sendMainMenu(
-  from,
-  selectedLanguage
-);
+const existingFarmerAfterLanguageSelection =
+  await findRegistrationByPhone(
+    "farmer",
+    from,
+    { requireUnique: true }
+  );
+
+if (!existingFarmerAfterLanguageSelection) {
+  userMenus[from] = {
+    ...(userMenus[from] || createMenuSession()),
+    step: "registration_active",
+    updatedAt: Date.now()
+  };
+
+  const registrationStartReply =
+    await handleRegistration(from, "register");
+
+  if (registrationStartReply) {
+    await sendWhatsAppMessage(
+      from,
+      registrationStartReply
+    );
+  }
+} else {
+  await bhoomiMitraUI.sendMainMenu(
+    from,
+    selectedLanguage
+  );
+}
 
 return;
 }
@@ -5677,6 +5755,26 @@ if (isMenuCommand(userText)) {
   userLanguagePreferences[from] || "English"
 );
 
+  return;
+}
+
+const naturalFeatureEntry = getNaturalFeatureEntry(userText);
+
+if (naturalFeatureEntry === "TRAINING") {
+  delete schemeSearchSessions[from];
+  await sendTrainingHome(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
+  return;
+}
+
+if (naturalFeatureEntry === "SCHEMES") {
+  delete trainingRequestSessions[from];
+  await bhoomiMitraUI.sendSchemesMenu(
+    from,
+    userLanguagePreferences[from] || "English"
+  );
   return;
 }
 

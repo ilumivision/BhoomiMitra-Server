@@ -263,20 +263,6 @@ async function sendMainMenu(
               },
 
               {
-                id: ANIMAL_ACTION_IDS.OPEN,
-
-                title:
-                  isMalayalam
-                    ? "🐄 മൃഗസംരക്ഷണം"
-                    : "🐄 Animal Husbandry",
-
-                description:
-                  isMalayalam
-                    ? "മൃഗ രജിസ്ട്രേഷൻ, ആരോഗ്യം, ഉൽപ്പാദനം"
-                    : "Registration, health and production"
-              },
-
-              {
                 id: "HOME_EXPERT",
 
                 title:
@@ -288,34 +274,6 @@ async function sendMainMenu(
                   isMalayalam
                     ? "വിദഗ്ധൻ, തൊഴിലാളി, യന്ത്രസേവനം"
                     : "Experts, workers and machinery"
-              },
-
-              {
-                id: TRAINING_ACTION_IDS.OPEN,
-
-                title:
-                  isMalayalam
-                    ? "🎓 പരിശീലന പരിപാടികൾ"
-                    : "🎓 Training Programmes",
-
-                description:
-                  isMalayalam
-                    ? "വരാനിരിക്കുന്ന കാർഷിക പരിശീലനങ്ങൾ"
-                    : "Upcoming agricultural trainings"
-              },
-
-              {
-                id: SCHEME_ACTION_IDS.OPEN,
-
-                title:
-                  isMalayalam
-                    ? "🏛️ സർക്കാർ പദ്ധതികൾ"
-                    : "🏛️ Schemes & Advisories",
-
-                description:
-                  isMalayalam
-                    ? "സർക്കാർ സഹായവും കാർഷിക അറിയിപ്പുകളും"
-                    : "Government support and farm advisories"
               },
 
               {
@@ -568,6 +526,20 @@ async function sendFarmMenu(
                   isMalayalam
                     ? "വിള, കൃഷിപ്പണി, അലർട്ട് രേഖകൾ"
                     : "Crops, operations, history and alerts"
+              },
+
+              {
+                id: ANIMAL_ACTION_IDS.OPEN,
+
+                title:
+                  isMalayalam
+                    ? "🐄 മൃഗസംരക്ഷണം"
+                    : "🐄 Animal Husbandry",
+
+                description:
+                  isMalayalam
+                    ? "മൃഗ രജിസ്ട്രേഷൻ, ആരോഗ്യം, ഉൽപ്പാദനം"
+                    : "Animal records, health and production"
               },
 
               {
@@ -938,13 +910,27 @@ async function sendExpertMenu(
 
                 title:
                   isMalayalam
-                    ? "👨‍🔬 വിദഗ്ധ സഹായം"
-                    : "👨‍🔬 Expert Advice",
+                    ? "🌾 വിള വിദഗ്ധർ"
+                    : "🌾 Crop Experts",
 
                 description:
                   isMalayalam
-                    ? "KVK വിദഗ്ധന്റെ സഹായം തേടുക"
-                    : "Request assistance from an expert"
+                    ? "വിള കൃഷിക്കായി വിദഗ്ധ സഹായം തേടുക"
+                    : "Request crop farming expert advice"
+              },
+
+              {
+                id: ANIMAL_ACTION_IDS.EXPERT,
+
+                title:
+                  isMalayalam
+                    ? "🐄 വെറ്ററിനറി വിദഗ്ധർ"
+                    : "🐄 Animal & Vet Experts",
+
+                description:
+                  isMalayalam
+                    ? "മൃഗസംരക്ഷണ വിദഗ്ധ സഹായം തേടുക"
+                    : "Request animal or veterinary advice"
               },
 
               {
@@ -967,12 +953,40 @@ async function sendExpertMenu(
                 title:
                   isMalayalam
                     ? "🚜 യന്ത്രം / സേവനം"
-                    : "🚜 Machinery & Service",
+                    : "🚜 Machinery & Services",
 
                 description:
                   isMalayalam
                     ? "യന്ത്രങ്ങളും സേവനദാതാക്കളും കണ്ടെത്തുക"
                     : "Find machinery and service providers"
+              },
+
+              {
+                id: SCHEME_ACTION_IDS.OPEN,
+
+                title:
+                  isMalayalam
+                    ? "🏛️ സർക്കാർ പദ്ധതികൾ"
+                    : "🏛️ Government Schemes",
+
+                description:
+                  isMalayalam
+                    ? "പരിശോധിച്ച സർക്കാർ സഹായ വിവരങ്ങൾ"
+                    : "View verified government support"
+              },
+
+              {
+                id: TRAINING_ACTION_IDS.OPEN,
+
+                title:
+                  isMalayalam
+                    ? "🎓 പരിശീലന പരിപാടികൾ"
+                    : "🎓 Training Programmes",
+
+                description:
+                  isMalayalam
+                    ? "പരിശീലനങ്ങൾ കാണുക അല്ലെങ്കിൽ അഭ്യർത്ഥിക്കുക"
+                    : "View or request farm training"
               },
 
               {
@@ -1490,13 +1504,11 @@ async function sendTrainingMenu(to, language) {
   const rows = [
     [TRAINING_ACTION_IDS.UPCOMING, "Upcoming Trainings", "വരാനിരിക്കുന്നവ"],
     [TRAINING_ACTION_IDS.CROP_PRODUCTION, "Crop Production", "വിള ഉൽപ്പാദനം"],
-    [TRAINING_ACTION_IDS.HORTICULTURE, "Horticulture", "തോട്ടവിള കൃഷി"],
     [TRAINING_ACTION_IDS.ANIMAL_HUSBANDRY, "Animal Husbandry", "മൃഗസംരക്ഷണം"],
-    [TRAINING_ACTION_IDS.PLANT_PROTECTION, "Plant Protection", "സസ്യസംരക്ഷണം"],
+    [TRAINING_ACTION_IDS.ENTREPRENEURSHIP, "Entrepreneurship", "സംരംഭകത്വം"],
     [TRAINING_ACTION_IDS.VALUE_ADDITION, "Value Addition", "മൂല്യവർധന"],
-    [TRAINING_ACTION_IDS.FARM_MACHINERY, "Farm Machinery", "കാർഷിക യന്ത്രങ്ങൾ"],
-    [TRAINING_ACTION_IDS.ALL, "Other / All Trainings", "മറ്റ് / എല്ലാം"],
-    [TRAINING_ACTION_IDS.MY_TRAININGS, "My Trainings", "എന്റെ പരിശീലനങ്ങൾ"],
+    [TRAINING_ACTION_IDS.REQUEST_START, "Request Training", "പരിശീലനം അഭ്യർത്ഥിക്കുക"],
+    [TRAINING_ACTION_IDS.MY_REQUESTS, "My Training Requests", "എന്റെ അഭ്യർത്ഥനകൾ"],
     [TRAINING_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു"]
   ].map(function (entry) {
     return {
@@ -1519,6 +1531,38 @@ async function sendTrainingMenu(to, language) {
           title: isMalayalam ? "പരിശീലന വിഭാഗങ്ങൾ" : "Training categories",
           rows: rows
         }
+      ]
+    }
+  });
+}
+
+async function sendTrainingInformation(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+  const text = isMalayalam
+    ? [
+        "ℹ️ പരിശീലന വിവരങ്ങൾ",
+        "",
+        "പരിശോധിച്ച Training_Events_ രേഖകളിൽ പ്രസിദ്ധീകരിച്ച പരിപാടികൾ മാത്രമാണ് BhoomiMitra കാണിക്കുന്നത്.",
+        "തീയതി, സ്ഥലം, രീതി, രജിസ്ട്രേഷൻ വിവരങ്ങൾ എന്നിവ പരിപാടിയുടെ വിശദാംശങ്ങളിൽ പരിശോധിക്കുക.",
+        "പരിപാടി ലഭ്യമല്ലെങ്കിൽ നിങ്ങൾക്ക് പരിശീലന അഭ്യർത്ഥന സമർപ്പിക്കാം."
+      ].join("\n")
+    : [
+        "ℹ️ Training Information",
+        "",
+        "BhoomiMitra shows only programmes published in the verified Training_Events_ records.",
+        "Open a programme to check its date, location, mode, registration information and contact details.",
+        "If no suitable programme is available, you can submit a training request."
+      ].join("\n");
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: TRAINING_ACTION_IDS.MY_TRAININGS, title: isMalayalam ? "📅 എന്റെ പരിശീലനം" : "📅 My Trainings" } },
+        { type: "reply", reply: { id: TRAINING_ACTION_IDS.OPEN, title: isMalayalam ? "🎓 പരിശീലനങ്ങൾ" : "🎓 Trainings" } },
+        { type: "reply", reply: { id: TRAINING_ACTION_IDS.MAIN_MENU, title: isMalayalam ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
       ]
     }
   });
@@ -1738,23 +1782,23 @@ async function sendTrainingRequestShortcuts(to, language) {
     type: "button",
     body: {
       text: isMalayalam
-        ? "നിങ്ങൾക്ക് ആവശ്യമുള്ള മറ്റൊരു പരിശീലനം KVK-യോട് അഭ്യർത്ഥിക്കാം."
-        : "You can also ask KVK to conduct a training you need."
+        ? "രജിസ്റ്റർ ചെയ്തതും ജനപ്രിയവുമായ പരിശീലനങ്ങൾ ഇവിടെ കാണാം."
+        : "You can also view your registrations and popular trainings."
     },
     action: {
       buttons: [
         {
           type: "reply",
           reply: {
-            id: TRAINING_ACTION_IDS.REQUEST_START,
-            title: isMalayalam ? "🎓 പരിശീലനം വേണം" : "🎓 Request Training"
+            id: TRAINING_ACTION_IDS.MY_TRAININGS,
+            title: isMalayalam ? "📅 എന്റെ പരിശീലനം" : "📅 My Trainings"
           }
         },
         {
           type: "reply",
           reply: {
-            id: TRAINING_ACTION_IDS.MY_REQUESTS,
-            title: isMalayalam ? "📋 എന്റെ അഭ്യർത്ഥന" : "📋 My Requests"
+            id: TRAINING_ACTION_IDS.INFORMATION,
+            title: isMalayalam ? "ℹ️ പരിശീലന വിവരം" : "ℹ️ Training Info"
           }
         },
         {
@@ -1872,12 +1916,84 @@ async function sendTrainingTimePreference(to, language) {
   });
 }
 
+async function sendTrainingLocationPrompt(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? "ഇഷ്ടപ്പെട്ട പരിശീലന സ്ഥലം ടൈപ്പ് ചെയ്യുക. ഓൺലൈൻ ആണെങ്കിൽ Online എന്ന് നൽകാം. ഒഴിവാക്കാൻ SKIP എന്ന് അയക്കുക."
+        : "Type your preferred training location. For online training, you may enter Online. Send SKIP to leave it blank."
+    },
+    action: {
+      buttons: [{
+        type: "reply",
+        reply: {
+          id: TRAINING_ACTION_IDS.REQUEST_CANCEL,
+          title: isMalayalam ? "❌ റദ്ദാക്കുക" : "❌ Cancel"
+        }
+      }]
+    }
+  });
+}
+
+async function sendTrainingDatePrompt(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? "ഇഷ്ടപ്പെട്ട തീയതി അല്ലെങ്കിൽ തീയതി പരിധി ടൈപ്പ് ചെയ്യുക. ബാധകമല്ലെങ്കിൽ SKIP എന്ന് അയക്കുക."
+        : "Type your preferred date or date range. Send SKIP if it is not applicable."
+    },
+    action: {
+      buttons: [{
+        type: "reply",
+        reply: {
+          id: TRAINING_ACTION_IDS.REQUEST_CANCEL,
+          title: isMalayalam ? "❌ റദ്ദാക്കുക" : "❌ Cancel"
+        }
+      }]
+    }
+  });
+}
+
+async function sendTrainingRemarksPrompt(to, language) {
+  const isMalayalam =
+    String(language || "").toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? "കൂടുതൽ ആവശ്യങ്ങളോ കുറിപ്പുകളോ ടൈപ്പ് ചെയ്യുക. ഒന്നുമില്ലെങ്കിൽ SKIP എന്ന് അയക്കുക."
+        : "Type any additional needs or remarks. Send SKIP if you have none."
+    },
+    action: {
+      buttons: [{
+        type: "reply",
+        reply: {
+          id: TRAINING_ACTION_IDS.REQUEST_CANCEL,
+          title: isMalayalam ? "❌ റദ്ദാക്കുക" : "❌ Cancel"
+        }
+      }]
+    }
+  });
+}
+
 async function sendTrainingRequestConfirmation(
   to,
   language,
   topic,
   mode,
-  preferredTime
+  preferredTime,
+  preferredLocation,
+  preferredDate,
+  remarks
 ) {
   const isMalayalam =
     String(language || "").toLowerCase() === "malayalam";
@@ -1896,6 +2012,9 @@ async function sendTrainingRequestConfirmation(
         "Not applicable": "ബാധകമല്ല"
       }[timeValue] || timeValue)
     : timeValue;
+  const locationValue = String(preferredLocation || "").trim();
+  const dateValue = String(preferredDate || "").trim();
+  const remarksValue = String(remarks || "").trim();
   const text = isMalayalam
     ? [
         "🎓 പരിശീലന അഭ്യർത്ഥന",
@@ -1905,6 +2024,9 @@ async function sendTrainingRequestConfirmation(
         "",
         "ഇഷ്ടപ്പെട്ട രീതി: " + displayedMode,
         "ഇഷ്ടപ്പെട്ട സമയം: " + displayedTime,
+        "ഇഷ്ടപ്പെട്ട സ്ഥലം: " + (locationValue || "നൽകിയിട്ടില്ല"),
+        "ഇഷ്ടപ്പെട്ട തീയതി: " + (dateValue || "നൽകിയിട്ടില്ല"),
+        "കുറിപ്പുകൾ: " + (remarksValue || "ഒന്നുമില്ല"),
         "",
         "ഈ അഭ്യർത്ഥന KVK-യിലേക്ക് സമർപ്പിക്കണോ?"
       ].join("\n")
@@ -1916,6 +2038,9 @@ async function sendTrainingRequestConfirmation(
         "",
         "Preferred mode: " + displayedMode,
         "Preferred time: " + displayedTime,
+        "Preferred location: " + (locationValue || "Not provided"),
+        "Preferred date: " + (dateValue || "Not provided"),
+        "Remarks: " + (remarksValue || "None"),
         "",
         "Submit this request to KVK?"
       ].join("\n");
@@ -2016,6 +2141,10 @@ async function sendMyTrainingRequests(to, language, requests) {
       (isMalayalam ? "തീയതി ലഭ്യമല്ല" : "Date unavailable");
     const storedMode = String(request.mode || "").trim();
     const storedTime = String(request.preferredTime || "").trim();
+    const storedLocation = String(request.preferredLocation || "").trim();
+    const storedDate = String(request.preferredDate || "").trim();
+    const storedCategory = String(request.category || "").trim();
+    const storedCoordinator = String(request.assignedCoordinator || "").trim();
     const mode = isMalayalam
       ? ({
           "Online": "ഓൺലൈൻ",
@@ -2041,6 +2170,18 @@ async function sendMyTrainingRequests(to, language, requests) {
     }
     if (preferredTime) {
       lines.push((isMalayalam ? "സമയം: " : "Time: ") + preferredTime);
+    }
+    if (storedCategory) {
+      lines.push((isMalayalam ? "വിഭാഗം: " : "Category: ") + storedCategory);
+    }
+    if (storedLocation) {
+      lines.push((isMalayalam ? "സ്ഥലം: " : "Location: ") + storedLocation);
+    }
+    if (storedDate) {
+      lines.push((isMalayalam ? "ഇഷ്ടപ്പെട്ട തീയതി: " : "Preferred date: ") + storedDate);
+    }
+    if (storedCoordinator) {
+      lines.push((isMalayalam ? "കോർഡിനേറ്റർ: " : "Coordinator: ") + storedCoordinator);
     }
   });
 
@@ -2078,15 +2219,14 @@ async function sendMyTrainingRequests(to, language, requests) {
 async function sendSchemesMenu(to, language) {
   const ml = String(language || "").toLowerCase() === "malayalam";
   const rows = [
+    [SCHEME_ACTION_IDS.CROP, "Crop & Agriculture", "വിള / കാർഷിക പദ്ധതികൾ"],
+    [SCHEME_ACTION_IDS.LIVESTOCK, "Animal & Dairy", "മൃഗ / ക്ഷീര പദ്ധതികൾ"],
+    [SCHEME_ACTION_IDS.FISHERIES, "Fisheries & Allied", "മത്സ്യ / അനുബന്ധം"],
+    [SCHEME_ACTION_IDS.ENTERPRISE, "Agricultural Enterprise", "കാർഷിക സംരംഭ പദ്ധതികൾ"],
     [SCHEME_ACTION_IDS.RELEVANT, "Relevant Schemes for Me", "എനിക്ക് പ്രസക്തമായവ"],
-    [SCHEME_ACTION_IDS.CROP, "Crop Schemes", "വിള പദ്ധതികൾ"],
-    [SCHEME_ACTION_IDS.LIVESTOCK, "Livestock Schemes", "മൃഗസംരക്ഷണ പദ്ധതികൾ"],
-    [SCHEME_ACTION_IDS.MACHINERY, "Machinery / Irrigation", "യന്ത്രം / ജലസേചനം"],
-    [SCHEME_ACTION_IDS.FINANCIAL, "Subsidies & Support", "സബ്സിഡിയും സഹായവും"],
-    [SCHEME_ACTION_IDS.INSURANCE, "Insurance / Risk", "ഇൻഷുറൻസ് / നഷ്ടസഹായം"],
-    [SCHEME_ACTION_IDS.ADVISORIES, "Current Advisories", "നിലവിലെ അറിയിപ്പുകൾ"],
-    [SCHEME_ACTION_IDS.SEARCH, "Search by Topic", "വിഷയം തിരയുക"],
-    [SCHEME_ACTION_IDS.MY_INTERESTS, "My Scheme Interests", "എന്റെ പദ്ധതി താൽപര്യങ്ങൾ"],
+    [SCHEME_ACTION_IDS.CENTRAL, "Central Government", "കേന്ദ്ര സർക്കാർ പദ്ധതികൾ"],
+    [SCHEME_ACTION_IDS.KERALA, "Kerala Government", "കേരള സർക്കാർ പദ്ധതികൾ"],
+    [SCHEME_ACTION_IDS.APPLICATION_GUIDANCE, "Details / Application", "വിശദാംശം / അപേക്ഷ"],
     [SCHEME_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു"]
   ].map(function (entry) {
     return { id: entry[0], title: ml ? entry[2] : entry[1] };
@@ -2105,6 +2245,69 @@ async function sendSchemesMenu(to, language) {
         title: ml ? "പദ്ധതികളും അറിയിപ്പുകളും" : "Schemes and advisories",
         rows: rows
       }]
+    }
+  });
+}
+
+async function sendSchemeMoreMenu(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const rows = [
+    [SCHEME_ACTION_IDS.MACHINERY, "Machinery / Irrigation", "യന്ത്രം / ജലസേചനം"],
+    [SCHEME_ACTION_IDS.FINANCIAL, "Subsidies & Support", "സബ്സിഡിയും സഹായവും"],
+    [SCHEME_ACTION_IDS.INSURANCE, "Insurance / Risk", "ഇൻഷുറൻസ് / നഷ്ടസഹായം"],
+    [SCHEME_ACTION_IDS.ADVISORIES, "Current Advisories", "നിലവിലെ അറിയിപ്പുകൾ"],
+    [SCHEME_ACTION_IDS.SEARCH, "Search by Topic", "വിഷയം തിരയുക"],
+    [SCHEME_ACTION_IDS.MY_INTERESTS, "My Scheme Interests", "എന്റെ പദ്ധതി താൽപര്യങ്ങൾ"],
+    [SCHEME_ACTION_IDS.OPEN, "Back to Schemes", "പദ്ധതികളിലേക്ക് മടങ്ങുക"],
+    [SCHEME_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു"]
+  ].map(function (entry) {
+    return { id: entry[0], title: ml ? entry[2] : entry[1] };
+  });
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: ml
+        ? "🏛️ കൂടുതൽ പദ്ധതി വിഭാഗങ്ങളും നിലവിലെ അറിയിപ്പുകളും"
+        : "🏛️ More scheme categories and current advisories"
+    },
+    action: {
+      button: ml ? "വിഭാഗം തിരഞ്ഞെടുക്കുക" : "Choose category",
+      sections: [{
+        title: ml ? "കൂടുതൽ ഓപ്ഷനുകൾ" : "More options",
+        rows: rows
+      }]
+    }
+  });
+}
+
+async function sendSchemeApplicationGuidance(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const text = ml
+    ? [
+        "📝 പദ്ധതി അപേക്ഷാ മാർഗനിർദേശം",
+        "",
+        "പദ്ധതിയുടെ വിശദാംശങ്ങൾ തുറന്ന് ഔദ്യോഗിക ലിങ്ക്, നിലവിലെ യോഗ്യത, അപേക്ഷാ കാലയളവ്, ആവശ്യമായ രേഖകൾ എന്നിവ പരിശോധിക്കുക.",
+        "",
+        "BhoomiMitra അപേക്ഷ സമർപ്പിക്കുകയോ യോഗ്യത ഉറപ്പുനൽകുകയോ ചെയ്യുന്നില്ല. ഔദ്യോഗിക പോർട്ടൽ അല്ലെങ്കിൽ ബന്ധപ്പെട്ട സർക്കാർ ഓഫീസ് വഴിയാണ് അപേക്ഷിക്കേണ്ടത്."
+      ].join("\n")
+    : [
+        "📝 Scheme Application Guidance",
+        "",
+        "Open a scheme's details and verify its official link, current eligibility, application period and required documents.",
+        "",
+        "BhoomiMitra does not submit applications or guarantee eligibility. Apply only through the official portal or the responsible government office."
+      ].join("\n");
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: text },
+    action: {
+      buttons: [
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.OPEN, title: ml ? "🏛️ പദ്ധതികൾ" : "🏛️ Schemes" } },
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.MORE_CATEGORIES, title: ml ? "📋 കൂടുതൽ" : "📋 More Options" } },
+        { type: "reply", reply: { id: SCHEME_ACTION_IDS.MAIN_MENU, title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
+      ]
     }
   });
 }
@@ -2660,6 +2863,7 @@ return {
   sendExpertAssignmentCard,
   sendExpertCaseList,
   sendTrainingMenu,
+  sendTrainingInformation,
   sendTrainingProgramList,
   sendPromotedTrainingList,
   sendPromotedTrainingCard,
@@ -2669,10 +2873,15 @@ return {
   sendTrainingRequestPrompt,
   sendTrainingModePreference,
   sendTrainingTimePreference,
+  sendTrainingLocationPrompt,
+  sendTrainingDatePrompt,
+  sendTrainingRemarksPrompt,
   sendTrainingRequestConfirmation,
   sendTrainingRequestSubmitted,
   sendMyTrainingRequests,
   sendSchemesMenu,
+  sendSchemeMoreMenu,
+  sendSchemeApplicationGuidance,
   sendSchemeList,
   sendSchemeDetails,
   sendSchemeSearchResults,
