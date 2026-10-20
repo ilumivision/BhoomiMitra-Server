@@ -89,7 +89,7 @@ test("all Animal Husbandry menu IDs parse to connected actions", function () {
   assert.equal(parseAnimalAction("ANIMAL_NOT_REAL"), null);
 });
 
-test("five-category main menu and Expert & Services expose Animal Husbandry expertise", async function () {
+test("registered main menu exposes Animal Husbandry and legacy Expert menu retains veterinary expertise", async function () {
   const payloads = [];
   const ui = createBhoomiMitraUI({
     axios: { post: async function (_url, payload) { payloads.push(payload); } },
@@ -102,8 +102,8 @@ test("five-category main menu and Expert & Services expose Animal Husbandry expe
   await ui.sendExpertMenu("919999999999", "Malayalam");
   payloads.slice(0, 2).forEach(function (payload) {
     const ids = payload.interactive.action.sections[0].rows.map(function (item) { return item.id; });
-    assert.equal(ids.length, 5);
-    assert.equal(ids.includes(ANIMAL_ACTION_IDS.OPEN), false);
+    assert.equal(ids.length, 10);
+    assert.equal(ids.includes(ANIMAL_ACTION_IDS.OPEN), true);
   });
   payloads.slice(2).forEach(function (payload) {
     const ids = payload.interactive.action.sections[0].rows.map(function (item) { return item.id; });

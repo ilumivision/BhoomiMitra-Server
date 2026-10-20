@@ -53,6 +53,14 @@ async function registerLand(data) {
 
     const land =
       (data && data.land) || {};
+    const farmerId =
+      String(land.farmerId || "").trim();
+
+    if (!farmerId) {
+      throw new Error(
+        "A verified Farmer_ID is required for land registration."
+      );
+    }
 
     if (!sheets || !spreadsheetId) {
       throw new Error(
@@ -77,6 +85,16 @@ async function registerLand(data) {
 
     const headers =
       rows[0];
+    const normalizedHeaders = headers.map(normalizeHeader);
+
+    if (
+      !normalizedHeaders.includes("land_id") ||
+      !normalizedHeaders.includes("farmer_id")
+    ) {
+      throw new Error(
+        "Land_Parcels identity headers are missing."
+      );
+    }
 
     const existingRows =
       rows.slice(1);
@@ -90,7 +108,7 @@ async function registerLand(data) {
     const valuesByHeader = {
       land_id: landId,
       farmer_id:
-        land.farmerId || "",
+        farmerId,
       farm_name:
         land.farmName || "",
       district:
@@ -201,10 +219,18 @@ async function getFarmerLands(data) {
     const spreadsheetId =
       data && data.spreadsheetId;
 
-    const phone =
+    const farmerId =
       String(
-        (data && data.phone) || ""
-      ).trim();
+        (data && data.farmerId) || ""
+      ).trim().toUpperCase();
+
+    if (!farmerId) {
+      return {
+        success: false,
+        lands: [],
+        code: "FARMER_ID_REQUIRED"
+      };
+    }
 
     if (!sheets || !spreadsheetId) {
       throw new Error(
@@ -231,18 +257,15 @@ async function getFarmerLands(data) {
     const headers =
       rows[0].map(normalizeHeader);
 
-    const phoneIndexes = [
-  headers.indexOf("phone"),
-  headers.indexOf("mobile"),
-  headers.indexOf("mobile_number"),
-  headers.indexOf("whatsapp"),
-  headers.indexOf("whatsapp_number"),
-  headers.indexOf("registered_mobile"),
-  headers.indexOf("farmer_mobile"),
-  headers.indexOf("farmer_reported")
-].filter(function (index) {
-  return index >= 0;
-});
+    const farmerIdIndex = headers.indexOf("farmer_id");
+
+    if (farmerIdIndex < 0) {
+      return {
+        success: false,
+        lands: [],
+        code: "FARMER_ID_HEADER_MISSING"
+      };
+    }
 
     const landIdIndex =
       headers.indexOf("land_id");
@@ -278,14 +301,8 @@ const areaUnitIndex =
       rows
         .slice(1)
         .filter(function (row) {
-          return phoneIndexes.some(
-            function (index) {
-              return (
-                String(row[index] || "")
-                  .trim() === phone
-              );
-            }
-          );
+          return String(row[farmerIdIndex] || "")
+            .trim().toUpperCase() === farmerId;
         })
         .map(function (row) {
           return {

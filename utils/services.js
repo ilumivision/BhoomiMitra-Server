@@ -1,6 +1,9 @@
 "use strict";
 const axios = require("axios");
 const { safeErrorDetails } = require("./webhookSecurity");
+const {
+  isServiceMemberEligible
+} = require("./userRegistrationStatus");
 
 const OVERPASS_API_URLS = [
   "https://overpass.private.coffee/api/interpreter",
@@ -640,74 +643,12 @@ function isVerifiedActive(
   activeStatus,
   status
 ) {
-  const verification =
-    normalizeText(
-      verificationStatus
-    );
-
-  const active =
-    normalizeText(
-      activeStatus
-    );
-
-  const generalStatus =
-    normalizeText(
-      status
-    );
-
-  const verifiedValues = [
-    "verified",
-    "approved",
-    "yes"
-  ];
-
-  const activeValues = [
-    "active",
-    "available",
-    "yes",
-    "live"
-  ];
-
-  const rejectedValues = [
-    "rejected",
-    "suspended",
-    "inactive",
-    "blocked",
-    "deleted"
-  ];
-
-  if (
-    rejectedValues.includes(
-      verification
-    ) ||
-    rejectedValues.includes(
-      active
-    ) ||
-    rejectedValues.includes(
-      generalStatus
-    )
-  ) {
-    return false;
-  }
-
-  const verified =
-    verifiedValues.includes(
-      verification
-    ) ||
-    verifiedValues.includes(
-      generalStatus
-    );
-
-  const operational =
-    !activeStatus ||
-    activeValues.includes(
-      active
-    ) ||
-    activeValues.includes(
-      generalStatus
-    );
-
-  return verified && operational;
+  return isServiceMemberEligible({
+    registrationStatus: status,
+    verificationStatus,
+    activeStatus,
+    allowBlankActiveStatus: true
+  });
 }
 
 // =====================================================

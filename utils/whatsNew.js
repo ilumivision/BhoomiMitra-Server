@@ -34,6 +34,10 @@ function isAvailableFeature(feature, options) {
   );
 }
 
+function shouldShowWhatsNew(trigger) {
+  return String(trigger || "").trim().toUpperCase() === "WHATS_NEW";
+}
+
 function createFeatureDiscovery(options) {
   const settings = options || {};
   const catalogue = Array.isArray(settings.catalogue)
@@ -100,5 +104,6 @@ function createFeatureDiscovery(options) {
 module.exports = {
   FEATURE_CATALOGUE,
   isAvailableFeature,
+  shouldShowWhatsNew,
   createFeatureDiscovery
 };

@@ -48,6 +48,10 @@ async function runMarketCheck(options) {
     input.updateRow;
   const forceRun =
     input.forceRun === true;
+  const fetchPrices =
+    typeof input.fetchAllSources === "function"
+      ? input.fetchAllSources
+      : fetchAllSources;
   const startHour =
     Number(input.startHour || 6);
   const endHour =
@@ -73,11 +77,22 @@ async function runMarketCheck(options) {
     new Date().toISOString()
   );
   const fetchedRecords =
-    await fetchAllSources();
+    await fetchPrices(input.fetchOptions || {});
   console.log(
     "Market records fetched:",
     fetchedRecords.length
   );
+  if (!Array.isArray(fetchedRecords) || fetchedRecords.length === 0) {
+    return {
+      success: false,
+      skipped: false,
+      reason: "NO_OFFICIAL_MARKET_RECORDS",
+      checkedAt: new Date().toISOString(),
+      fetchedCount: 0,
+      updateResult: null
+    };
+  }
+
   const updateResult =
     await updateMarketRecords({
       fetchedRecords,

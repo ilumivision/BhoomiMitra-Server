@@ -79,6 +79,39 @@ function getSatelliteDiagnosticAccess({
   };
 }
 
+function getSatelliteDiagnosticLandConfig(environment) {
+  const env = environment || {};
+  const landId = normalizeText(
+    env.SATELLITE_DIAGNOSTIC_LAND_ID
+  );
+  const farmerId = normalizeText(
+    env.SATELLITE_DIAGNOSTIC_FARMER_ID
+  );
+  const whatsapp = normalizeText(
+    env.SATELLITE_DIAGNOSTIC_WHATSAPP
+  ).replace(/\D/g, "");
+
+  if (
+    !isValidLandId(landId) ||
+    !farmerId ||
+    whatsapp.length < 10
+  ) {
+    return {
+      ready: false,
+      landId: "",
+      farmerId: "",
+      whatsapp: ""
+    };
+  }
+
+  return {
+    ready: true,
+    landId,
+    farmerId,
+    whatsapp
+  };
+}
+
 function sceneCloudCover(feature) {
   const value =
     feature && feature.properties
@@ -2519,6 +2552,7 @@ module.exports = {
   isValidLandId,
   isSatelliteExitCommand,
   getSatelliteDiagnosticAccess,
+  getSatelliteDiagnosticLandConfig,
   deduplicateSatelliteObservations,
   selectSuitableSentinel2Scenes,
   getSuitableSentinel2Scenes,

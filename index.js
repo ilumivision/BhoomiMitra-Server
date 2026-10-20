@@ -58,10 +58,15 @@ const {
   verifyBoundary,
   cancelBoundary,
   getLandBoundaryMapData,
+  getLandMapDataByAccessToken,
   getAccessibleLandBoundaryStatus,
+  createLandMapAccessToken,
   handleBoundaryStatusSelection,
   handleGpsDetailsSelection
 } = require("./utils/landBoundary");
+const {
+  getAccessibleLand
+} = require("./utils/accessibleLand");
 const {
   getLatestSatelliteObservation,
   getSatelliteObservationHistory,
@@ -72,6 +77,7 @@ const {
   isValidLandId,
   isSatelliteExitCommand,
   getSatelliteDiagnosticAccess,
+  getSatelliteDiagnosticLandConfig,
   formatSatelliteSelectionPrompt,
   formatSatelliteCancelMessage,
   formatSatelliteValidationMessage,
@@ -96,7 +102,8 @@ const {
   formatPrivacyPolicy
 } = require("./utils/privacySelfService");
 const {
-  createFeatureDiscovery
+  createFeatureDiscovery,
+  shouldShowWhatsNew
 } = require("./utils/whatsNew");
 const {
   getReturningWelcome,
@@ -112,9 +119,27 @@ const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
 const {
+  USER_REGISTRATION_STATES,
+  resolveUserRegistrationStatus,
+  validateRegistrationIdentityHeaders,
+  isFarmerRegistrationEligible,
+  isServiceMemberEligible,
+  isGuestAllowedAction,
+  isLimitedAccessState,
+  formatRestrictedAccess
+} = require("./utils/userRegistrationStatus");
+const {
   closeRegistrationSessionForNavigation,
   clearCompletedRegistrationSession
 } = require("./utils/registrationSession");
+const {
+  getRegistrationResumePlan,
+  isResumeConfirmation,
+  registrationResumePrompt
+} = require("./utils/registrationResume");
+const {
+  routeRegistrationWebhookResult
+} = require("./utils/registrationWebhook");
 
 const registrationModule =
   require("./utils/registration");
@@ -365,15 +390,29 @@ app.get(
   requireSatelliteDiagnosticAccess,
   async (req, res) => {
   try {
+    const diagnosticLand =
+      getSatelliteDiagnosticLandConfig(
+        process.env
+      );
+
+    if (!diagnosticLand.ready) {
+      return res.status(503).json({
+        success: false,
+        message: "Approved diagnostic land identity is not configured."
+      });
+    }
+
     const landResult =
       await getLandBoundaryMapData({
         sheets,
         spreadsheetId:
           GOOGLE_SHEET_ID,
         landId:
-          "BM-L-000003",
-        farmerId: "",
-        whatsapp: ""
+          diagnosticLand.landId,
+        farmerId:
+          diagnosticLand.farmerId,
+        whatsapp:
+          diagnosticLand.whatsapp
       });
 
     if (
@@ -416,15 +455,29 @@ app.get(
   requireSatelliteDiagnosticAccess,
   async (req, res) => {
   try {
+    const diagnosticLand =
+      getSatelliteDiagnosticLandConfig(
+        process.env
+      );
+
+    if (!diagnosticLand.ready) {
+      return res.status(503).json({
+        success: false,
+        message: "Approved diagnostic land identity is not configured."
+      });
+    }
+
     const landResult =
       await getLandBoundaryMapData({
         sheets,
         spreadsheetId:
           GOOGLE_SHEET_ID,
         landId:
-          "BM-L-000003",
-        farmerId: "",
-        whatsapp: ""
+          diagnosticLand.landId,
+        farmerId:
+          diagnosticLand.farmerId,
+        whatsapp:
+          diagnosticLand.whatsapp
       });
 
     if (
@@ -472,6 +525,9 @@ const META_APP_SECRET =
   process.env.META_APP_SECRET ||
   process.env.APP_SECRET ||
   "";
+const LAND_MAP_ACCESS_SECRET =
+  process.env.LAND_MAP_ACCESS_SECRET ||
+  META_APP_SECRET;
 const WHATSAPP_MESSAGE_STATE_FILE =
   process.env.WHATSAPP_MESSAGE_STATE_FILE ||
   path.join(
@@ -542,14 +598,16 @@ app.get("/land-map/:landId", async (req, res) => {
         .toUpperCase();
 
     const mapResult =
-      await getLandBoundaryMapData({
+      await getLandMapDataByAccessToken({
         sheets,
         spreadsheetId:
           GOOGLE_SHEET_ID,
         landId:
           requestedLandId,
-        farmerId: "",
-        whatsapp: ""
+        accessToken:
+          req.query.access,
+        secret:
+          LAND_MAP_ACCESS_SECRET
       });
 
     if (
@@ -557,16 +615,13 @@ app.get("/land-map/:landId", async (req, res) => {
       !mapResult.success
     ) {
       return res
-        .status(404)
+        .status(
+          mapResult && mapResult.accessDenied
+            ? 403
+            : 404
+        )
         .send(
-          "<h2>Land map not available</h2><p>" +
-          (
-            mapResult &&
-            mapResult.error
-              ? mapResult.error
-              : "Boundary data was not found."
-          ) +
-          "</p>"
+          "<h2>Land map not available</h2>"
         );
     }
 
@@ -1072,6 +1127,55 @@ const SHEET_METADATA_CACHE_MS =
 const EXPERT_PROBLEM_CONTEXT_MS =
   6 * 60 * 60 * 1000;
 
+async function resolveCurrentUserRegistration(from) {
+  return resolveUserRegistrationStatus({
+    sender: from,
+    readSheetRows,
+    hasRegistrationSession: Boolean(sessions[from])
+  });
+}
+
+function hasRegisteredFarmerAccess(status) {
+  return Boolean(
+    status &&
+    status.state === USER_REGISTRATION_STATES.REGISTERED_FARMER &&
+    status.canAccessPersonalRecords
+  );
+}
+
+function isFarmerOnlyAction(selectionId) {
+  const id = String(selectionId || "").trim();
+  return Boolean(
+    ["HOME_FARM", "HOME_PROFILE", "SERVICE_9", "SERVICE_10"].includes(id) ||
+    id.startsWith("PERSONAL_") ||
+    id.startsWith("LAND_") ||
+    id.startsWith("SAT_GPS_") ||
+    id.startsWith("CROP_FARM_") ||
+    id.startsWith("FARM_ALERTS_") ||
+    id.startsWith("ANIMAL_")
+  );
+}
+
+async function sendStatusAwareHome(from, language, status, includeNotice) {
+  const access = status || await resolveCurrentUserRegistration(from);
+  const selectedLanguage = language || userLanguagePreferences[from] || "Malayalam";
+
+  if (isLimitedAccessState(access)) {
+    if (includeNotice) {
+      await sendWhatsAppMessage(
+        from,
+        formatRestrictedAccess(access, selectedLanguage),
+        { skipPreferredLanguageConversion: true }
+      );
+    }
+    await bhoomiMitraUI.sendGuestMenu(from, selectedLanguage);
+    return access;
+  }
+
+  await bhoomiMitraUI.sendMainMenu(from, selectedLanguage);
+  return access;
+}
+
 async function showWhatsNew(from, language, explicit) {
   const feature = explicit
     ? featureDiscovery.firstAvailable({ userCategory: "FARMER" })
@@ -1235,74 +1339,6 @@ app.get("/webhook", function (req, res) {
 
   return res.sendStatus(403);
 });
-async function getAccessibleLand({
-  sheets,
-  spreadsheetId,
-  landId,
-  farmerId = "",
-  whatsapp = ""
-}) {
-  const accessStatus =
-    await getAccessibleLandBoundaryStatus({
-      sheets,
-      spreadsheetId,
-      landId,
-      farmerId,
-      whatsapp
-    });
-
-  if (
-    !accessStatus ||
-    !accessStatus.success
-  ) {
-    return {
-      success: false,
-      error:
-        accessStatus && accessStatus.error
-          ? accessStatus.error
-          : "You do not have access to this land."
-    };
-  }
-
-  if (
-    accessStatus.mappingStatus !== "COMPLETED"
-  ) {
-    return {
-      success: false,
-      error:
-        "Boundary mapping has not yet been completed for this land."
-    };
-  }
-
-  const land =
-    await getLandBoundaryMapData({
-      sheets,
-      spreadsheetId,
-      landId,
-      farmerId: "",
-      whatsapp: ""
-    });
-
-  if (
-    !land ||
-    !land.success
-  ) {
-    return {
-      success: false,
-      error: land && land.error
-        ? land.error
-        : "Land information could not be loaded."
-    };
-  }
-
-  return {
-    success: true,
-    accessType: accessStatus.accessType,
-    accessLevel: accessStatus.accessLevel,
-    land
-  };
-}
-
 function expertAdviceLanguage(from) {
   return userLanguagePreferences[from] === "Malayalam"
     ? "Malayalam"
@@ -4035,6 +4071,41 @@ if (
       );
 
     if (uiSelection) {
+      const registrationAccess =
+        await resolveCurrentUserRegistration(from);
+
+      if (
+        isLimitedAccessState(registrationAccess) &&
+        !isGuestAllowedAction(uiSelection.id)
+      ) {
+        await sendStatusAwareHome(
+          from,
+          userLanguagePreferences[from] || "English",
+          registrationAccess,
+          true
+        );
+        return;
+      }
+
+      if (
+        registrationAccess.state ===
+          USER_REGISTRATION_STATES.REGISTERED_SERVICE_MEMBER &&
+        isFarmerOnlyAction(uiSelection.id)
+      ) {
+        await sendWhatsAppMessage(
+          from,
+          (userLanguagePreferences[from] === "Malayalam")
+            ? "ഈ സേവനത്തിന് സജീവവും പൂർണ്ണവുമായ കർഷക രജിസ്ട്രേഷൻ ആവശ്യമാണ്. നിങ്ങളുടെ വിദഗ്ധൻ/തൊഴിലാളി/സേവനദാതാവ് രജിസ്ട്രേഷൻ മാറ്റിയിട്ടില്ല."
+            : "This service requires a complete active farmer registration. Your expert, worker, or service-provider registration has not been changed.",
+          { skipPreferredLanguageConversion: true }
+        );
+        await bhoomiMitraUI.sendMainMenu(
+          from,
+          userLanguagePreferences[from] || "English"
+        );
+        return;
+      }
+
       closeRegistrationSessionForNavigation({
         userKey: from,
         selectionId: uiSelection.id,
@@ -4167,7 +4238,7 @@ if (
 
         const preferredUiLanguage =
           userLanguagePreferences[from] ||
-          "English";
+          "Malayalam";
 
         const aboutAction =
           parseAboutAction(uiSelection.id);
@@ -4257,7 +4328,7 @@ if (
           return;
         }
 
-        if (navigationAction === "WHATS_NEW") {
+        if (shouldShowWhatsNew(navigationAction)) {
           await showWhatsNew(from, preferredUiLanguage, true);
           return;
         }
@@ -4289,6 +4360,16 @@ if (
 
         if (navigationAction === "WEATHER_ALERTS_MENU") {
           await bhoomiMitraUI.sendWeatherAlertsMenu(from, preferredUiLanguage);
+          return;
+        }
+
+        if (navigationAction === "MAIN_MENU_MORE") {
+          await bhoomiMitraUI.sendMainMenuMore(from, preferredUiLanguage);
+          return;
+        }
+
+        if (navigationAction === "ENTERPRISE_SERVICES_MENU") {
+          await bhoomiMitraUI.sendEnterpriseServicesMenu(from, preferredUiLanguage);
           return;
         }
 
@@ -4333,7 +4414,7 @@ if (
         if (
           navigationAction === "EXPERT_MENU"
         ) {
-          await bhoomiMitraUI.sendExpertMenu(
+          await bhoomiMitraUI.sendExpertsTrainingMenu(
             from,
             preferredUiLanguage
           );
@@ -4363,9 +4444,11 @@ if (
         if (
           navigationAction === "MAIN_MENU"
         ) {
-          await bhoomiMitraUI.sendMainMenu(
+          await sendStatusAwareHome(
             from,
-            preferredUiLanguage
+            preferredUiLanguage,
+            registrationAccess,
+            false
           );
           return;
         }
@@ -4393,6 +4476,8 @@ if (uiSelection.id === "SERVICE_9") {
     "processing_services";
   userMenus[from].currentService =
     "farm";
+  userMenus[from].farmerId =
+    registrationAccess.farmer && registrationAccess.farmer.id || "";
   userMenus[from].updatedAt =
     Date.now();
 
@@ -5824,51 +5909,26 @@ delete pendingLanguageSelections[from];
   languageConfirmation
 );
 
-const existingFarmerAfterLanguageSelection =
-  await findRegistrationByPhone(
-    "farmer",
-    from,
-    { requireUnique: true }
-  );
+const registrationAccessAfterLanguageSelection =
+  await resolveCurrentUserRegistration(from);
 
-if (
-  !existingFarmerAfterLanguageSelection ||
-  existingFarmerAfterLanguageSelection.success === false
-) {
-  const existingConsent = await getLatestConsent({
-    sheets,
-    spreadsheetId: GOOGLE_SHEET_ID,
-    whatsapp: from
-  });
-  const currentConsentAccepted = hasCurrentConsent(existingConsent, {
-    agreementVersion: AGREEMENT_VERSION,
-    privacyPolicyVersion: PRIVACY_POLICY_VERSION
-  });
-
-  userMenus[from] = {
-    ...(userMenus[from] || createMenuSession()),
-    step: currentConsentAccepted
-      ? "registration_active"
-      : "privacy_consent_pending",
-    updatedAt: Date.now()
-  };
-
-  if (currentConsentAccepted) {
-    const registrationStartReply = await handleRegistration(from, "register");
-    if (registrationStartReply) {
-      await sendWhatsAppMessage(from, registrationStartReply);
-    }
-  } else {
-    await bhoomiMitraUI.sendConsentPrompt(from);
-  }
-} else {
+if (!isLimitedAccessState(registrationAccessAfterLanguageSelection)) {
   await sendWhatsAppMessage(
     from,
     getReturningWelcome(selectedLanguage)
   );
-  await bhoomiMitraUI.sendMainMenu(
+  await sendStatusAwareHome(
     from,
-    selectedLanguage
+    selectedLanguage,
+    registrationAccessAfterLanguageSelection,
+    false
+  );
+} else {
+  await sendStatusAwareHome(
+    from,
+    selectedLanguage,
+    registrationAccessAfterLanguageSelection,
+    true
   );
 }
 
@@ -5914,18 +5974,24 @@ const regReply =
   );
 
 if (regReply) {
-  await sendWhatsAppMessage(
-    from,
-    regReply
-  );
-
-  logAI(
+  await routeRegistrationWebhookResult({
+    registrationResult: regReply,
     from,
     userText,
-    regReply,
-    "registration"
-  ).catch(function (error) {
-    logSafeError("Background registration logging error.", error);
+    language:
+      userLanguagePreferences[from] ||
+      "Malayalam",
+    sendMessage: sendWhatsAppMessage,
+    resolveRegistrationStatus:
+      resolveCurrentUserRegistration,
+    sendHome: sendStatusAwareHome,
+    logRegistration: logAI,
+    onLogError: function (error) {
+      logSafeError(
+        "Background registration logging error.",
+        error
+      );
+    }
   });
 
   return;
@@ -5996,63 +6062,69 @@ if (
   return;
 }
 if (isMenuCommand(userText)) {
-  const returningFarmer =
-    await findRegistrationByPhone(
-      "farmer",
-      from,
-      { requireUnique: true }
-    );
-
-  if (!returningFarmer || returningFarmer.success === false) {
-    const existingConsent = await getLatestConsent({
-      sheets,
-      spreadsheetId: GOOGLE_SHEET_ID,
-      whatsapp: from
-    });
-    const currentConsentAccepted = hasCurrentConsent(existingConsent, {
-      agreementVersion: AGREEMENT_VERSION,
-      privacyPolicyVersion: PRIVACY_POLICY_VERSION
-    });
-
-    userMenus[from] = {
-      ...(userMenus[from] || createMenuSession()),
-      step: currentConsentAccepted
-        ? "registration_active"
-        : "privacy_consent_pending",
-      updatedAt: Date.now()
-    };
-
-    if (currentConsentAccepted) {
-      const registrationStartReply = await handleRegistration(from, "register");
-      if (registrationStartReply) {
-        await sendWhatsAppMessage(from, registrationStartReply);
-      }
-    } else {
-      await bhoomiMitraUI.sendConsentPrompt(from);
-    }
-    return;
-  }
+  const menuAccess = await resolveCurrentUserRegistration(from);
 
   userMenus[from] =
     createMenuSession();
 
-  const welcomeLanguage = userLanguagePreferences[from] || "English";
-  await sendWhatsAppMessage(
+  const welcomeLanguage = userLanguagePreferences[from] || "Malayalam";
+  if (!isLimitedAccessState(menuAccess)) {
+    await sendWhatsAppMessage(
+      from,
+      getReturningWelcome(welcomeLanguage)
+    );
+  }
+
+  await sendStatusAwareHome(
     from,
-    getReturningWelcome(welcomeLanguage)
+    welcomeLanguage,
+    menuAccess,
+    isLimitedAccessState(menuAccess)
   );
-
- await bhoomiMitraUI.sendMainMenu(
-  from,
-  welcomeLanguage
-);
-
-  await showWhatsNew(from, welcomeLanguage, false);
 
   return;
 }
 
 const naturalFeatureEntry = getNaturalFeatureEntry(userText);
+
+if (
+  [
+    "TRAINING",
+    "SCHEMES",
+    "MY_ANIMALS",
+    "ANIMAL_REGISTRATION",
+    "CROP_ALERTS",
+    "SATELLITE",
+    "FARM"
+  ].includes(naturalFeatureEntry)
+) {
+  const naturalAccess = await resolveCurrentUserRegistration(from);
+  if (
+    !hasRegisteredFarmerAccess(naturalAccess)
+  ) {
+    if (naturalAccess.state === USER_REGISTRATION_STATES.REGISTERED_SERVICE_MEMBER) {
+      await sendWhatsAppMessage(
+        from,
+        userLanguagePreferences[from] === "Malayalam"
+          ? "ഈ സേവനത്തിന് സജീവവും പൂർണ്ണവുമായ കർഷക രജിസ്ട്രേഷൻ ആവശ്യമാണ്. നിങ്ങളുടെ നിലവിലെ സേവന അംഗത്വം മാറ്റിയിട്ടില്ല."
+          : "This service requires a complete active farmer registration. Your existing service membership has not been changed.",
+        { skipPreferredLanguageConversion: true }
+      );
+      await bhoomiMitraUI.sendMainMenu(
+        from,
+        userLanguagePreferences[from] || "English"
+      );
+    } else {
+      await sendStatusAwareHome(
+        from,
+        userLanguagePreferences[from] || "English",
+        naturalAccess,
+        true
+      );
+    }
+    return;
+  }
+}
 
 if (naturalFeatureEntry === "TRAINING") {
   delete schemeSearchSessions[from];
@@ -6135,7 +6207,7 @@ if (naturalFeatureEntry === "HELP") {
   return;
 }
 
-if (naturalFeatureEntry === "WHATS_NEW") {
+if (shouldShowWhatsNew(naturalFeatureEntry)) {
   await showWhatsNew(
     from,
     userLanguagePreferences[from] || "English",
@@ -6640,6 +6712,24 @@ if (
     String(userText || "").trim();
 
  if (confirmationChoice === "1") {
+  const landRegistrationAccess =
+    await resolveCurrentUserRegistration(from);
+
+  if (!hasRegisteredFarmerAccess(landRegistrationAccess)) {
+    await sendStatusAwareHome(
+      from,
+      userLanguagePreferences[from] || "English",
+      landRegistrationAccess,
+      true
+    );
+    return;
+  }
+
+  activeFarmMenu.landRegistration = {
+    ...(activeFarmMenu.landRegistration || {}),
+    farmerId: landRegistrationAccess.farmer.id
+  };
+
   const landResult =
     await registerLand({
       sheets,
@@ -6736,6 +6826,20 @@ activeFarmMenu.step !== "land_map_select_land" &&
 ) {
   const farmMenuChoice =
     String(userText || "").trim();
+  const farmAccess =
+    await resolveCurrentUserRegistration(from);
+
+  if (!hasRegisteredFarmerAccess(farmAccess)) {
+    await sendStatusAwareHome(
+      from,
+      userLanguagePreferences[from] || "English",
+      farmAccess,
+      true
+    );
+    return;
+  }
+
+  activeFarmMenu.farmerId = farmAccess.farmer.id;
 
   if (farmMenuChoice === "1") {
     await sendWhatsAppMessage(
@@ -6757,7 +6861,9 @@ activeFarmMenu.step !== "land_map_select_land" &&
     activeFarmMenu.step =
       "land_registration_name";
 
-    activeFarmMenu.landRegistration = {};
+    activeFarmMenu.landRegistration = {
+      farmerId: farmAccess.farmer.id
+    };
 
     activeFarmMenu.updatedAt =
       Date.now();
@@ -6773,7 +6879,7 @@ if (farmMenuChoice === "2") {
       sheets,
       spreadsheetId:
         GOOGLE_SHEET_ID,
-      phone: from
+      farmerId: farmAccess.farmer.id
     });
 
   if (
@@ -6946,6 +7052,20 @@ if (
   const satelliteChoice =
     String(userText || "")
       .trim();
+  const satelliteAccess =
+    await resolveCurrentUserRegistration(from);
+
+  if (!hasRegisteredFarmerAccess(satelliteAccess)) {
+    await sendStatusAwareHome(
+      from,
+      userLanguagePreferences[from] || "English",
+      satelliteAccess,
+      true
+    );
+    return;
+  }
+
+  activeFarmMenu.farmerId = satelliteAccess.farmer.id;
 
   // 1 - MAP / UPDATE LAND BOUNDARY
   if (satelliteChoice === "1") {
@@ -6985,8 +7105,8 @@ if (satelliteChoice === "2") {
     sheets,
     spreadsheetId:
       GOOGLE_SHEET_ID,
-    phone:
-      from
+    farmerId:
+      satelliteAccess.farmer.id
   });
 
     const lands =
@@ -7317,7 +7437,15 @@ if (
       whatsapp: from,
       language:
         preferredLanguage,
-      mapBaseUrl
+      mapBaseUrl,
+      mapAccessToken:
+        createLandMapAccessToken({
+          secret: LAND_MAP_ACCESS_SECRET,
+          landId: userText,
+          farmerId:
+            activeFarmMenu.farmerId || "",
+          whatsapp: from
+        })
     });
 
   await sendWhatsAppMessage(
@@ -8438,11 +8566,21 @@ const baseUrl =
     : "";
 
 const bhoomiMitraMapUrl =
-  baseUrl
+  baseUrl && LAND_MAP_ACCESS_SECRET
     ? baseUrl +
       "/land-map/" +
       encodeURIComponent(
         mapResult.landId
+      ) +
+      "?access=" +
+      encodeURIComponent(
+        createLandMapAccessToken({
+          secret: LAND_MAP_ACCESS_SECRET,
+          landId: mapResult.landId,
+          farmerId:
+            activeFarmMenu.farmerId || "",
+          whatsapp: from
+        })
       )
     : "";
 
@@ -8552,7 +8690,15 @@ if (
         activeFarmMenu.farmerId || "",
       whatsapp: from,
       language: gpsDetailsLanguage,
-      mapBaseUrl
+      mapBaseUrl,
+      mapAccessToken:
+        createLandMapAccessToken({
+          secret: LAND_MAP_ACCESS_SECRET,
+          landId: userText,
+          farmerId:
+            activeFarmMenu.farmerId || "",
+          whatsapp: from
+        })
     });
 
   await sendWhatsAppMessage(
@@ -8834,6 +8980,55 @@ if (
     parseServiceSelections(
       userText
     );
+
+  const selectionAccess =
+    await resolveCurrentUserRegistration(from);
+  const guestSelectionKeys = new Set([
+    "question",
+    "photo",
+    "soil",
+    "weather",
+    "market",
+    "registration"
+  ]);
+  const containsRestrictedGuestSelection =
+    selections.some(function (selection) {
+      return !guestSelectionKeys.has(selection.key);
+    });
+  const containsFarmerOnlySelection =
+    selections.some(function (selection) {
+      return ["farm", "personal_records"].includes(selection.key);
+    });
+
+  if (
+    (isLimitedAccessState(selectionAccess) && containsRestrictedGuestSelection) ||
+    (
+      selectionAccess.state === USER_REGISTRATION_STATES.REGISTERED_SERVICE_MEMBER &&
+      containsFarmerOnlySelection
+    )
+  ) {
+    if (selectionAccess.state === USER_REGISTRATION_STATES.REGISTERED_SERVICE_MEMBER) {
+      await sendWhatsAppMessage(
+        from,
+        userLanguagePreferences[from] === "Malayalam"
+          ? "ഈ സേവനത്തിന് സജീവവും പൂർണ്ണവുമായ കർഷക രജിസ്ട്രേഷൻ ആവശ്യമാണ്."
+          : "This service requires a complete active farmer registration.",
+        { skipPreferredLanguageConversion: true }
+      );
+      await bhoomiMitraUI.sendMainMenu(
+        from,
+        userLanguagePreferences[from] || "English"
+      );
+    } else {
+      await sendStatusAwareHome(
+        from,
+        userLanguagePreferences[from] || "English",
+        selectionAccess,
+        true
+      );
+    }
+    return;
+  }
 
   if (
     selections.length === 1 &&
@@ -9473,11 +9668,14 @@ console.log("Market district detection completed.", {
           ).toLowerCase();
 
         savedReplyIsValid =
-          replyText.includes(
-            requestedName
-          ) ||
-          replyText.includes(
-            officialName
+          savedResult.usable === true &&
+          (
+            replyText.includes(
+              requestedName
+            ) ||
+            replyText.includes(
+              officialName
+            )
           );
 
         if (
@@ -9490,7 +9688,8 @@ console.log("Market district detection completed.", {
       }
 
       if (
-        savedReplyIsValid
+        savedReplyIsValid &&
+        savedResult.isCurrent === true
       ) {
         finalReply =
           savedResult.reply;
@@ -9597,6 +9796,11 @@ console.log("Market district detection completed.", {
   formatLiveMarketReply(
     validRecords[0]
   );
+        } else if (savedReplyIsValid) {
+          // The official source was unavailable or returned no matching
+          // record. Preserve the last known price only with the stale-data
+          // warning produced by the market module.
+          finalReply = savedResult.reply;
         }
       }
     }
@@ -10094,7 +10298,8 @@ function getRegistrationConfig(category) {
       whatsappHeaders: [
         "WhatsApp_No",
         "WhatsApp No",
-        "WhatsApp"
+        "WhatsApp",
+        "WhatsApp Number"
       ],
 
       districtHeaders: [
@@ -10114,9 +10319,20 @@ function getRegistrationConfig(category) {
       ],
 
       statusHeaders: [
-        "Status",
+        "Status"
+      ],
+
+      verificationStatusHeaders: [
         "Verification_Status",
-        "Verification Status"
+        "Verification Status",
+        "Verification Level",
+        "Verified"
+      ],
+
+      activeStatusHeaders: [
+        "Active_Status",
+        "Active Status",
+        "Availability"
       ]
     };
   }
@@ -10150,7 +10366,8 @@ function getRegistrationConfig(category) {
       whatsappHeaders: [
         "WhatsApp",
         "WhatsApp No",
-        "WhatsApp_No"
+        "WhatsApp_No",
+        "WhatsApp Number"
       ],
 
       districtHeaders: [
@@ -10171,10 +10388,21 @@ function getRegistrationConfig(category) {
       ],
 
       statusHeaders: [
-        "Status",
-        "Live Status",
+        "Status"
+      ],
+
+      verificationStatusHeaders: [
         "Verification_Status",
-        "Verification Status"
+        "Verification Status",
+        "Verification Level",
+        "Verified"
+      ],
+
+      activeStatusHeaders: [
+        "Active_Status",
+        "Active Status",
+        "Live Status",
+        "Availability"
       ]
     };
   }
@@ -10210,7 +10438,8 @@ function getRegistrationConfig(category) {
       whatsappHeaders: [
         "WhatsApp No",
         "WhatsApp_No",
-        "WhatsApp"
+        "WhatsApp",
+        "WhatsApp Number"
       ],
 
       districtHeaders: [
@@ -10232,9 +10461,20 @@ function getRegistrationConfig(category) {
       ],
 
       statusHeaders: [
-        "Status",
+        "Status"
+      ],
+
+      verificationStatusHeaders: [
         "Verification_Status",
-        "Verification Status"
+        "Verification Status",
+        "Verification Level",
+        "Verified"
+      ],
+
+      activeStatusHeaders: [
+        "Active_Status",
+        "Active Status",
+        "Availability"
       ]
     };
   }
@@ -10310,7 +10550,7 @@ async function findRegistrationByPhone(
   } = sheetData;
 
   const matchedRows =
-    rows.slice(1).filter(function (row) {
+    rows.slice(1).map(function (row, index) {
       const savedMobile =
         registrationPhoneKey(
           getRegistrationValue(
@@ -10329,26 +10569,39 @@ async function findRegistrationByPhone(
           )
         );
 
+      return {
+        row,
+        rowNumber: index + 2,
+        exactWhatsAppMatch:
+          savedWhatsApp === incomingPhone,
+        mobileMatch:
+          savedMobile === incomingPhone
+      };
+    }).filter(function (match) {
       return (
-        savedMobile === incomingPhone ||
-        savedWhatsApp === incomingPhone
+        match.exactWhatsAppMatch ||
+        Boolean(
+          options &&
+          options.allowMobileMatch &&
+          match.mobileMatch
+        )
       );
     });
 
-  if (
-    matchedRows.length > 1 &&
-    options &&
-    options.requireUnique
-  ) {
-    return {
-      success: false,
-      alreadyRegistered: true,
-      code: "REGISTRATION_PHONE_AMBIGUITY",
-      matchCount: matchedRows.length
-    };
+  if (matchedRows.length > 1) {
+    if (options && options.requireUnique) {
+      return {
+        success: false,
+        alreadyRegistered: true,
+        code: "REGISTRATION_PHONE_AMBIGUITY",
+        matchCount: matchedRows.length
+      };
+    }
+    return null;
   }
 
-  const matchedRow = matchedRows[0];
+  const matchedEntry = matchedRows[0];
+  const matchedRow = matchedEntry && matchedEntry.row;
 
   if (!matchedRow) {
     return null;
@@ -10373,11 +10626,69 @@ async function findRegistrationByPhone(
       matchedRow,
       headerMap,
       config.statusHeaders
-    ) || "Pending";
+    );
+  const verificationStatus = farmerStatuses
+    ? farmerStatuses.verificationStatus
+    : getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.verificationStatusHeaders || []
+      );
+  const matchedName =
+    getRegistrationValue(
+      matchedRow,
+      headerMap,
+      config.nameHeaders
+    );
+  const matchedMobile =
+    getRegistrationValue(
+      matchedRow,
+      headerMap,
+      config.mobileHeaders
+    );
+  const matchedWhatsApp =
+    getRegistrationValue(
+      matchedRow,
+      headerMap,
+      config.whatsappHeaders
+    );
+  const activeStatus = farmerStatuses
+    ? farmerStatuses.activeStatus
+    : getRegistrationValue(
+        matchedRow,
+        headerMap,
+        config.activeStatusHeaders || []
+      );
+  const registrationStatus = farmerStatuses
+    ? farmerStatuses.registrationStatus
+    : legacyStatus;
+  const registrationComplete = Boolean(
+    memberId &&
+    matchedName &&
+    registrationPhoneKey(matchedWhatsApp) === incomingPhone &&
+    (
+      config.category === "farmer"
+        ? isFarmerRegistrationEligible({
+            registrationStatus,
+            verificationStatus,
+            activeStatus
+          })
+        : isServiceMemberEligible({
+            registrationStatus,
+            verificationStatus,
+            activeStatus,
+            allowBlankActiveStatus: true
+          })
+    )
+  );
 
   return {
     success: true,
     alreadyRegistered: true,
+    registrationComplete,
+    rowNumber: matchedEntry.rowNumber,
+    exactWhatsAppMatch:
+      matchedEntry.exactWhatsAppMatch,
 
     category:
       config.category,
@@ -10393,26 +10704,11 @@ async function findRegistrationByPhone(
 
     memberId,
 
-    name:
-      getRegistrationValue(
-        matchedRow,
-        headerMap,
-        config.nameHeaders
-      ),
+    name: matchedName,
 
-    mobile:
-      getRegistrationValue(
-        matchedRow,
-        headerMap,
-        config.mobileHeaders
-      ),
+    mobile: matchedMobile,
 
-    whatsapp:
-      getRegistrationValue(
-        matchedRow,
-        headerMap,
-        config.whatsappHeaders
-      ),
+    whatsapp: matchedWhatsApp,
 
     district:
       getRegistrationValue(
@@ -10496,22 +10792,12 @@ async function findRegistrationByPhone(
         matchedRow,
         headers
       ),
-    registrationStatus:
-      farmerStatuses
-        ? farmerStatuses.registrationStatus
-        : legacyStatus,
+    registrationStatus,
     verificationStatus:
-      farmerStatuses
-        ? farmerStatuses.verificationStatus
-        : legacyStatus,
-    activeStatus:
-      farmerStatuses
-        ? farmerStatuses.activeStatus
-        : "",
+      verificationStatus,
+    activeStatus,
     status:
-      farmerStatuses
-        ? farmerStatuses.registrationStatus
-        : legacyStatus
+      registrationStatus
   };
 }
 async function updateFarmerPreferredLanguage(
@@ -10552,17 +10838,8 @@ async function updateFarmerPreferredLanguage(
     const incomingPhone =
       registrationPhoneKey(phone);
 
-    const rowIndex =
-      rows.findIndex(function (row) {
-        const savedMobile =
-          registrationPhoneKey(
-            getRegistrationValue(
-              row,
-              headerMap,
-              config.mobileHeaders
-            )
-          );
-
+    const matchingRowIndexes =
+      rows.map(function (row, index) {
         const savedWhatsApp =
           registrationPhoneKey(
             getRegistrationValue(
@@ -10572,15 +10849,16 @@ async function updateFarmerPreferredLanguage(
             )
           );
 
-        return (
-          savedMobile === incomingPhone ||
-          savedWhatsApp === incomingPhone
-        );
+        return savedWhatsApp === incomingPhone ? index : -1;
+      }).filter(function (index) {
+        return index > 0;
       });
 
-    if (rowIndex === -1) {
+    if (matchingRowIndexes.length !== 1) {
       return false;
     }
+
+    const rowIndex = matchingRowIndexes[0];
 
     function columnNumberToLetter(
       columnNumber
@@ -10893,22 +11171,19 @@ async function handleRegistration(
    * Allow user to cancel an active
    * registration session.
    */
-  if (lower === "menu") {
-  delete sessions[from];
+  if (["menu", "home", "hi", "hello", "hai"].includes(lower)) {
+    delete sessions[from];
 
-  if (userMenus[from]) {
-    userMenus[from].step = null;
-    userMenus[from].updatedAt =
-      Date.now();
+    if (userMenus[from]) {
+      userMenus[from].step = null;
+      userMenus[from].updatedAt = Date.now();
+    }
+
+    return {
+      handled: true,
+      showHome: true
+    };
   }
-
-await bhoomiMitraUI.sendMainMenu(
-  from,
-  userLanguagePreferences[from] || "English"
-);
-
-return "";
-}
 if (
   lower === "cancel" ||
   lower === "stop" ||
@@ -10948,7 +11223,10 @@ if (
       await findRegistrationByPhone(
         category,
         from,
-        { requireUnique: true }
+        {
+          requireUnique: true,
+          allowMobileMatch: true
+        }
       );
 
     if (existing) {
@@ -10960,6 +11238,49 @@ if (
         return language === "Malayalam"
           ? "ഈ WhatsApp നമ്പറുമായി ഒന്നിലധികം രജിസ്ട്രേഷനുകൾ ബന്ധിപ്പിച്ചിരിക്കുന്നു. തിരിച്ചറിയൽ പരിശോധിക്കാൻ KVK ടീമുമായി ബന്ധപ്പെടുക."
           : "More than one registration is linked to this WhatsApp number. Please contact the KVK team for identity verification.";
+      }
+
+      if (!existing.registrationComplete) {
+        const resumePlan =
+          getRegistrationResumePlan(
+            existing,
+            from
+          );
+        const resumeLanguage =
+          normalizePreferredLanguage(
+            userLanguagePreferences[from] ||
+            existing.preferredLanguage ||
+            s.data.preferredLanguage
+          );
+
+        if (resumePlan.eligible) {
+          s.step = resumePlan.nextStep;
+          s.data = {
+            ...s.data,
+            ...resumePlan.data,
+            preferredLanguage:
+              resumeLanguage ||
+              resumePlan.data.preferredLanguage ||
+              ""
+          };
+
+          return registrationResumePrompt(
+            s.step,
+            resumeLanguage
+          );
+        }
+
+        clearCompletedRegistrationSession({
+          registrationSessions: sessions,
+          userKey: from,
+          result: existing
+        });
+        const language = normalizePreferredLanguage(
+          userLanguagePreferences[from] || s.data.preferredLanguage
+        );
+        return language === "Malayalam"
+          ? "നിലവിലുള്ള രജിസ്ട്രേഷൻ അപൂർണ്ണമാണ്, സജീവമല്ല, അല്ലെങ്കിൽ ഈ WhatsApp തിരിച്ചറിയലുമായി സ്ഥിരീകരിച്ചിട്ടില്ല. പുതിയ രേഖയോ Farmer_ID-യോ സൃഷ്ടിച്ചിട്ടില്ല. പരിശോധനയ്ക്കായി KVK ടീമുമായി ബന്ധപ്പെടുക."
+          : "The existing registration is incomplete, inactive, or not verified for this WhatsApp identity. No new record or Farmer_ID was created. Please contact the KVK team for verification.";
       }
 
       if (existing.category === "farmer") {
@@ -10990,6 +11311,40 @@ if (
     return "പേര് മാത്രം അയക്കൂ.";
   }
 
+  if (s.step === "resume_confirm") {
+    if (!isResumeConfirmation(text)) {
+      return registrationResumePrompt(
+        "resume_confirm",
+        userLanguagePreferences[from] ||
+          s.data.preferredLanguage
+      );
+    }
+
+    const result = await saveRegistration(
+      withPreferredLanguage(
+        s.data,
+        userLanguagePreferences[from]
+      )
+    );
+
+    if (!result || !result.success) {
+      return "Registration could not be resumed safely. No new record or Farmer_ID was created. Please contact the KVK team.";
+    }
+
+    clearCompletedRegistrationSession({
+      registrationSessions: sessions,
+      userKey: from,
+      result
+    });
+
+    return {
+      handled: true,
+      registrationCompleted: true,
+      category: result.category,
+      reply: formatExistingRegistration(result, from)
+    };
+  }
+
   /*
    * NAME
    */
@@ -11002,6 +11357,20 @@ if (
     }
 
     s.data.name = name;
+
+    if (s.data.resumeMemberId) {
+      s.step = ["district", "panchayath", "crop"]
+        .find(function (field) {
+          return !String(s.data[field] || "").trim();
+        }) || "resume_confirm";
+
+      return registrationResumePrompt(
+        s.step,
+        userLanguagePreferences[from] ||
+          s.data.preferredLanguage
+      );
+    }
+
     s.step = "district";
 
     return "ജില്ല ഏതാണ്?";
@@ -11014,6 +11383,19 @@ if (
     s.data.district =
       String(text || "").trim();
 
+    if (s.data.resumeMemberId) {
+      s.step = ["panchayath", "crop"]
+        .find(function (field) {
+          return !String(s.data[field] || "").trim();
+        }) || "resume_confirm";
+
+      return registrationResumePrompt(
+        s.step,
+        userLanguagePreferences[from] ||
+          s.data.preferredLanguage
+      );
+    }
+
     s.step = "panchayath";
 
     return "പഞ്ചായത്ത് ഏതാണ്?";
@@ -11025,6 +11407,18 @@ if (
   if (s.step === "panchayath") {
     s.data.panchayath =
       String(text || "").trim();
+
+    if (s.data.resumeMemberId) {
+      s.step = String(s.data.crop || "").trim()
+        ? "resume_confirm"
+        : "crop";
+
+      return registrationResumePrompt(
+        s.step,
+        userLanguagePreferences[from] ||
+          s.data.preferredLanguage
+      );
+    }
 
     if (
       s.data.category === "farmer"
@@ -11097,17 +11491,14 @@ if (
       result
     });
 
-    if (result.alreadyRegistered) {
-      return formatExistingRegistration(
-        result,
-        from
-      );
-    }
-
-    return formatNewRegistration(
-      result,
-      from
-    );
+    return {
+      handled: true,
+      registrationCompleted: true,
+      category: result.category,
+      reply: result.alreadyRegistered
+        ? formatExistingRegistration(result, from)
+        : formatNewRegistration(result, from)
+    };
   }
 
   /*
@@ -11137,17 +11528,14 @@ if (
       result
     });
 
-    if (result.alreadyRegistered) {
-      return formatExistingRegistration(
-        result,
-        from
-      );
-    }
-
-    return formatNewRegistration(
-      result,
-      from
-    );
+    return {
+      handled: true,
+      registrationCompleted: true,
+      category: result.category,
+      reply: result.alreadyRegistered
+        ? formatExistingRegistration(result, from)
+        : formatNewRegistration(result, from)
+    };
   }
 
   return null;
@@ -11170,6 +11558,229 @@ async function saveRegistration(data) {
   );
 }
 
+function registrationColumnLetter(index) {
+  let number = Number(index) + 1;
+  let letters = "";
+
+  while (number > 0) {
+    const remainder = (number - 1) % 26;
+    letters = String.fromCharCode(65 + remainder) + letters;
+    number = Math.floor((number - 1) / 26);
+  }
+
+  return letters;
+}
+
+function setRegistrationValueIfBlank(
+  row,
+  headerMap,
+  aliases,
+  value
+) {
+  const index = findRegistrationColumn(headerMap, aliases);
+  if (index < 0 || String(row[index] || "").trim()) {
+    return false;
+  }
+  return setRegistrationValue(row, headerMap, aliases, value);
+}
+
+async function resumeExistingFarmerRegistration(data, existing) {
+  const resumePlan = getRegistrationResumePlan(
+    existing,
+    data.whatsapp || data.mobile || ""
+  );
+
+  if (
+    !resumePlan.eligible ||
+    !data.resumeMemberId ||
+    String(data.resumeMemberId).trim() !==
+      String(existing.memberId || "").trim()
+  ) {
+    return {
+      success: false,
+      code: "REGISTRATION_RESUME_NOT_AUTHORIZED"
+    };
+  }
+
+  const sheetData = await loadRegistrationSheet("farmer");
+  if (!sheetData) {
+    return {
+      success: false,
+      code: "REGISTRATION_SHEET_UNAVAILABLE"
+    };
+  }
+
+  const { config, rows, headers, headerMap } = sheetData;
+  const matching = rows.map(function (row, index) {
+    const id = getRegistrationValue(row, headerMap, config.idHeaders);
+    const whatsapp = getRegistrationValue(
+      row,
+      headerMap,
+      config.whatsappHeaders
+    );
+    return (
+      index > 0 &&
+      String(id || "").trim() === String(existing.memberId).trim() &&
+      registrationPhoneKey(whatsapp) ===
+        registrationPhoneKey(data.whatsapp || data.mobile)
+    ) ? { row, index } : null;
+  }).filter(Boolean);
+
+  if (matching.length !== 1) {
+    return {
+      success: false,
+      code: "REGISTRATION_RESUME_IDENTITY_CHANGED"
+    };
+  }
+
+  const original = matching[0].row.slice();
+  const updated = matching[0].row.slice();
+  const timestamp = new Date().toISOString();
+
+  setRegistrationValueIfBlank(
+    updated,
+    headerMap,
+    config.nameHeaders,
+    data.name || ""
+  );
+  setRegistrationValueIfBlank(
+    updated,
+    headerMap,
+    config.mobileHeaders,
+    data.mobile || data.whatsapp || ""
+  );
+  setRegistrationValueIfBlank(
+    updated,
+    headerMap,
+    config.districtHeaders,
+    data.district || ""
+  );
+  setRegistrationValueIfBlank(
+    updated,
+    headerMap,
+    config.panchayathHeaders,
+    data.panchayath || ""
+  );
+  setRegistrationValueIfBlank(
+    updated,
+    headerMap,
+    config.serviceHeaders,
+    data.crop || data.service || ""
+  );
+
+  const languageColumn = findRegistrationColumn(
+    headerMap,
+    config.languageHeaders || []
+  );
+  if (
+    languageColumn >= 0 &&
+    !String(updated[languageColumn] || "").trim() &&
+    data.preferredLanguage
+  ) {
+    setFarmerPreferredLanguage(
+      updated,
+      headers,
+      data.preferredLanguage
+    );
+  }
+
+  applyNewFarmerStatuses(updated, headers);
+  setRegistrationValue(
+    updated,
+    headerMap,
+    ["Last_Updated", "Last Updated"],
+    timestamp
+  );
+
+  const memberId = getRegistrationValue(
+    updated,
+    headerMap,
+    config.idHeaders
+  );
+  const statuses = readFarmerStatuses(updated, headers, memberId);
+  const name = getRegistrationValue(
+    updated,
+    headerMap,
+    config.nameHeaders
+  );
+  const whatsapp = getRegistrationValue(
+    updated,
+    headerMap,
+    config.whatsappHeaders
+  );
+
+  if (
+    memberId !== existing.memberId ||
+    !String(name || "").trim() ||
+    registrationPhoneKey(whatsapp) !==
+      registrationPhoneKey(data.whatsapp || data.mobile) ||
+    !isFarmerRegistrationEligible(statuses)
+  ) {
+    return {
+      success: false,
+      code: "REGISTRATION_RESUME_REQUIRES_VERIFICATION"
+    };
+  }
+
+  const sheetRowNumber = matching[0].index + 1;
+  const updates = [];
+  headers.forEach(function (_header, index) {
+    if (String(original[index] || "") === String(updated[index] || "")) {
+      return;
+    }
+    updates.push({
+      range:
+        "'" + String(config.sheetName).replace(/'/g, "''") + "'!" +
+        registrationColumnLetter(index) + sheetRowNumber,
+      values: [[updated[index] == null ? "" : updated[index]]]
+    });
+  });
+
+  if (updates.length > 0) {
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: GOOGLE_SHEET_ID,
+      requestBody: {
+        valueInputOption: "RAW",
+        data: updates
+      }
+    });
+  }
+
+  const result = {
+    success: true,
+    alreadyRegistered: true,
+    resumed: true,
+    registrationComplete: true,
+    category: "farmer",
+    categoryLabel: config.categoryLabel,
+    malayalamLabel: config.malayalamLabel,
+    idLabel: config.idLabel,
+    memberId,
+    farmerId: memberId,
+    name,
+    mobile: getRegistrationValue(updated, headerMap, config.mobileHeaders),
+    whatsapp,
+    district: getRegistrationValue(updated, headerMap, config.districtHeaders),
+    panchayath: getRegistrationValue(updated, headerMap, config.panchayathHeaders),
+    mainCrop: getRegistrationValue(updated, headerMap, config.serviceHeaders),
+    service: getRegistrationValue(updated, headerMap, config.serviceHeaders),
+    preferredLanguage: getFarmerPreferredLanguage(updated, headers),
+    registrationStatus: statuses.registrationStatus,
+    verificationStatus: statuses.verificationStatus,
+    activeStatus: statuses.activeStatus,
+    status: statuses.registrationStatus
+  };
+
+  result.masterSync = await syncFarmerRegistration({
+    sheets,
+    spreadsheetId: GOOGLE_SHEET_ID,
+    registration: result
+  });
+  result.masterSyncPending = !result.masterSync.success;
+
+  return result;
+}
+
 async function saveRegistrationLocked(data) {
   const category =
     data.category || "farmer";
@@ -11184,12 +11795,33 @@ async function saveRegistrationLocked(data) {
       data.whatsapp ||
       data.mobile ||
       "",
-      { requireUnique: true }
+      {
+        requireUnique: true,
+        allowMobileMatch: true
+      }
     );
 
   if (existing) {
     if (!existing.success) {
       return existing;
+    }
+
+    if (!existing.registrationComplete) {
+      if (
+        category === "farmer" &&
+        data.resumeMemberId
+      ) {
+        return resumeExistingFarmerRegistration(
+          data,
+          existing
+        );
+      }
+
+      return {
+        ...existing,
+        success: false,
+        code: "EXISTING_REGISTRATION_REQUIRES_VERIFICATION"
+      };
     }
 
     if (category === "farmer") {
@@ -11225,6 +11857,27 @@ async function saveRegistrationLocked(data) {
     headers,
     headerMap
   } = sheetData;
+
+  const identitySchema =
+    validateRegistrationIdentityHeaders(
+      headers,
+      config
+    );
+
+  if (!identitySchema.valid) {
+    console.error(
+      "Registration write blocked because required identity headers are missing.",
+      {
+        category: config.category,
+        missing: identitySchema.missing
+      }
+    );
+    return {
+      success: false,
+      code: "REGISTRATION_IDENTITY_HEADERS_MISSING",
+      missingHeaders: identitySchema.missing
+    };
+  }
 
   const timestamp =
     new Date().toISOString();
@@ -12183,6 +12836,19 @@ function formatLiveMarketReply(record) {
       ? "-"
       : record.price;
 
+  const sourceTimestamp = Date.parse(
+    String(record.sourceDate || "") +
+    " " +
+    String(record.sourceTime || "")
+  );
+  const sourceAgeHours = Number.isFinite(sourceTimestamp)
+    ? (Date.now() - sourceTimestamp) / (1000 * 60 * 60)
+    : null;
+  const sourceIsCurrent =
+    sourceAgeHours !== null &&
+    sourceAgeHours >= 0 &&
+    sourceAgeHours < 48;
+
   return [
     "📊 BhoomiMitra Market Intelligence",
     "",
@@ -12210,7 +12876,16 @@ function formatLiveMarketReply(record) {
       (record.checkedAt || "-"),
     "Source: " +
       (record.source || "AGMARKNET"),
-    "Status: Official source"
+    sourceIsCurrent
+      ? "Status: Recent official-source observation"
+      : "Status: Historical or unverified official-source observation",
+    ...(
+      sourceIsCurrent
+        ? []
+        : [
+            "Warning: This price is not being presented as today's price."
+          ]
+    )
   ].join("\n");
 }
 

@@ -67,6 +67,7 @@ function makeLandRows() {
   return [
     [
       "Land_ID",
+      "Farmer_ID",
       "Phone",
       "Farm_Name",
       "District",
@@ -77,6 +78,7 @@ function makeLandRows() {
     ],
     [
       "LAND-1",
+      "BM-1001",
       PHONE,
       "Home Farm",
       "Pathanamthitta",
@@ -383,6 +385,8 @@ test("all explicit top-level navigation IDs close unfinished registration", func
     "HOME_FARM",
     "FARM_WEATHER_ALERTS",
     "HOME_EXPERT",
+    "HOME_ENTERPRISE",
+    "HOME_MORE",
     "HOME_TRAINING",
     "TRAINING_PROMOTED",
     "HOME_SCHEMES",

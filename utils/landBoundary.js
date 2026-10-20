@@ -99,6 +99,139 @@ function phoneKey(value) {
   return digits;
 }
 
+function createLandMapAccessToken(options) {
+  const input = options || {};
+  const secret = String(input.secret || "");
+  const landId = String(input.landId || "").trim().toUpperCase();
+  const farmerId = String(input.farmerId || "").trim().toUpperCase();
+  const whatsapp = phoneKey(input.whatsapp);
+  const now = Number.isFinite(input.now) ? input.now : Date.now();
+  const ttlMs = Number.isFinite(input.ttlMs) && input.ttlMs > 0
+    ? input.ttlMs
+    : 30 * 60 * 1000;
+
+  if (!secret || !isValidLandId(landId) || !farmerId || !whatsapp) {
+    return "";
+  }
+
+  const payload = Buffer.from(JSON.stringify({
+    version: 1,
+    landId,
+    farmerId,
+    whatsapp,
+    expiresAt: now + ttlMs
+  })).toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", secret)
+    .update(payload)
+    .digest("base64url");
+
+  return payload + "." + signature;
+}
+
+function verifyLandMapAccessToken(options) {
+  const input = options || {};
+  const secret = String(input.secret || "");
+  const token = String(input.token || "");
+  const expectedLandId = String(input.landId || "").trim().toUpperCase();
+  const now = Number.isFinite(input.now) ? input.now : Date.now();
+  const parts = token.split(".");
+
+  if (!secret || parts.length !== 2 || !isValidLandId(expectedLandId)) {
+    return { valid: false, claims: null };
+  }
+
+  const expectedSignature = crypto
+    .createHmac("sha256", secret)
+    .update(parts[0])
+    .digest();
+  let providedSignature;
+  try {
+    providedSignature = Buffer.from(parts[1], "base64url");
+  } catch (error) {
+    return { valid: false, claims: null };
+  }
+
+  if (
+    providedSignature.length !== expectedSignature.length ||
+    !crypto.timingSafeEqual(providedSignature, expectedSignature)
+  ) {
+    return { valid: false, claims: null };
+  }
+
+  let claims;
+  try {
+    claims = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+  } catch (error) {
+    return { valid: false, claims: null };
+  }
+
+  const valid = Boolean(
+    claims &&
+    claims.version === 1 &&
+    String(claims.landId || "").toUpperCase() === expectedLandId &&
+    String(claims.farmerId || "").trim() &&
+    phoneKey(claims.whatsapp) &&
+    Number.isFinite(claims.expiresAt) &&
+    claims.expiresAt > now
+  );
+
+  return {
+    valid,
+    claims: valid ? claims : null
+  };
+}
+
+async function getLandMapDataByAccessToken({
+  sheets,
+  spreadsheetId,
+  landId,
+  accessToken = "",
+  secret = "",
+  now
+}) {
+  const authorization = verifyLandMapAccessToken({
+    secret,
+    token: accessToken,
+    landId,
+    now
+  });
+
+  if (!authorization.valid) {
+    return {
+      success: false,
+      accessDenied: true,
+      error: "Land map access is unauthorized."
+    };
+  }
+
+  const status = await getAccessibleLandBoundaryStatus({
+    sheets,
+    spreadsheetId,
+    landId,
+    farmerId: authorization.claims.farmerId,
+    whatsapp: authorization.claims.whatsapp
+  });
+
+  if (!status || !status.success) {
+    return {
+      success: false,
+      accessDenied: true,
+      error: "Land map access is unauthorized."
+    };
+  }
+
+  if (status.mappingStatus !== "COMPLETED") {
+    return {
+      success: false,
+      accessDenied: false,
+      error: "Land map is not available."
+    };
+  }
+
+  return status;
+}
+
 function isValidLandId(value) {
   return /^BM-L-\d{6}$/i.test(
     String(value || "").trim()
@@ -328,6 +461,14 @@ async function findLand({
       .trim()
       .toLowerCase();
 
+  if (!requestedPhone || !requestedFarmerId) {
+    return {
+      success: false,
+      error:
+        "Verified WhatsApp identity and Farmer ID are required."
+    };
+  }
+
   for (
     let i = 1;
     i < rows.length;
@@ -386,22 +527,12 @@ async function findLand({
         .trim()
         .toLowerCase();
 
-    const phoneMatches =
-      !requestedPhone ||
-      !savedPhone ||
-      requestedPhone ===
-        savedPhone;
-
     const farmerMatches =
-      !requestedFarmerId ||
-      !savedFarmerId ||
+      Boolean(savedFarmerId) &&
       requestedFarmerId ===
         savedFarmerId;
 
-    if (
-      !phoneMatches ||
-      !farmerMatches
-    ) {
+    if (!farmerMatches) {
       return {
         success: false,
         error:
@@ -654,10 +785,6 @@ async function getLandBoundaryStatus({
     String(farmerId || "")
       .trim()
       .toLowerCase();
-  const savedPhone =
-    phoneKey(
-      landResult.land.whatsapp
-    );
   const savedFarmerId =
     String(
       landResult.land.farmerId ||
@@ -665,27 +792,15 @@ async function getLandBoundaryStatus({
     )
       .trim()
       .toLowerCase();
-  const ownershipCheckRequested =
-    Boolean(
-      requestedPhone ||
-      requestedFarmerId
-    );
   const ownerMatches =
     Boolean(
       requestedPhone &&
-      savedPhone &&
-      requestedPhone === savedPhone
-    ) ||
-    Boolean(
       requestedFarmerId &&
       savedFarmerId &&
       requestedFarmerId === savedFarmerId
     );
 
-  if (
-    ownershipCheckRequested &&
-    !ownerMatches
-  ) {
+  if (!ownerMatches) {
     return {
       success: false,
       error:
@@ -994,7 +1109,8 @@ function formatCoordinate(latitude, longitude) {
 function formatGpsDetailsReply(
   status,
   language,
-  mapBaseUrl
+  mapBaseUrl,
+  mapAccessToken = ""
 ) {
   const isEnglish =
     String(language || "")
@@ -1004,10 +1120,12 @@ function formatGpsDetailsReply(
     status.mappingStatus === "COMPLETED";
   const baseUrl = String(mapBaseUrl || "")
     .replace(/\/+$/, "");
-  const mapUrl = completed && baseUrl
+  const mapUrl = completed && baseUrl && mapAccessToken
     ? baseUrl +
       "/land-map/" +
-      encodeURIComponent(status.landId)
+      encodeURIComponent(status.landId) +
+      "?access=" +
+      encodeURIComponent(mapAccessToken)
     : "";
   const area = String(
     status.gpsCalculatedArea || ""
@@ -1074,7 +1192,8 @@ async function handleGpsDetailsSelection({
   farmerId = "",
   whatsapp = "",
   language,
-  mapBaseUrl = ""
+  mapBaseUrl = "",
+  mapAccessToken = ""
 }) {
   const normalizedLandId =
     String(landId || "").trim().toUpperCase();
@@ -1131,7 +1250,8 @@ async function handleGpsDetailsSelection({
       reply: formatGpsDetailsReply(
         status,
         language,
-        mapBaseUrl
+        mapBaseUrl,
+        mapAccessToken
       )
     };
   } catch (error) {
@@ -1152,6 +1272,19 @@ async function getAccessibleLandBoundaryStatus({
   farmerId = "",
   whatsapp = ""
 }) {
+  const registeredFarmerId =
+    String(farmerId || "").trim();
+  const verifiedSender = phoneKey(whatsapp);
+
+  if (!registeredFarmerId || !verifiedSender) {
+    return {
+      success: false,
+      accessDenied: true,
+      error:
+        "Verified WhatsApp identity and Farmer ID are required."
+    };
+  }
+
   const ownerStatus =
     await getLandBoundaryStatus({
       sheets,
@@ -1199,8 +1332,12 @@ async function getAccessibleLandBoundaryStatus({
       sheets,
       spreadsheetId,
       landId,
-      farmerId: "",
-      whatsapp: ""
+      farmerId:
+        sharedAccess.access &&
+        sharedAccess.access.ownerFarmerId
+          ? sharedAccess.access.ownerFarmerId
+          : "",
+      whatsapp
     });
 
   if (
@@ -1243,7 +1380,8 @@ function isBoundaryStatusExit(value) {
 function formatBoundaryStatusReply(
   status,
   language,
-  mapBaseUrl
+  mapBaseUrl,
+  mapAccessToken = ""
 ) {
   const isEnglish =
     String(language || "")
@@ -1259,12 +1397,14 @@ function formatBoundaryStatusReply(
     String(mapBaseUrl || "")
       .replace(/\/+$/, "");
   const mapUrl =
-    completed && baseUrl
+    completed && baseUrl && mapAccessToken
       ? baseUrl +
         "/land-map/" +
         encodeURIComponent(
           status.landId
-        )
+        ) +
+        "?access=" +
+        encodeURIComponent(mapAccessToken)
       : "";
 
   if (isEnglish) {
@@ -1337,7 +1477,8 @@ async function handleBoundaryStatusSelection({
   farmerId = "",
   whatsapp = "",
   language,
-  mapBaseUrl = ""
+  mapBaseUrl = "",
+  mapAccessToken = ""
 }) {
   const normalizedLandId =
     String(landId || "")
@@ -1406,7 +1547,8 @@ async function handleBoundaryStatusSelection({
         formatBoundaryStatusReply(
           status,
           language,
-          mapBaseUrl
+          mapBaseUrl,
+          mapAccessToken
         )
     };
   } catch (error) {
@@ -2432,6 +2574,9 @@ async function cancelBoundary({
 }
 
 module.exports = {
+  createLandMapAccessToken,
+  verifyLandMapAccessToken,
+  getLandMapDataByAccessToken,
   startBoundarySession,
   addBoundaryPoint,
   getBoundaryPoints,

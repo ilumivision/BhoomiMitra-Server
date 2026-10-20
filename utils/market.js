@@ -278,7 +278,7 @@ function recordTimestamp(record) {
   return 0;
 }
 
-function calculateFreshness(record) {
+function calculateFreshness(record, now) {
   const published =
     clean(getSourcePublishedDate(record)) +
     " " +
@@ -290,8 +290,13 @@ function calculateFreshness(record) {
     return "Unverified";
   }
 
+  const referenceTime = now instanceof Date
+    ? now.getTime()
+    : Number.isFinite(Number(now))
+      ? Number(now)
+      : Date.now();
   const ageHours =
-    (Date.now() - publishedDate.getTime()) /
+    (referenceTime - publishedDate.getTime()) /
     (1000 * 60 * 60);
 
   if (ageHours < 0) {
@@ -311,6 +316,52 @@ function calculateFreshness(record) {
   }
 
   return "Older data";
+}
+
+function assessMarketFreshness(record, options) {
+  const input = options || {};
+  const maximumAgeHours = Number.isFinite(Number(input.maximumAgeHours))
+    ? Number(input.maximumAgeHours)
+    : 48;
+  const referenceTime = input.now instanceof Date
+    ? input.now.getTime()
+    : Number.isFinite(Number(input.now))
+      ? Number(input.now)
+      : Date.now();
+  const publishedText = (
+    clean(getSourcePublishedDate(record)) +
+    " " +
+    clean(getSourcePublishedTime(record))
+  ).trim();
+  const publishedTime = new Date(publishedText).getTime();
+
+  if (!publishedText || !Number.isFinite(publishedTime)) {
+    return {
+      current: false,
+      ageHours: null,
+      label: "Unverified",
+      reason: "SOURCE_OBSERVATION_TIME_UNAVAILABLE"
+    };
+  }
+
+  const ageHours = (referenceTime - publishedTime) / (1000 * 60 * 60);
+  if (ageHours < 0) {
+    return {
+      current: false,
+      ageHours,
+      label: "Unverified",
+      reason: "SOURCE_OBSERVATION_TIME_IN_FUTURE"
+    };
+  }
+
+  return {
+    current: ageHours < maximumAgeHours,
+    ageHours,
+    label: calculateFreshness(record, referenceTime),
+    reason: ageHours < maximumAgeHours
+      ? "CURRENT_WITHIN_THRESHOLD"
+      : "STALE_SOURCE_OBSERVATION"
+  };
 }
 
 function calculatePriceStatus(record) {
@@ -430,7 +481,7 @@ function calculateTrend(currentPrice, previousPrice) {
 
   return "Stable";
 }
-function formatMarketReply(record) {
+function formatMarketReply(record, options) {
 
   if (!record) {
 
@@ -447,6 +498,7 @@ function formatMarketReply(record) {
   const maxPrice =
     getMaximumPrice(record);
 
+  const freshness = assessMarketFreshness(record, options);
   const reply = [
 
     "📊 BhoomiMitra Market Intelligence",
@@ -483,7 +535,15 @@ function formatMarketReply(record) {
       calculatePriceStatus(record),
 
     "Freshness: " +
-      calculateFreshness(record),
+      freshness.label,
+
+    ...(
+      freshness.current
+        ? []
+        : [
+            "Warning: This is historical or unverified price data. It is not being presented as today's price."
+          ]
+    ),
 
     "",
 
@@ -530,10 +590,28 @@ async function getMarketPrice(options) {
       input.query || {}
     );
 
+  const freshness = latest
+    ? assessMarketFreshness(latest, input)
+    : {
+        current: false,
+        ageHours: null,
+        label: "Unavailable",
+        reason: "NO_MATCHING_RECORD"
+      };
+  const usable = Boolean(
+    latest &&
+    getCommodity(latest) &&
+    getSourceName(latest) &&
+    getModalPrice(latest) != null
+  );
+
   return {
     success: latest != null,
     record: latest,
-    reply: formatMarketReply(latest)
+    usable,
+    isCurrent: usable && freshness.current,
+    freshness,
+    reply: formatMarketReply(latest, input)
   };
 
 }
@@ -542,7 +620,8 @@ module.exports = {
   getMarketPrice,
 
   findLatestMarketRecord,
-
-  formatMarketReply
+  formatMarketReply,
+  calculateFreshness,
+  assessMarketFreshness
 
 };

@@ -4,8 +4,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  createLandMapAccessToken,
   handleBoundaryStatusSelection
 } = require("../utils/landBoundary");
+
+const MAP_SECRET = "test-land-map-secret";
 
 const LAND_HEADERS = [
   "Land_ID",
@@ -123,14 +126,18 @@ function makeSheets(options = {}) {
 
 function landRow(options = {}) {
   return [
-    options.landId ||
-      "BM-L-000003",
-    options.farmerId ||
-      "BM-F-000001",
-    options.farmName ||
-      "Home Farm",
-    options.whatsapp ||
-      "919876543210",
+    Object.prototype.hasOwnProperty.call(options, "landId")
+      ? options.landId
+      : "BM-L-000003",
+    Object.prototype.hasOwnProperty.call(options, "farmerId")
+      ? options.farmerId
+      : "BM-F-000001",
+    Object.prototype.hasOwnProperty.call(options, "farmName")
+      ? options.farmName
+      : "Home Farm",
+    Object.prototype.hasOwnProperty.call(options, "whatsapp")
+      ? options.whatsapp
+      : "919876543210",
     options.geoJSON || "",
     options.verified || "",
     options.updatedAt || ""
@@ -159,7 +166,7 @@ function accessRow(options = {}) {
   return [
     "ACC-1",
     options.landId || "BM-L-000003",
-    "BM-F-000001",
+    options.ownerFarmerId || "BM-F-000001",
     "9876543210",
     "Authorized Farmer",
     options.authorizedWhatsapp ||
@@ -175,7 +182,7 @@ function accessRow(options = {}) {
 }
 
 function requestOptions(sheets, overrides = {}) {
-  return {
+  const input = {
     sheets,
     spreadsheetId: "sheet-id",
     landId: "BM-L-000003",
@@ -186,6 +193,17 @@ function requestOptions(sheets, overrides = {}) {
       "https://bhoomimitra.example",
     ...overrides
   };
+
+  if (!Object.prototype.hasOwnProperty.call(overrides, "mapAccessToken")) {
+    input.mapAccessToken = createLandMapAccessToken({
+      secret: MAP_SECRET,
+      landId: input.landId,
+      farmerId: input.farmerId,
+      whatsapp: input.whatsapp
+    });
+  }
+
+  return input;
 }
 
 test("valid registered Land ID returns owner boundary status", async function () {
@@ -257,6 +275,48 @@ test("land belonging to another farmer is denied", async function () {
   assert.equal(result.status, undefined);
 });
 
+test("land with a missing Farmer_ID is denied even when WhatsApp matches", async function () {
+  const fixture = makeSheets({
+    landRows: [landRow({ farmerId: "" })]
+  });
+
+  const result = await handleBoundaryStatusSelection(
+    requestOptions(fixture.sheets)
+  );
+
+  assert.equal(result.handled, true);
+  assert.equal(result.retry, true);
+  assert.equal(result.status, undefined);
+});
+
+test("matching WhatsApp never overrides an incorrect Farmer_ID", async function () {
+  const fixture = makeSheets({
+    landRows: [landRow({ farmerId: "BM-F-OTHER" })]
+  });
+
+  const result = await handleBoundaryStatusSelection(
+    requestOptions(fixture.sheets)
+  );
+
+  assert.equal(result.handled, true);
+  assert.equal(result.retry, true);
+  assert.equal(result.status, undefined);
+});
+
+test("phone-only boundary ownership attempt is denied", async function () {
+  const fixture = makeSheets({
+    landRows: [landRow()]
+  });
+
+  const result = await handleBoundaryStatusSelection(
+    requestOptions(fixture.sheets, { farmerId: "" })
+  );
+
+  assert.equal(result.handled, true);
+  assert.equal(result.retry, true);
+  assert.equal(result.status, undefined);
+});
+
 test("authorized farmer can view boundary status", async function () {
   const fixture = makeSheets({
     landRows: [
@@ -267,6 +327,7 @@ test("authorized farmer can view boundary status", async function () {
     ],
     accessRows: [
       accessRow({
+        ownerFarmerId: "BM-F-OTHER",
         authorizedWhatsapp:
           "9123456789"
       })
@@ -383,8 +444,30 @@ test("completed boundary reports polygon points and existing map link", async fu
   );
   assert.match(
     result.reply,
-    /https:\/\/bhoomimitra\.example\/land-map\/BM-L-000003/
+    /https:\/\/bhoomimitra\.example\/land-map\/BM-L-000003\?access=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/
   );
+});
+
+test("completed boundary status never emits an unauthenticated map link", async function () {
+  const fixture = makeSheets({
+    landRows: [landRow({
+      geoJSON: JSON.stringify({
+        type: "Polygon",
+        coordinates: [[
+          [76.787, 9.2648],
+          [76.788, 9.2649],
+          [76.7875, 9.2655],
+          [76.787, 9.2648]
+        ]]
+      })
+    })]
+  });
+  const result = await handleBoundaryStatusSelection(
+    requestOptions(fixture.sheets, { mapAccessToken: "" })
+  );
+
+  assert.equal(result.status.mappingStatus, "COMPLETED");
+  assert.doesNotMatch(result.reply, /\/land-map\//);
 });
 
 test("Malayalam response uses localized boundary status text", async function () {

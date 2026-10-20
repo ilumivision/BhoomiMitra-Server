@@ -1,14 +1,17 @@
 const axios = require("axios");
 const OpenAI = require("openai");
 const { safeErrorDetails } = require("./webhookSecurity");
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
-async function photoVision(data) {
+function createPhotoVision(options) {
+    const input = options || {};
+    const httpClient = input.httpClient || axios;
+    const environment = input.env || process.env;
+    let openaiClient = input.openaiClient || null;
+
+return async function photoVision(data) {
     try {
         const mediaId = data && data.mediaId ? data.mediaId : null;
         const caption = data && data.caption ? String(data.caption).trim() : "";
-        const whatsappToken = process.env.WHATSAPP_TOKEN;
+        const whatsappToken = environment.WHATSAPP_TOKEN;
         if (!mediaId) {
             return {
                 success: false,
@@ -27,7 +30,7 @@ async function photoVision(data) {
             };
         }
         console.log("[PHOTO_VISION] Fetching media information.");
-        const mediaInfo = await axios.get(
+        const mediaInfo = await httpClient.get(
             "https://graph.facebook.com/v20.0/" +
                 mediaId +
                 "?fields=url,mime_type",
@@ -59,7 +62,7 @@ async function photoVision(data) {
             "[PHOTO_VISION] Media information received. mimeType=" +
                 (mediaMimeType || "unknown")
         );
-        const imageResponse = await axios.get(mediaUrl, {
+        const imageResponse = await httpClient.get(mediaUrl, {
             responseType: "arraybuffer",
             headers: {
                 Authorization: "Bearer " + whatsappToken
@@ -486,11 +489,17 @@ async function photoVision(data) {
 
         console.log(
             "[PHOTO_VISION] Sending image to OpenAI model=" +
-                (process.env.OPENAI_MODEL || "gpt-4o-mini")
+                (environment.OPENAI_MODEL || "gpt-4o-mini")
         );
 
-        const response = await openai.chat.completions.create({
-            model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        if (!openaiClient) {
+            openaiClient = new OpenAI({
+                apiKey: environment.OPENAI_API_KEY
+            });
+        }
+
+        const response = await openaiClient.chat.completions.create({
+            model: environment.OPENAI_MODEL || "gpt-4o-mini",
             messages: [
                 {
                     role: "system",
@@ -572,6 +581,10 @@ async function photoVision(data) {
                 "Image received, but analysis failed. Please send a clear close-up photo and type crop name, place, symptoms and crop age."
         };
     }
+};
 }
 
+const photoVision = createPhotoVision();
+
 module.exports = photoVision;
+module.exports.createPhotoVision = createPhotoVision;

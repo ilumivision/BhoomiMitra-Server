@@ -7,6 +7,7 @@ const {
   isValidLandId,
   isSatelliteExitCommand,
   getSatelliteDiagnosticAccess,
+  getSatelliteDiagnosticLandConfig,
   selectSuitableSentinel2Scenes,
   getSentinel2Ndvi,
   getSentinel2NdviForScene,
@@ -152,6 +153,25 @@ test("non-production diagnostics require explicit enablement and authentication"
     }).status,
     403
   );
+});
+
+test("non-production land diagnostics require an exact approved test identity", function () {
+  assert.equal(getSatelliteDiagnosticLandConfig({}).ready, false);
+  assert.equal(getSatelliteDiagnosticLandConfig({
+    SATELLITE_DIAGNOSTIC_LAND_ID: "BM-L-000003",
+    SATELLITE_DIAGNOSTIC_FARMER_ID: "BM-F-000001",
+    SATELLITE_DIAGNOSTIC_WHATSAPP: "invalid"
+  }).ready, false);
+  assert.deepEqual(getSatelliteDiagnosticLandConfig({
+    SATELLITE_DIAGNOSTIC_LAND_ID: "BM-L-000003",
+    SATELLITE_DIAGNOSTIC_FARMER_ID: "BM-F-000001",
+    SATELLITE_DIAGNOSTIC_WHATSAPP: "+91 98765 43210"
+  }), {
+    ready: true,
+    landId: "BM-L-000003",
+    farmerId: "BM-F-000001",
+    whatsapp: "919876543210"
+  });
 });
 
 test("scene selection keeps the latest valid scene under the cloud limit", function () {

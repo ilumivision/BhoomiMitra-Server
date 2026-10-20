@@ -4,9 +4,15 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+  createLandMapAccessToken,
+  verifyLandMapAccessToken,
+  getLandMapDataByAccessToken,
   getLandBoundaryMapData,
   handleGpsDetailsSelection
 } = require("../utils/landBoundary");
+
+const MAP_SECRET = "test-land-map-secret";
+const TOKEN_NOW = Date.parse("2026-10-20T12:00:00.000Z");
 
 const LAND_HEADERS = [
   "Land_ID",
@@ -102,7 +108,7 @@ function accessRow() {
   return [
     "ACC-1",
     "BM-L-000003",
-    "BM-F-000001",
+    "BM-F-OWNER",
     "9876543210",
     "Authorized Farmer",
     "9123456789",
@@ -157,7 +163,7 @@ function makeSheets(options = {}) {
 }
 
 function request(sheets, overrides = {}) {
-  return {
+  const input = {
     sheets,
     spreadsheetId: "sheet-id",
     landId: "BM-L-000003",
@@ -167,6 +173,18 @@ function request(sheets, overrides = {}) {
     mapBaseUrl: "https://bhoomimitra.example",
     ...overrides
   };
+
+  if (!Object.prototype.hasOwnProperty.call(overrides, "mapAccessToken")) {
+    input.mapAccessToken = createLandMapAccessToken({
+      secret: MAP_SECRET,
+      landId: input.landId,
+      farmerId: input.farmerId,
+      whatsapp: input.whatsapp,
+      now: TOKEN_NOW
+    });
+  }
+
+  return input;
 }
 
 test("GPS Details accepts an owned registered Land ID and returns all GPS fields", async function () {
@@ -191,8 +209,155 @@ test("GPS Details accepts an owned registered Land ID and returns all GPS fields
   assert.doesNotMatch(result.reply, /Point 1:/);
   assert.match(
     result.reply,
-    /https:\/\/bhoomimitra\.example\/land-map\/BM-L-000003/
+    /https:\/\/bhoomimitra\.example\/land-map\/BM-L-000003\?access=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/
   );
+});
+
+test("GPS Details never emits an unauthenticated land-map link", async function () {
+  const fixture = makeSheets({ landRows: [landRow()] });
+  const result = await handleGpsDetailsSelection(
+    request(fixture.sheets, { mapAccessToken: "" })
+  );
+
+  assert.equal(result.status.accessType, "OWNER");
+  assert.doesNotMatch(result.reply, /\/land-map\//);
+});
+
+test("land-map tokens are signed, land-bound, identity-bound and expiring", function () {
+  const token = createLandMapAccessToken({
+    secret: MAP_SECRET,
+    landId: "BM-L-000003",
+    farmerId: "BM-F-000001",
+    whatsapp: "919876543210",
+    now: TOKEN_NOW,
+    ttlMs: 60_000
+  });
+
+  const valid = verifyLandMapAccessToken({
+    secret: MAP_SECRET,
+    token,
+    landId: "BM-L-000003",
+    now: TOKEN_NOW + 30_000
+  });
+  assert.equal(valid.valid, true);
+  assert.equal(valid.claims.farmerId, "BM-F-000001");
+  assert.equal(valid.claims.whatsapp, "9876543210");
+
+  assert.equal(verifyLandMapAccessToken({
+    secret: MAP_SECRET,
+    token,
+    landId: "BM-L-000004",
+    now: TOKEN_NOW + 30_000
+  }).valid, false);
+  assert.equal(verifyLandMapAccessToken({
+    secret: MAP_SECRET,
+    token: token.slice(0, -1) + (token.endsWith("a") ? "b" : "a"),
+    landId: "BM-L-000003",
+    now: TOKEN_NOW + 30_000
+  }).valid, false);
+  assert.equal(verifyLandMapAccessToken({
+    secret: MAP_SECRET,
+    token,
+    landId: "BM-L-000003",
+    now: TOKEN_NOW + 60_001
+  }).valid, false);
+});
+
+test("land-map access rejects invalid tokens before Sheets and rechecks current ownership", async function (t) {
+  for (const accessToken of ["", "not-a-token", createLandMapAccessToken({
+    secret: MAP_SECRET,
+    landId: "BM-L-000003",
+    farmerId: "BM-F-000001",
+    whatsapp: "919876543210",
+    now: TOKEN_NOW - 120_000,
+    ttlMs: 60_000
+  })]) {
+    await t.test(accessToken ? "invalid or expired token" : "missing token", async function () {
+      const fixture = makeSheets({ landRows: [landRow()] });
+      const result = await getLandMapDataByAccessToken({
+        sheets: fixture.sheets,
+        spreadsheetId: "sheet-id",
+        landId: "BM-L-000003",
+        accessToken,
+        secret: MAP_SECRET,
+        now: TOKEN_NOW
+      });
+
+      assert.equal(result.success, false);
+      assert.equal(result.accessDenied, true);
+      assert.deepEqual(fixture.calls, []);
+      assert.doesNotMatch(JSON.stringify(result), /Home Farm|9\.2648|76\.787/);
+    });
+  }
+
+  await t.test("signed token whose ownership is no longer valid", async function () {
+    const fixture = makeSheets({
+      landRows: [landRow({ farmerId: "BM-F-OTHER", whatsapp: "919999999999" })]
+    });
+    const accessToken = createLandMapAccessToken({
+      secret: MAP_SECRET,
+      landId: "BM-L-000003",
+      farmerId: "BM-F-000001",
+      whatsapp: "919876543210",
+      now: TOKEN_NOW
+    });
+    const result = await getLandMapDataByAccessToken({
+      sheets: fixture.sheets,
+      spreadsheetId: "sheet-id",
+      landId: "BM-L-000003",
+      accessToken,
+      secret: MAP_SECRET,
+      now: TOKEN_NOW
+    });
+
+    assert.equal(result.success, false);
+    assert.equal(result.accessDenied, true);
+    assert.doesNotMatch(JSON.stringify(result), /Home Farm|9\.2648|76\.787/);
+  });
+});
+
+test("valid owner and shared-access tokens can load only their authorized land map", async function () {
+  const ownerFixture = makeSheets({ landRows: [landRow()] });
+  const ownerToken = createLandMapAccessToken({
+    secret: MAP_SECRET,
+    landId: "BM-L-000003",
+    farmerId: "BM-F-000001",
+    whatsapp: "919876543210",
+    now: TOKEN_NOW
+  });
+  const ownerResult = await getLandMapDataByAccessToken({
+    sheets: ownerFixture.sheets,
+    spreadsheetId: "sheet-id",
+    landId: "BM-L-000003",
+    accessToken: ownerToken,
+    secret: MAP_SECRET,
+    now: TOKEN_NOW
+  });
+  assert.equal(ownerResult.success, true);
+  assert.equal(ownerResult.accessType, "OWNER");
+
+  const sharedFixture = makeSheets({
+    landRows: [landRow({ farmerId: "BM-F-OWNER", whatsapp: "919999999999" })],
+    accessRows: [accessRow()]
+  });
+  const sharedToken = createLandMapAccessToken({
+    secret: MAP_SECRET,
+    landId: "BM-L-000003",
+    farmerId: "BM-F-AUTH",
+    whatsapp: "919123456789",
+    now: TOKEN_NOW
+  });
+  const sharedResult = await getLandMapDataByAccessToken({
+    sheets: sharedFixture.sheets,
+    spreadsheetId: "sheet-id",
+    landId: "BM-L-000003",
+    accessToken: sharedToken,
+    secret: MAP_SECRET,
+    now: TOKEN_NOW
+  });
+  assert.equal(sharedResult.success, true);
+  assert.equal(sharedResult.accessType, "AUTHORIZED");
+  assert.equal(sharedResult.accessLevel, "VIEW");
 });
 
 test("GPS Details derives a missing area from the same completed polygon used by Land Map", async function () {

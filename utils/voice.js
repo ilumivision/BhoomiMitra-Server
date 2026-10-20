@@ -7,16 +7,19 @@ const {
     safeErrorDetails
 } = require("./webhookSecurity");
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+function createVoiceModule(options) {
+  const input = options || {};
+  const fileSystem = input.fileSystem || fs;
+  const httpClient = input.httpClient || axios;
+  const environment = input.env || process.env;
+  let openaiClient = input.openaiClient || null;
 
-async function voiceModule(data) {
+return async function voiceModule(data) {
     let audioPath = "";
 
     try {
         const mediaId = data.mediaId;
-        const whatsappToken = process.env.WHATSAPP_TOKEN;
+        const whatsappToken = environment.WHATSAPP_TOKEN;
 
         if (!mediaId) {
             return {
@@ -26,7 +29,7 @@ async function voiceModule(data) {
             };
         }
 
-        const mediaInfo = await axios.get(
+        const mediaInfo = await httpClient.get(
             "https://graph.facebook.com/v20.0/" + mediaId,
             {
                 headers: {
@@ -37,30 +40,36 @@ async function voiceModule(data) {
 
         const mediaUrl = mediaInfo.data.url;
 
-        const audioResponse = await axios.get(mediaUrl, {
+        const audioResponse = await httpClient.get(mediaUrl, {
             responseType: "arraybuffer",
             headers: {
                 Authorization: "Bearer " + whatsappToken
             }
         });
 
-        const tempDir = path.join(__dirname, "../tmp");
+        const tempDir = input.tempDir || path.join(__dirname, "../tmp");
 
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir);
+        if (!fileSystem.existsSync(tempDir)) {
+            fileSystem.mkdirSync(tempDir, { recursive: true });
         }
 
         audioPath = path.join(tempDir, hashIdentifier(mediaId) + ".ogg");
 
-        fs.writeFileSync(audioPath, audioResponse.data);
+        fileSystem.writeFileSync(audioPath, audioResponse.data);
 
-        const transcription = await openai.audio.transcriptions.create({
-            file: fs.createReadStream(audioPath),
+        if (!openaiClient) {
+            openaiClient = new OpenAI({
+                apiKey: environment.OPENAI_API_KEY
+            });
+        }
+
+        const transcription = await openaiClient.audio.transcriptions.create({
+            file: fileSystem.createReadStream(audioPath),
             model: "gpt-4o-mini-transcribe",
             response_format: "text"
         });
 
-        fs.unlinkSync(audioPath);
+        fileSystem.unlinkSync(audioPath);
         audioPath = "";
 
         return {
@@ -84,7 +93,7 @@ async function voiceModule(data) {
     } finally {
         if (audioPath) {
             try {
-                fs.unlinkSync(audioPath);
+                fileSystem.unlinkSync(audioPath);
             } catch (cleanupError) {
                 if (!cleanupError || cleanupError.code !== "ENOENT") {
                     console.error(
@@ -95,6 +104,10 @@ async function voiceModule(data) {
             }
         }
     }
+};
 }
 
+const voiceModule = createVoiceModule();
+
 module.exports = voiceModule;
+module.exports.createVoiceModule = createVoiceModule;

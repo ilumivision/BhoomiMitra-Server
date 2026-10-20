@@ -202,9 +202,8 @@ function readFarmerStatuses(row, headers, farmerId) {
 
   return {
     registrationStatus:
-      hasFarmerId
-        ? "Registered"
-        : storedRegistrationStatus,
+      storedRegistrationStatus ||
+      (hasFarmerId ? "Registered" : ""),
     verificationStatus:
       verificationStatus ||
       legacyVerification ||

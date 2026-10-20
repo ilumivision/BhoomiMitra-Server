@@ -192,7 +192,7 @@ test("normalizes +91, 91 and 10-digit phones to one identity", function () {
   assert.equal(normalizePhone("9847298918"), "9847298918");
 });
 
-test("looks up a Farmer by Mobile and reads only through BG", async function () {
+test("looks up a Farmer by verified WhatsApp and reads only through BG", async function () {
   const fake = createFakeSheets();
   const lookup = await getMemberByPhone({
     phone: "+91 98472 98918",
@@ -367,7 +367,7 @@ test("same normalized Mobile and WhatsApp render as one combined line", async fu
   assert.doesNotMatch(result.reply, /^WhatsApp:/m);
 });
 
-test("different Mobile and WhatsApp render as separate lines", async function () {
+test("mobile-only identity never authorizes personal profile access", async function () {
   const farmers = [
     makeLiveHeaders(),
     makeFarmerRow({
@@ -381,9 +381,74 @@ test("different Mobile and WhatsApp render as separate lines", async function ()
     language: "English"
   });
 
-  assert.match(result.reply, /^Mobile: 9847298918$/m);
-  assert.match(result.reply, /^WhatsApp: 919999999999$/m);
-  assert.doesNotMatch(result.reply, /Mobile \/ WhatsApp:/);
+  assert.equal(result.lookupState, "restricted_verification");
+  assert.match(result.reply, /WhatsApp identity cannot be verified safely/i);
+  assert.doesNotMatch(result.reply, /BM-1001|Anu Farmer|Pathanamthitta/);
+});
+
+test("inactive farmer cannot access personal records", async function () {
+  const farmers = [
+    makeLiveHeaders(),
+    makeFarmerRow({ activeStatus: "Inactive" })
+  ];
+  const { result } = await runPersonalCommand({
+    farmers,
+    phone: "919847298918",
+    language: "English"
+  });
+
+  assert.equal(result.lookupState, "restricted_verification");
+  assert.match(result.reply, /registration is incomplete or inactive/i);
+  assert.doesNotMatch(result.reply, /BM-1001|Anu Farmer|Pathanamthitta/);
+});
+
+test("personal records use central active semantics and preserve pending verification", async function () {
+  const farmers = [
+    makeLiveHeaders(),
+    makeFarmerRow({
+      verificationStatus: "Pending",
+      activeStatus: "Yes"
+    })
+  ];
+  const { result } = await runPersonalCommand({
+    farmers,
+    phone: "919847298918",
+    language: "English"
+  });
+
+  assert.equal(result.lookupState, "match");
+  assert.match(result.reply, /My BhoomiMitra Profile/);
+});
+
+test("rejected farmer verification cannot access personal records", async function () {
+  const farmers = [
+    makeLiveHeaders(),
+    makeFarmerRow({ verificationStatus: "Rejected" })
+  ];
+  const { result } = await runPersonalCommand({
+    farmers,
+    phone: "919847298918",
+    language: "English"
+  });
+
+  assert.equal(result.lookupState, "restricted_verification");
+  assert.doesNotMatch(result.reply, /Anu Farmer|Pathanamthitta/);
+});
+
+test("incomplete farmer cannot access personal records", async function () {
+  const farmers = [
+    makeLiveHeaders(),
+    makeFarmerRow({ farmerId: "", registrationStatus: "Pending" })
+  ];
+  const { result } = await runPersonalCommand({
+    farmers,
+    phone: "919847298918",
+    language: "English"
+  });
+
+  assert.equal(result.lookupState, "restricted_verification");
+  assert.match(result.reply, /registration is incomplete or inactive/i);
+  assert.doesNotMatch(result.reply, /Anu Farmer|Pathanamthitta/);
 });
 
 test("My Details remains a backward-compatible alias for My Profile", async function () {
@@ -415,6 +480,7 @@ test("My Lands route keeps the existing land retrieval behavior", async function
   const lands = [
     [
       "Land_ID",
+      "Farmer_ID",
       "Phone",
       "Farm_Name",
       "District",
@@ -425,6 +491,7 @@ test("My Lands route keeps the existing land retrieval behavior", async function
     ],
     [
       "LAND-1",
+      "BM-1001",
       "+91 98472 98918",
       "Home Farm",
       "Pathanamthitta",
@@ -448,6 +515,7 @@ test("My Lands route keeps the existing land retrieval behavior", async function
 test("My Lands reads established area fields and never displays a unit without a number", async function () {
   const headers = [
     "Land_ID",
+    "Farmer_ID",
     "Phone",
     "Farm_Name",
     "District",
@@ -461,7 +529,7 @@ test("My Lands reads established area fields and never displays a unit without a
   const valid = await runPersonalCommand({
     userText: "my lands",
     lands: [headers, [
-      "LAND-2", "+91 98472 98918", "Field", "Pathanamthitta", "Konni",
+      "LAND-2", "BM-1001", "+91 98472 98918", "Field", "Pathanamthitta", "Konni",
       "1.5", "2", "1.7", "Acre", "Banana"
     ]]
   });
@@ -470,7 +538,7 @@ test("My Lands reads established area fields and never displays a unit without a
   const missing = await runPersonalCommand({
     userText: "my lands",
     lands: [headers, [
-      "LAND-3", "+91 98472 98918", "Hill", "Pathanamthitta", "Konni",
+      "LAND-3", "BM-1001", "+91 98472 98918", "Hill", "Pathanamthitta", "Konni",
       "", "invalid", "", "Cent", "Pepper"
     ]]
   });

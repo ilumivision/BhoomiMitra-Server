@@ -52,15 +52,20 @@ function rows(payload) {
   });
 }
 
-test("final main menu keeps the five preserved categories", async function () {
+test("final main menu exposes nine categories plus More Options", async function () {
   const { calls, ui } = harness();
   await ui.sendMainMenu("919000000000", "English");
   assert.deepEqual(rows(calls[0]).map(function (row) { return row.id; }), [
     "HOME_ASK",
+    ANIMAL_ACTION_IDS.OPEN,
     "HOME_FARM",
-    "HOME_EXPERT",
+    "FARM_WEATHER_ALERTS",
     "HOME_MARKET",
-    "HOME_PROFILE"
+    "HOME_EXPERT",
+    SCHEME_ACTION_IDS.OPEN,
+    "HOME_ENTERPRISE",
+    "HOME_PROFILE",
+    "HOME_MORE"
   ]);
 });
 
@@ -226,6 +231,9 @@ test("feature discovery shows at most once and records only session-memory ackno
 test("all new list rows and reply buttons obey WhatsApp UI limits", async function () {
   const { calls, ui } = harness();
   await ui.sendMainMenu("919000000000", "Malayalam");
+  await ui.sendMainMenuMore("919000000000", "Malayalam");
+  await ui.sendExpertsTrainingMenu("919000000000", "Malayalam");
+  await ui.sendEnterpriseServicesMenu("919000000000", "Malayalam");
   await ui.sendFarmMenu("919000000000", "Malayalam");
   await ui.sendWeatherAlertsMenu("919000000000", "Malayalam");
   await ui.sendProfileMenu("919000000000", "Malayalam");

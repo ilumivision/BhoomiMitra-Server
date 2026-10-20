@@ -7,6 +7,9 @@ const {
   getFarmerPreferredLanguage,
   readFarmerStatuses
 } = require("./registrationFields");
+const {
+  isFarmerRegistrationEligible
+} = require("./userRegistrationStatus");
 const { safeErrorDetails } = require("./webhookSecurity");
 
 function normalizeText(value) {
@@ -137,21 +140,36 @@ async function getMemberByPhone(data) {
   const headers =
     rawHeaders.map(normalizeHeader);
 
-  const phoneIndexes =
+  const whatsappIndexes =
+    findAllHeaderIndexes(
+      headers,
+      [
+        "whatapp",
+        "whatsapp_no",
+        "whatsapp_number",
+        "whatsapp"
+      ]
+    );
+  const mobileIndexes =
     findAllHeaderIndexes(
       headers,
       [
         "mobile_no",
         "mobile_number",
         "mobile",
-        "whatapp",
-        "whatsapp_no",
-        "whatsapp_number",
-        "whatsapp",
         "registered_mobile",
         "farmer_mobile"
       ]
     );
+
+  if (whatsappIndexes.length === 0) {
+    return {
+      state: "restricted_verification",
+      reason: "WHATSAPP_HEADER_MISSING",
+      normalizedPhone: phone,
+      matches: []
+    };
+  }
 
   const idIndex =
     findFirstHeaderIndex(
@@ -168,23 +186,25 @@ async function getMemberByPhone(data) {
     rows
       .slice(1)
       .map(function (row, index) {
+        const exactWhatsappMatch =
+          whatsappIndexes.some(function (phoneIndex) {
+            return normalizePhone(row[phoneIndex]) === phone;
+          });
+        const mobileMatch =
+          mobileIndexes.some(function (phoneIndex) {
+            return normalizePhone(row[phoneIndex]) === phone;
+          });
         return {
           row,
           rowNumber: index + 2,
           farmerId:
-            getCell(row, idIndex)
+            getCell(row, idIndex),
+          exactWhatsappMatch,
+          mobileMatch
         };
       })
       .filter(function (item) {
-        return phoneIndexes.some(
-          function (index) {
-            return (
-              normalizePhone(
-                item.row[index]
-              ) === phone
-            );
-          }
-        );
+        return item.exactWhatsappMatch || item.mobileMatch;
       });
 
   if (matches.length === 0) {
@@ -208,6 +228,15 @@ async function getMemberByPhone(data) {
           return match.rowNumber;
         }),
       matches
+    };
+  }
+
+  if (!matches[0].exactWhatsappMatch) {
+    return {
+      state: "restricted_verification",
+      reason: "WHATSAPP_IDENTITY_NOT_VERIFIED",
+      normalizedPhone: phone,
+      matches: []
     };
   }
 
@@ -429,17 +458,20 @@ function buildMemberRecord(memberData) {
   };
 }
 
-async function getLandsByPhone(data) {
+async function getLandsByFarmerId(data) {
   const sheets =
     data && data.sheets;
 
   const spreadsheetId =
     data && data.spreadsheetId;
 
-  const phone =
-    normalizePhone(
-      data && data.phone
-    );
+  const farmerId = String(
+    data && data.farmerId || ""
+  ).trim().toUpperCase();
+
+  if (!farmerId) {
+    return [];
+  }
 
   const response =
     await sheets.spreadsheets.values.get({
@@ -457,21 +489,15 @@ async function getLandsByPhone(data) {
   const headers =
     rows[0].map(normalizeHeader);
 
-  const phoneIndexes =
-    findAllHeaderIndexes(
+  const farmerIdIndex =
+    findFirstHeaderIndex(
       headers,
-      [
-        "phone",
-        "mobile",
-        "mobile_number",
-        "whatsapp",
-        "whatsapp_no",
-        "whatsapp_number",
-        "registered_mobile",
-        "farmer_mobile",
-        "farmer_reported"
-      ]
+      ["farmer_id", "farmerid"]
     );
+
+  if (farmerIdIndex < 0) {
+    return [];
+  }
 
   const landIdIndex =
     findFirstHeaderIndex(
@@ -531,15 +557,7 @@ async function getLandsByPhone(data) {
   return rows
     .slice(1)
     .filter(function (row) {
-      return phoneIndexes.some(
-        function (index) {
-          return (
-            normalizePhone(
-              row[index]
-            ) === phone
-          );
-        }
-      );
+      return getCell(row, farmerIdIndex).toUpperCase() === farmerId;
     })
     .map(function (row) {
       return {
@@ -792,7 +810,7 @@ function formatFarmerId(member, language) {
 function formatLands(lands) {
   if (!lands.length) {
     return [
-      "No registered land parcels were found for this WhatsApp number.",
+      "No registered land parcels were found for your verified Farmer ID.",
       "",
       "Use Farm & Land Management to register a new land parcel."
     ].join("\n");
@@ -955,6 +973,16 @@ async function handlePersonalRecords(data) {
       };
     }
 
+    if (memberData.state === "restricted_verification") {
+      return {
+        handled: true,
+        lookupState: "restricted_verification",
+        reply: fallbackLanguage === "English"
+          ? "Your WhatsApp identity cannot be verified safely because the required registration identity fields are unavailable. No personal record has been shown."
+          : "ആവശ്യമായ രജിസ്ട്രേഷൻ തിരിച്ചറിയൽ ഫീൽഡുകൾ ലഭ്യമല്ലാത്തതിനാൽ നിങ്ങളുടെ WhatsApp തിരിച്ചറിയൽ സുരക്ഷിതമായി സ്ഥിരീകരിക്കാനായില്ല. വ്യക്തിഗത രേഖകളൊന്നും കാണിച്ചിട്ടില്ല."
+      };
+    }
+
     const member =
       buildMemberRecord(
         memberData
@@ -964,6 +992,27 @@ async function handlePersonalRecords(data) {
         member,
         data && data.language
       );
+
+    const registrationEligible = isFarmerRegistrationEligible({
+      registrationStatus: member.registrationStatus,
+      verificationStatus: member.verificationStatus,
+      activeStatus: member.activeStatus
+    });
+
+    if (
+      !member.farmerId ||
+      !member.name ||
+      !member.whatsapp ||
+      !registrationEligible
+    ) {
+      return {
+        handled: true,
+        lookupState: "restricted_verification",
+        reply: language === "English"
+          ? "Your farmer registration is incomplete or inactive. No personal record has been shown. Please contact the KVK team for verification."
+          : "നിങ്ങളുടെ കർഷക രജിസ്ട്രേഷൻ അപൂർണ്ണമോ സജീവമല്ലാത്തതോ ആണ്. വ്യക്തിഗത രേഖകളൊന്നും കാണിച്ചിട്ടില്ല. പരിശോധനയ്ക്കായി KVK ടീമുമായി ബന്ധപ്പെടുക."
+      };
+    }
 
     const command =
       normalizeText(userText);
@@ -1003,7 +1052,10 @@ async function handlePersonalRecords(data) {
       command === "my lands"
     ) {
       const lands =
-        await getLandsByPhone(data);
+        await getLandsByFarmerId({
+          ...(data || {}),
+          farmerId: member.farmerId
+        });
 
       return {
         handled: true,

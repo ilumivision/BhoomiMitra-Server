@@ -7,6 +7,7 @@
     "start": "node index.js",
     "test": "node --test",
     "reminders:fertilizer": "node scripts/send-fertilizer-reminders.js",
+    "market:update": "node scripts/update-market-prices.js",
     "sync:schemes": "node scripts/sync-government-schemes.js"
   },
   "dependencies": {

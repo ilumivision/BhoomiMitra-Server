@@ -15,6 +15,9 @@ const {
   PROPOSED_SCHEMA_EXTENSION,
   runSchemeSync
 } = require("../utils/schemeIngestion");
+const {
+  prepareSchemeCacheUpdates
+} = require("../utils/schemeCacheWriter");
 
 const READONLY_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
 const CACHE_RANGE = "Government_Schemes!A:AZ";
@@ -107,6 +110,11 @@ async function main() {
       reason: source.reason || "Not selected for this run."
     };
   });
+  const controlledUpdatePreparation =
+    prepareSchemeCacheUpdates({
+      headers: cacheRows[0] || [],
+      plan: result.plan
+    });
   const report = {
     mode: "DRY_RUN_READ_ONLY",
     requestedWriteMode: requestedWriteMode,
@@ -118,6 +126,12 @@ async function main() {
     unsupportedOrCustomAdapterSources: unsupported,
     schema: result.schema,
     proposedSchemaExtension: PROPOSED_SCHEMA_EXTENSION,
+    controlledUpdatePreparation: {
+      ready: controlledUpdatePreparation.ready,
+      code: controlledUpdatePreparation.code,
+      insertCount: controlledUpdatePreparation.inserts.length,
+      updateCount: controlledUpdatePreparation.updates.length
+    },
     proposedInserts: result.plan.inserts.map(compactProposal),
     proposedUpdates: result.plan.updates.map(compactProposal),
     unchanged: result.plan.unchanged.map(compactProposal),

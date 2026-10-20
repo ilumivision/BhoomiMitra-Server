@@ -302,7 +302,8 @@ test("English schemes UI is click-first and carries no typed scheme IDs", async 
   const expertRows = harness.calls[1].body.interactive.action.sections[0].rows;
   const menuRows = harness.calls[2].body.interactive.action.sections[0].rows;
   const detailActions = harness.calls[3].body.interactive.action.sections[0].rows;
-  assert.equal(mainRows.length, 5);
+  assert.equal(mainRows.length, 10);
+  assert.ok(mainRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.OPEN; }));
   assert.ok(expertRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.OPEN; }));
   assert.equal(menuRows.length, 10);
   assert.ok(menuRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.FISHERIES; }));

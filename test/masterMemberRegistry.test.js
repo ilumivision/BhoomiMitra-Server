@@ -918,7 +918,7 @@ test("new Farmer status defaults preserve meaningful verification and activity s
   ]);
 });
 
-test("existing Farmer ID with Pending verification reads as Registered", function () {
+test("explicit Pending registration is not overwritten merely because Farmer_ID exists", function () {
   const headers = [
     "Farmer_ID",
     "Status",
@@ -939,7 +939,7 @@ test("existing Farmer ID with Pending verification reads as Registered", functio
       row[0]
     ),
     {
-      registrationStatus: "Registered",
+      registrationStatus: "Pending",
       verificationStatus: "Pending",
       activeStatus: "Suspended"
     }
