@@ -22,6 +22,8 @@ const {
   relevantSchemes,
   saveSchemeInterest,
   schemeFreshnessText,
+  schemeVerificationState,
+  schemeVerificationText,
   searchAdvisories,
   searchSchemes
 } = require("../utils/schemes");
@@ -180,12 +182,26 @@ test("scheme details show only stored facts official link and eligibility warnin
   const scheme = findScheme(sampleSchemes(), "SCH-001");
   const details = buildSchemeDetails(scheme, "English", true);
   assert.match(details, /Scheme Details/);
+  assert.match(details, /Verification status: Verified and active/);
   assert.match(details, /Agriculture Department/);
   assert.match(details, /Purpose:/);
   assert.match(details, /Last updated: 01-10-2026/);
   assert.match(details, /https:\/\/example\.gov\.in\/coconut/);
   assert.match(details, /Verify current eligibility/);
   assert.doesNotMatch(details, /SCH-001/);
+});
+
+test("scheme records clearly distinguish verified pending expired and unavailable states", function () {
+  const verified = findScheme(sampleSchemes(), "SCH-001");
+  const pending = findScheme(sampleSchemes(), "SCH-002");
+  const expired = findScheme(sampleSchemes(), "SCH-003");
+
+  assert.equal(schemeVerificationState(verified, NOW), "VERIFIED_ACTIVE");
+  assert.equal(schemeVerificationState(pending, NOW), "VERIFICATION_PENDING");
+  assert.equal(schemeVerificationState(expired, NOW), "EXPIRED");
+  assert.equal(schemeVerificationState(null, NOW), "INFORMATION_UNAVAILABLE");
+  assert.equal(schemeVerificationText(pending, "English", NOW), "Verification pending");
+  assert.equal(schemeVerificationText(expired, "Malayalam", NOW), "കാലാവധി കഴിഞ്ഞു / അവസാനിച്ചു");
 });
 
 test("Interested request stores registered farmer identity by existing Service_Request headers", async function () {
@@ -288,9 +304,10 @@ test("English schemes UI is click-first and carries no typed scheme IDs", async 
   const detailActions = harness.calls[3].body.interactive.action.sections[0].rows;
   assert.equal(mainRows.length, 5);
   assert.ok(expertRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.OPEN; }));
-  assert.equal(menuRows.length, 9);
+  assert.equal(menuRows.length, 10);
   assert.ok(menuRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.FISHERIES; }));
   assert.ok(menuRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.ENTERPRISE; }));
+  assert.ok(menuRows.some(function (row) { return row.id === SCHEME_ACTION_IDS.SEARCH; }));
   assert.equal(detailActions.length, 4);
   assert.ok(detailActions.some(function (row) {
     return row.id === SCHEME_DYNAMIC_PREFIXES.INTEREST + scheme.id;

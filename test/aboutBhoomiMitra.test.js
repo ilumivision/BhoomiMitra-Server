@@ -13,17 +13,16 @@ const {
 } = require("../utils/aboutBhoomiMitra");
 
 const EXPECTED_TEAM = [
-  ["Dr. C. P. Robert", "Senior Scientist & Head", "Project Leader"],
-  ["Dr. Vinod Mathew", "Subject Matter Specialist – Agronomy", "Crop Production & Agronomy Coordinator"],
-  ["Dr. Shana Harshan", "Subject Matter Specialist – Home Science", "Farm Family Welfare & Value Addition Coordinator"],
-  ["Dr. Sency Mathew", "Subject Matter Specialist – Animal Science", "Animal Husbandry & Livestock Advisory Coordinator"],
-  ["Dr. Sindhu Sadanandan", "Subject Matter Specialist – Agricultural Extension", "Overall Field Implementation & Farmer Outreach Coordinator"],
-  ["Dr. Rincy K. Abraham", "Subject Matter Specialist – Horticulture", "Horticulture Coordinator"],
-  ["Dr. Alex John", "Subject Matter Specialist – Plant Protection", "Plant Health & Technical Validation Coordinator"],
-  ["Sri Binu John", "Programme Assistant – Computer", "Digital Operations & Training Coordinator"],
-  ["Smt. Ambily Varughese", "Farm Manager", "Farm Demonstration & Field Operations Coordinator"],
-  ["Smt. Gayatri S", "Programme Assistant – Lab Technician", "Laboratory Information & Data Support Coordinator"],
-  ["Smt. Anu John", "Junior Stenographer", "Administrative Support"]
+  ["Dr. C. P. Robert", "Senior Scientist & Head", "Project Director & Strategic Leadership"],
+  ["Dr. Sindhu Sadanandan", "Subject Matter Specialist – Agricultural Extension", "Project Coordinator & Farmer Outreach"],
+  ["Sri Binu John", "Programme Assistant (Computer)", "Digital Operations & Training Coordination"],
+  ["Smt. Gayathri", "Programme Assistant (Lab)", "Field Coordination & Farmer Engagement"],
+  ["Dr. Vinod Mathew", "Subject Matter Specialist – Agronomy", "Crop Production & Nutrient Management"],
+  ["Dr. Rincy K. Abraham", "Subject Matter Specialist – Horticulture", "Horticultural Crops & Orchard Advisory"],
+  ["Dr. Sency Mathew", "Subject Matter Specialist – Animal Science", "Livestock, Poultry & Veterinary Advisory Coordination"],
+  ["Dr. Alex John", "Subject Matter Specialist – Plant Protection", "Crop Health & Pest-Disease Management"],
+  ["Dr. Shana Harshan", "Subject Matter Specialist – Home Science", "Value Addition & Agri-Enterprise Development"],
+  ["Smt. Ambily Varughese", "Farm Manager", "Farm Operations & Technology Demonstration"]
 ];
 
 function harness() {
@@ -47,38 +46,41 @@ function listRows(payload) {
   });
 }
 
-test("About BhoomiMitra uses the approved identity, attribution and tagline", function () {
+test("About BhoomiMitra uses the exact approved institutional identity", function () {
   const english = buildAboutText("English");
   const malayalam = buildAboutText("Malayalam");
 
-  assert.match(english, /🌱 BhoomiMitra/);
-  assert.match(english, /AI-Powered Agricultural Assistance Platform/);
-  assert.match(english, /A Project of:\nICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta/);
-  assert.match(english, /Powered by:\nIlumivision, Manjadi, Thiruvalla/);
-  assert.match(english, /മണ്ണിന്റെ നന്മയ്ക്ക്, കർഷകന്റെ കൂട്ടായി/);
-  assert.match(english, /subject to institutional approval before deployment/);
-  assert.match(malayalam, /AI സഹായത്തോടെ പ്രവർത്തിക്കുന്ന കാർഷിക സഹായ പ്ലാറ്റ്ഫോം/);
-  assert.match(malayalam, /ICAR–കൃഷി വിജ്ഞാന കേന്ദ്രം, CARD, പത്തനംതിട്ട/);
-  assert.match(malayalam, /Ilumivision, മഞ്ഞാടി, തിരുവല്ല/);
+  assert.equal(english, [
+    "🌱 BhoomiMitra – ഭൂമിമിത്ര",
+    "",
+    "A Project of ICAR–Krishi Vigyan Kendra,",
+    "CARD, Pathanamthitta",
+    "",
+    "Powered by IlumiVision"
+  ].join("\n"));
+  assert.match(malayalam, /BhoomiMitra – ഭൂമിമിത്ര/);
+  assert.match(malayalam, /ICAR–കൃഷി വിജ്ഞാന കേന്ദ്രം/);
+  assert.match(malayalam, /IlumiVision/);
+  assert.doesNotMatch(english + malayalam, /Ilumivision/);
 });
 
-test("the public team directory contains exactly the 11 approved members in order", function () {
-  assert.equal(TEAM_MEMBERS.length, 11);
+test("the public team directory contains exactly the 10 approved members in order", function () {
+  assert.equal(TEAM_MEMBERS.length, 10);
   assert.deepEqual(TEAM_MEMBERS.map(function (member) {
     return [member.name, member.designationEnglish, member.roleEnglish];
   }), EXPECTED_TEAM);
-  assert.equal(new Set(TEAM_MEMBERS.map(function (member) { return member.id; })).size, 11);
+  assert.equal(new Set(TEAM_MEMBERS.map(function (member) { return member.id; })).size, 10);
 
   const publicDirectory = JSON.stringify(TEAM_MEMBERS);
   assert.doesNotMatch(publicDirectory, /Dr\. Sindhu Sudharan/);
   assert.doesNotMatch(publicDirectory, /Dr\. Vincy K\. Abraham/);
   assert.doesNotMatch(publicDirectory, /Dr\. Cincy Mathew/);
   assert.doesNotMatch(publicDirectory, /Smt\. Ambily Varghese/);
-  assert.doesNotMatch(publicDirectory, /Smt\. Gayathri/);
+  assert.doesNotMatch(publicDirectory, /Smt\. Anu John/);
 });
 
-test("member profiles include role responsibilities except the approved Anu John exception", function () {
-  TEAM_MEMBERS.slice(0, 10).forEach(function (member) {
+test("all approved member profiles include bilingual designation role and responsibility", function () {
+  TEAM_MEMBERS.forEach(function (member) {
     const english = buildTeamMemberText(member, "English");
     const malayalam = buildTeamMemberText(member, "Malayalam");
     assert.match(english, new RegExp(member.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -90,14 +92,6 @@ test("member profiles include role responsibilities except the approved Anu John
     assert.match(malayalam, /പ്രധാന ഉത്തരവാദിത്വങ്ങൾ:/);
   });
 
-  const anu = TEAM_MEMBERS[10];
-  const anuEnglish = buildTeamMemberText(anu, "English");
-  const anuMalayalam = buildTeamMemberText(anu, "Malayalam");
-  assert.match(anuEnglish, /Smt\. Anu John/);
-  assert.match(anuEnglish, /Junior Stenographer/);
-  assert.match(anuEnglish, /Administrative Support/);
-  assert.doesNotMatch(anuEnglish, /Responsibilities:/);
-  assert.doesNotMatch(anuMalayalam, /പ്രധാന ഉത്തരവാദിത്വങ്ങൾ:/);
 });
 
 test("About and Our Team render as an explicit bilingual two-page UI path", async function () {
@@ -121,15 +115,15 @@ test("About and Our Team render as an explicit bilingual two-page UI path", asyn
   const page2 = listRows(calls[3]);
   assert.match(calls[2].interactive.body.text, /Scientific, Technical and Field Implementation Team/);
   assert.match(calls[3].interactive.body.text, /ശാസ്ത്രീയ, സാങ്കേതിക, ഫീൽഡ് നടപ്പാക്കൽ ടീം/);
-  assert.equal(page1.length, 10);
-  assert.equal(page2.length, 7);
-  assert.equal(page1[7].id, ABOUT_ACTION_IDS.TEAM_PAGE_2);
-  assert.equal(page2[4].id, ABOUT_ACTION_IDS.TEAM_PAGE_1);
+  assert.equal(page1.length, 8);
+  assert.equal(page2.length, 8);
+  assert.equal(page1[5].id, ABOUT_ACTION_IDS.TEAM_PAGE_2);
+  assert.equal(page2[5].id, ABOUT_ACTION_IDS.TEAM_PAGE_1);
 
-  const memberIds = page1.slice(0, 7).concat(page2.slice(0, 4)).map(function (row) {
+  const memberIds = page1.slice(0, 5).concat(page2.slice(0, 5)).map(function (row) {
     return row.id;
   });
-  assert.equal(new Set(memberIds).size, 11);
+  assert.equal(new Set(memberIds).size, 10);
   assert.deepEqual(memberIds.map(function (id) {
     return parseAboutAction(id).member.name;
   }), EXPECTED_TEAM.map(function (entry) { return entry[0]; }));
@@ -149,7 +143,7 @@ test("every member selection opens a bounded profile with Team, About and Main c
     );
   }
 
-  assert.equal(calls.length, 11);
+  assert.equal(calls.length, 10);
   calls.forEach(function (payload, index) {
     const interactive = payload.interactive;
     assert.equal(interactive.type, "button");

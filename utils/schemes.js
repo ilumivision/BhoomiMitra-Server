@@ -152,6 +152,9 @@ function readSchemes(sheetRows) {
       source: clean(getValue(row, map, ["Source", "Official_Source", "Source_Department"])),
       officialUrl: clean(getValue(row, map, ["Official_URL", "Official_Link"])),
       lastUpdated: clean(getValue(row, map, ["Last_Source_Update", "Last_Checked", "Last_Updated", "Last Updated", "Updated_On"])),
+      lastChecked: clean(getValue(row, map, ["Last_Checked", "Verification_Date", "Verified_On"])),
+      dataQuality: clean(getValue(row, map, ["Data_Quality", "Verification_Status"])),
+      sourceKey: clean(getValue(row, map, ["Source_Key"])),
       cropContext: clean(getValue(row, map, ["Crop_Context"])),
       livestockContext: clean(getValue(row, map, ["Livestock_Context"])),
       landContext: clean(getValue(row, map, ["Land_Context"])),
@@ -181,6 +184,49 @@ function activeSchemes(sheetRows, now) {
   return readSchemes(sheetRows).filter(function (scheme) {
     return isActiveScheme(scheme, now);
   });
+}
+
+function schemeVerificationState(scheme, now) {
+  if (!scheme || !clean(scheme.id) || !clean(scheme.name)) {
+    return "INFORMATION_UNAVAILABLE";
+  }
+  const status = clean(scheme.status).toLowerCase();
+  const deadline = parseDate(scheme.lastDate);
+  if (
+    /inactive|not active|expired|closed|cancelled|canceled/.test(status) ||
+    (deadline && startOfDay(deadline).getTime() < startOfDay(now || new Date()).getTime())
+  ) {
+    return "EXPIRED";
+  }
+  if (!isActiveScheme(scheme, now)) return "VERIFICATION_PENDING";
+  const quality = clean(scheme.dataQuality).toLowerCase();
+  const checkedDate = parseDate(scheme.lastChecked || scheme.lastUpdated);
+  const ageDays = checkedDate
+    ? (startOfDay(now || new Date()).getTime() - startOfDay(checkedDate).getTime()) / 86400000
+    : Number.POSITIVE_INFINITY;
+  const hasVerificationEvidence =
+    (quality === "verifiedsource" || Boolean(clean(scheme.source))) &&
+    ageDays >= -2 &&
+    ageDays <= 180;
+  return hasVerificationEvidence ? "VERIFIED_ACTIVE" : "VERIFICATION_PENDING";
+}
+
+function schemeVerificationText(scheme, language, now) {
+  const ml = clean(language).toLowerCase() === "malayalam";
+  const labels = ml
+    ? {
+        VERIFIED_ACTIVE: "സ്ഥിരീകരിച്ചതും സജീവവും",
+        VERIFICATION_PENDING: "സ്ഥിരീകരണം ബാക്കി",
+        EXPIRED: "കാലാവധി കഴിഞ്ഞു / അവസാനിച്ചു",
+        INFORMATION_UNAVAILABLE: "വിവരം ലഭ്യമല്ല"
+      }
+    : {
+        VERIFIED_ACTIVE: "Verified and active",
+        VERIFICATION_PENDING: "Verification pending",
+        EXPIRED: "Expired",
+        INFORMATION_UNAVAILABLE: "Information unavailable"
+      };
+  return labels[schemeVerificationState(scheme, now)];
 }
 
 function findScheme(sheetRows, schemeId) {
@@ -377,6 +423,7 @@ function buildSchemeListRows(schemes, language) {
       description: truncate([
         scheme.department,
         scheme.category,
+        schemeVerificationText(scheme, language),
         scheme.lastDate
           ? (ml ? "അപേക്ഷിക്കുക: " : "Apply by ") + scheme.lastDate
           : ""
@@ -451,6 +498,7 @@ function buildSchemeDetails(scheme, language, expanded, options) {
         "🏛️ പദ്ധതി വിവരങ്ങൾ",
         "",
         "പദ്ധതി: " + (clean(scheme && scheme.name) || missing),
+        "സ്ഥിരീകരണ നില: " + schemeVerificationText(scheme, language, options && options.now),
         "സർക്കാർ: " + (government || missing),
         "വകുപ്പ്: " + (clean(scheme && scheme.department) || missing),
         "ഉദ്ദേശ്യം: " + (clean(scheme && scheme.purpose) || missing),
@@ -466,6 +514,7 @@ function buildSchemeDetails(scheme, language, expanded, options) {
         "🏛️ Scheme Details",
         "",
         "Scheme: " + (clean(scheme && scheme.name) || missing),
+        "Verification status: " + schemeVerificationText(scheme, language, options && options.now),
         "Government: " + (government || missing),
         "Department: " + (clean(scheme && scheme.department) || missing),
         "Purpose: " + (clean(scheme && scheme.purpose) || missing),
@@ -795,6 +844,8 @@ module.exports = {
   parseSchemeAction,
   readAdvisories,
   readSchemeInterests,
+  schemeVerificationState,
+  schemeVerificationText,
   readSchemes,
   relevantSchemes,
   safeOfficialLink,

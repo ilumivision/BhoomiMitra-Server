@@ -106,6 +106,9 @@ const {
   parseAboutAction
 } = require("./utils/aboutBhoomiMitra");
 const {
+  parseUserGuideAction
+} = require("./utils/userGuide");
+const {
   handlePersonalRecords
 } = require("./utils/personalRecords");
 const {
@@ -202,7 +205,6 @@ const {
   buildTrainingListRows,
   captureTrainingRequestDate,
   captureTrainingRequestLocation,
-  captureTrainingRequestRemarks,
   captureTrainingRequest,
   changeTrainingRequest,
   createTrainingRequestSession,
@@ -214,6 +216,8 @@ const {
   readTrainingRequests,
   readTrainingPrograms,
   registerFarmerForTraining,
+  isTrainingRequestCancellation,
+  selectTrainingRequestDateChoice,
   selectTrainingRequestMode,
   selectTrainingRequestTime,
   submitTrainingRequest
@@ -1106,7 +1110,7 @@ soilDataLog: "Soil_Data_Log"
 };
 
 const SYSTEM_PROMPT = [
-  "You are BhoomiMitra, Kerala's Agriculture and Allied Sector AI Assistant, developed by Ilumivision.",
+  "You are BhoomiMitra, Kerala's Agriculture and Allied Sector AI Assistant, developed by IlumiVision.",
 
   "MISSION:",
   "Provide accurate, practical, Kerala-specific agricultural assistance to farmers, farm families, agricultural workers, experts and service providers.",
@@ -1685,7 +1689,20 @@ async function completeTrainingRequestInput(from, value, inputType) {
   if (!session) return false;
 
   const language = session.language || "English";
+  const isMalayalam = language === "Malayalam";
   let captured;
+
+  if (isTrainingRequestCancellation(value)) {
+    delete trainingRequestSessions[from];
+    await sendWhatsAppMessage(
+      from,
+      isMalayalam
+        ? "പരിശീലന അഭ്യർത്ഥന റദ്ദാക്കി. ഒന്നും സമർപ്പിച്ചിട്ടില്ല."
+        : "Training request cancelled. Nothing was submitted."
+    );
+    await sendTrainingHome(from, language);
+    return true;
+  }
 
   if (session.step === "awaiting_request") {
     captured = captureTrainingRequest(session, value, inputType, new Date());
@@ -1702,22 +1719,6 @@ async function completeTrainingRequestInput(from, value, inputType) {
     captured = captureTrainingRequestLocation(session, value, new Date());
     if (!captured.success) return false;
     trainingRequestSessions[from] = captured.session;
-    await bhoomiMitraUI.sendTrainingDatePrompt(from, language);
-    return true;
-  }
-
-  if (session.step === "awaiting_date") {
-    captured = captureTrainingRequestDate(session, value, new Date());
-    if (!captured.success) return false;
-    trainingRequestSessions[from] = captured.session;
-    await bhoomiMitraUI.sendTrainingRemarksPrompt(from, language);
-    return true;
-  }
-
-  if (session.step === "awaiting_remarks") {
-    captured = captureTrainingRequestRemarks(session, value, new Date());
-    if (!captured.success) return false;
-    trainingRequestSessions[from] = captured.session;
     await bhoomiMitraUI.sendTrainingRequestConfirmation(
       from,
       language,
@@ -1728,6 +1729,27 @@ async function completeTrainingRequestInput(from, value, inputType) {
       captured.session.preferredDate,
       captured.session.remarks
     );
+    return true;
+  }
+
+  if (session.step === "awaiting_date") {
+    captured = captureTrainingRequestDate(session, value, new Date());
+    if (!captured.success) return false;
+    trainingRequestSessions[from] = captured.session;
+    if (captured.session.step === "awaiting_location") {
+      await bhoomiMitraUI.sendTrainingLocationPrompt(from, language);
+    } else {
+      await bhoomiMitraUI.sendTrainingRequestConfirmation(
+        from,
+        language,
+        captured.session.topic,
+        captured.session.mode,
+        captured.session.preferredTime,
+        captured.session.preferredLocation,
+        captured.session.preferredDate,
+        captured.session.remarks
+      );
+    }
     return true;
   }
 
@@ -1806,7 +1828,7 @@ async function handleTrainingAction(options) {
     if (selected.session.step === "awaiting_time") {
       await bhoomiMitraUI.sendTrainingTimePreference(from, language);
     } else {
-      await bhoomiMitraUI.sendTrainingLocationPrompt(from, language);
+      await bhoomiMitraUI.sendTrainingDateChoice(from, language);
     }
     return true;
   }
@@ -1831,7 +1853,46 @@ async function handleTrainingAction(options) {
     }
 
     trainingRequestSessions[from] = selected.session;
-    await bhoomiMitraUI.sendTrainingLocationPrompt(from, language);
+    await bhoomiMitraUI.sendTrainingDateChoice(from, language);
+    return true;
+  }
+
+  if (action.action === "REQUEST_DATE_CHOICE") {
+    const session = trainingRequestSessions[from];
+    const selected = selectTrainingRequestDateChoice(
+      session,
+      action.dateChoice,
+      new Date()
+    );
+
+    if (!selected.success) {
+      await sendWhatsAppMessage(
+        from,
+        isMalayalam
+          ? "ഈ തീയതി തിരഞ്ഞെടുപ്പിന്റെ സമയം കഴിഞ്ഞു. വീണ്ടും പരിശീലനം അഭ്യർത്ഥിക്കുക."
+          : "That date selection has expired. Please request the training again."
+      );
+      await bhoomiMitraUI.sendTrainingRequestShortcuts(from, language);
+      return true;
+    }
+
+    trainingRequestSessions[from] = selected.session;
+    if (selected.session.step === "awaiting_date") {
+      await bhoomiMitraUI.sendTrainingDatePrompt(from, language);
+    } else if (selected.session.step === "awaiting_location") {
+      await bhoomiMitraUI.sendTrainingLocationPrompt(from, language);
+    } else {
+      await bhoomiMitraUI.sendTrainingRequestConfirmation(
+        from,
+        language,
+        selected.session.topic,
+        selected.session.mode,
+        selected.session.preferredTime,
+        selected.session.preferredLocation,
+        selected.session.preferredDate,
+        selected.session.remarks
+      );
+    }
     return true;
   }
 
@@ -1948,7 +2009,8 @@ async function handleTrainingAction(options) {
     await bhoomiMitraUI.sendTrainingRequestSubmitted(
       from,
       language,
-      requestResult.topic
+      requestResult.topic,
+      requestResult.requestId
     );
     return true;
   }
@@ -4128,6 +4190,27 @@ if (
               preferredUiLanguage,
               aboutAction.member,
               aboutAction.page
+            );
+          }
+          return;
+        }
+
+        const userGuideAction =
+          parseUserGuideAction(uiSelection.id);
+
+        if (userGuideAction) {
+          if (userGuideAction.type === "GUIDE") {
+            await bhoomiMitraUI.sendUserGuidePage(
+              from,
+              preferredUiLanguage,
+              userGuideAction.page
+            );
+          } else if (userGuideAction.type === "TOPIC") {
+            await bhoomiMitraUI.sendUserGuideTopic(
+              from,
+              preferredUiLanguage,
+              userGuideAction.topic,
+              userGuideAction.page
             );
           }
           return;

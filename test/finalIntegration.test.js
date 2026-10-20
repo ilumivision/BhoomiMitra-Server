@@ -130,7 +130,7 @@ test("consent is affirmative and exposes policy plus Not Now controls", async fu
   assert.deepEqual(interactive.action.buttons.map(function (button) {
     return button.reply.id;
   }), ["CONSENT_AGREE", "CONSENT_POLICY", "CONSENT_DECLINE"]);
-  assert.match(interactive.body.text, /Ilumivision/);
+  assert.match(interactive.body.text, /IlumiVision/);
   assert.match(interactive.body.text, /തിരുത്തലോ ഇല്ലാതാക്കലോ/);
 });
 

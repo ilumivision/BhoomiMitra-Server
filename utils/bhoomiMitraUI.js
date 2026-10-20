@@ -28,11 +28,17 @@ const {
   buildTeamMemberText,
   buildTeamRows
 } = require("./aboutBhoomiMitra");
+const {
+  USER_GUIDE_ACTION_IDS,
+  buildUserGuideIntro,
+  buildUserGuideRows,
+  buildUserGuideTopicText
+} = require("./userGuide");
 
 // =====================================================
 // BhoomiMitra UI
 // ICAR-KVK, CARD Pathanamthitta
-// Technology powered by Ilumivision
+// Technology powered by IlumiVision
 // =====================================================
 
 function createBhoomiMitraUI(options) {
@@ -190,7 +196,7 @@ function createBhoomiMitraUI(options) {
           "🔐 സ്വകാര്യതയും സമ്മതവും\n\n" +
           "പേര്, ഫോൺ, ഭാഷ, കൃഷി/മൃഗം/ഭൂമി വിവരങ്ങൾ, നിങ്ങൾ നൽകുന്ന GPS, ചിത്രം, ശബ്ദം എന്നിവ സേവനത്തിനായി ഉപയോഗിക്കാം. ആവശ്യമായ അംഗീകൃത സാങ്കേതിക സേവനദാതാക്കളോ വിദഗ്ധരോ ഇത് പ്രോസസ് ചെയ്തേക്കാം. AI, കാലാവസ്ഥ, വിപണി, സാറ്റലൈറ്റ് വിവരം തീരുമാനസഹായം മാത്രമാണ്. വിവരങ്ങൾ കാണാനും തിരുത്തലോ ഇല്ലാതാക്കലോ അഭ്യർത്ഥിക്കാനും സമ്മതം പിൻവലിക്കാനും കഴിയും.\n\n" +
           "BhoomiMitra uses the personal and farm information you provide to deliver its services. Authorised technology providers or experts may process relevant data. AI and data services are decision support. You may request access, correction, deletion, or consent withdrawal.\n\n" +
-          "Project attribution (subject to institutional approval): ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta. Technology provider: Ilumivision, Manjadi, Thiruvalla." +
+          "Project attribution: ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta. Technology provider: IlumiVision." +
           configuredPolicyUrl + configuredContact
         ).slice(0, 1024)
       },
@@ -1396,13 +1402,13 @@ async function sendTeamDirectory(to, language, page) {
     directoryRows.push({
       id: ABOUT_ACTION_IDS.TEAM_PAGE_2,
       title: ml ? "➡️ അടുത്ത പേജ്" : "➡️ Next Page",
-      description: ml ? "ടീം അംഗങ്ങൾ 8–11" : "Team members 8–11"
+      description: ml ? "ടീം അംഗങ്ങൾ 6–10" : "Team members 6–10"
     });
   } else {
     directoryRows.push({
       id: ABOUT_ACTION_IDS.TEAM_PAGE_1,
       title: ml ? "⬅️ മുൻ പേജ്" : "⬅️ Previous Page",
-      description: ml ? "ടീം അംഗങ്ങൾ 1–7" : "Team members 1–7"
+      description: ml ? "ടീം അംഗങ്ങൾ 1–5" : "Team members 1–5"
     });
   }
   directoryRows.push(
@@ -1451,37 +1457,82 @@ async function sendTeamMemberProfile(to, language, member, page) {
 
 async function sendHelpMenu(to, language) {
   const ml = String(language || "").toLowerCase() !== "english";
-  const text = ml
-    ? [
-        "❓ ഭൂമിമിത്ര എങ്ങനെ ഉപയോഗിക്കാം",
-        "",
-        "• ചോദ്യം ടൈപ്പ് ചെയ്യുക അല്ലെങ്കിൽ വോയ്സ് അയയ്ക്കുക.",
-        "• വിള പ്രശ്നത്തിന്റെ വ്യക്തമായ ഫോട്ടോ അയയ്ക്കുക.",
-        "• കൃഷിരേഖകൾക്ക് My Farm ഉപയോഗിക്കുക.",
-        "• വിദഗ്ധർ/സേവനങ്ങൾക്ക് Expert & Services ഉപയോഗിക്കുക.",
-        "• ലഭ്യമായ വിലയ്ക്ക് Market ഉപയോഗിക്കുക.",
-        "• പ്രധാന മെനുവിലേക്ക് MENU എന്ന് അയയ്ക്കുക.",
-        "",
-        "ഉദാ: എന്റെ തെങ്ങിന്റെ ഇല മഞ്ഞയാകുന്നു. / നാളെ മഴയുണ്ടാകുമോ? / എനിക്ക് കാർഷിക പരിശീലനം വേണം."
-      ].join("\n")
-    : [
-        "❓ How to Use BhoomiMitra",
-        "",
-        "• Type a question or send a voice message.",
-        "• Send a clear photo of a crop problem.",
-        "• Use My Farm for farm records.",
-        "• Use Expert & Services for specialist help.",
-        "• Use Market for available price information.",
-        "• Type MENU to return to the Main Menu.",
-        "",
-        "Examples: My coconut leaves are yellow. / Will it rain tomorrow? / I need agricultural training."
-      ].join("\n");
+  const rows = buildUserGuideRows(language, 1);
+  rows.push(
+    {
+      id: USER_GUIDE_ACTION_IDS.PAGE_2,
+      title: ml ? "➡️ അടുത്ത പേജ്" : "➡️ Next Page",
+      description: ml ? "വിഷയങ്ങൾ 6–10" : "Topics 6–10"
+    },
+    {
+      id: "HOME_PROFILE",
+      title: ml ? "↩️ പിന്നോട്ട്" : "↩️ Back",
+      description: ml ? "എന്റെ BhoomiMitra-യിലേക്ക്" : "Return to My BhoomiMitra"
+    },
+    {
+      id: "NAV_HOME",
+      title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu",
+      description: ml ? "BhoomiMitra പ്രധാന മെനു" : "BhoomiMitra home"
+    }
+  );
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: buildUserGuideIntro(language, 1) },
+    action: {
+      button: ml ? "വിഷയം തിരഞ്ഞെടുക്കുക" : "Choose topic",
+      sections: [{
+        title: ml ? "ഉപയോക്തൃ മാർഗനിർദേശം" : "User Guide",
+        rows: rows
+      }]
+    }
+  });
+}
 
+async function sendUserGuidePage(to, language, page) {
+  const safePage = Number(page) === 2 ? 2 : 1;
+  if (safePage === 1) return sendHelpMenu(to, language);
+  const ml = String(language || "").toLowerCase() !== "english";
+  const rows = buildUserGuideRows(language, safePage);
+  rows.push(
+    {
+      id: USER_GUIDE_ACTION_IDS.PAGE_1,
+      title: ml ? "⬅️ മുൻ പേജ്" : "⬅️ Previous Page",
+      description: ml ? "വിഷയങ്ങൾ 1–5" : "Topics 1–5"
+    },
+    {
+      id: "HOME_PROFILE",
+      title: ml ? "↩️ പിന്നോട്ട്" : "↩️ Back",
+      description: ml ? "എന്റെ BhoomiMitra-യിലേക്ക്" : "Return to My BhoomiMitra"
+    },
+    {
+      id: "NAV_HOME",
+      title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu",
+      description: ml ? "BhoomiMitra പ്രധാന മെനു" : "BhoomiMitra home"
+    }
+  );
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: buildUserGuideIntro(language, safePage) },
+    action: {
+      button: ml ? "വിഷയം തിരഞ്ഞെടുക്കുക" : "Choose topic",
+      sections: [{
+        title: ml ? "ഉപയോക്തൃ മാർഗനിർദേശം" : "User Guide",
+        rows: rows
+      }]
+    }
+  });
+}
+
+async function sendUserGuideTopic(to, language, topic, page) {
+  const ml = String(language || "").toLowerCase() !== "english";
+  const backId = Number(page) === 2
+    ? USER_GUIDE_ACTION_IDS.PAGE_2
+    : USER_GUIDE_ACTION_IDS.PAGE_1;
   return sendInteractiveMessage(to, {
     type: "button",
-    body: { text: text },
+    body: { text: buildUserGuideTopicText(topic, language).slice(0, 1024) },
     action: { buttons: [
-      { type: "reply", reply: { id: "HOME_PROFILE", title: ml ? "↩️ പിന്നോട്ട്" : "↩️ Back" } },
+      { type: "reply", reply: { id: backId, title: ml ? "↩️ ഗൈഡിലേക്ക്" : "↩️ User Guide" } },
       { type: "reply", reply: { id: "NAV_HOME", title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu" } }
     ] }
   });
@@ -1500,8 +1551,8 @@ async function sendTermsPrivacyMenu(to, language) {
     type: "button",
     body: {
       text: ((ml
-        ? "🔐 നിബന്ധനകളും സ്വകാര്യതയും\n\nവിവരങ്ങൾ കാണാനും തിരുത്തലോ ഇല്ലാതാക്കലോ അഭ്യർത്ഥിക്കാനും സമ്മതം പിൻവലിക്കാനും കഴിയും. പൂർണ്ണ നയം വായിക്കുക.\n\nപദ്ധതി അംഗീകാരത്തിന് വിധേയമായ പൊതുവിവരം: ICAR–കൃഷി വിജ്ഞാന കേന്ദ്രം, CARD, പത്തനംതിട്ട. സാങ്കേതിക പിന്തുണ: Ilumivision, മഞ്ഞാടി, തിരുവല്ല"
-        : "🔐 Terms & Privacy\n\nYou may access your information and request correction, deletion, or consent withdrawal. Read the complete policy.\n\nProject attribution (subject to institutional approval): ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta. Technology provider: Ilumivision, Manjadi, Thiruvalla") + url + contact).slice(0, 1024)
+        ? "🔐 നിബന്ധനകളും സ്വകാര്യതയും\n\nവിവരങ്ങൾ കാണാനും തിരുത്തലോ ഇല്ലാതാക്കലോ അഭ്യർത്ഥിക്കാനും സമ്മതം പിൻവലിക്കാനും കഴിയും. പൂർണ്ണ നയം വായിക്കുക.\n\nപദ്ധതി: ICAR–കൃഷി വിജ്ഞാന കേന്ദ്രം, CARD, പത്തനംതിട്ട. സാങ്കേതിക പിന്തുണ: IlumiVision"
+        : "🔐 Terms & Privacy\n\nYou may access your information and request correction, deletion, or consent withdrawal. Read the complete policy.\n\nA Project of ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta. Powered by IlumiVision.") + url + contact).slice(0, 1024)
     },
     action: { buttons: [
       { type: "reply", reply: { id: "PRIVACY_READ_POLICY", title: ml ? "📄 പൂർണ്ണ നയം" : "📄 Full Policy" } },
@@ -2187,8 +2238,8 @@ async function sendTrainingRequestPrompt(to, language) {
     type: "button",
     body: {
       text: isMalayalam
-        ? "KVK ഏത് പരിശീലനം നടത്തണമെന്നാണ് നിങ്ങൾ ആഗ്രഹിക്കുന്നത്?\nനിങ്ങളുടെ ആവശ്യം ടൈപ്പ് ചെയ്യുകയോ വോയ്സ് സന്ദേശം അയയ്ക്കുകയോ ചെയ്യാം."
-        : "What training would you like KVK to conduct?\nYou can type your need or send a voice message."
+        ? "നിങ്ങളുടെ പരിശീലന ആവശ്യം ടൈപ്പ് ചെയ്ത് അയയ്ക്കുക. പിന്തുണയുള്ള വോയ്സ് സന്ദേശവും അയയ്ക്കാം.\nനിർത്താൻ CANCEL എന്ന് ടൈപ്പ് ചെയ്യുക."
+        : "Type your training requirement and send it. You may also send a supported voice message.\nType CANCEL to stop."
     },
     action: {
       buttons: [
@@ -2290,8 +2341,8 @@ async function sendTrainingLocationPrompt(to, language) {
     type: "button",
     body: {
       text: isMalayalam
-        ? "ഇഷ്ടപ്പെട്ട പരിശീലന സ്ഥലം ടൈപ്പ് ചെയ്യുക. ഓൺലൈൻ ആണെങ്കിൽ Online എന്ന് നൽകാം. ഒഴിവാക്കാൻ SKIP എന്ന് അയക്കുക."
-        : "Type your preferred training location. For online training, you may enter Online. Send SKIP to leave it blank."
+        ? "ഓഫ്‌ലൈൻ പരിശീലനത്തിന് ഇഷ്ടപ്പെട്ട സ്ഥലം ടൈപ്പ് ചെയ്യുക. പ്രത്യേക മുൻഗണന ഇല്ലെങ്കിൽ SKIP എന്ന് അയയ്ക്കുക."
+        : "Type the preferred location for offline training. Send SKIP if you have no location preference."
     },
     action: {
       buttons: [{
@@ -2305,6 +2356,41 @@ async function sendTrainingLocationPrompt(to, language) {
   });
 }
 
+async function sendTrainingDateChoice(to, language) {
+  const isMalayalam = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? "ഇഷ്ടപ്പെട്ട തീയതി തിരഞ്ഞെടുക്കുക:"
+        : "Choose your preferred date:"
+    },
+    action: { buttons: [
+      {
+        type: "reply",
+        reply: {
+          id: TRAINING_ACTION_IDS.REQUEST_DATE_SPECIFIC,
+          title: isMalayalam ? "📅 പ്രത്യേക തീയതി" : "📅 Specific date"
+        }
+      },
+      {
+        type: "reply",
+        reply: {
+          id: TRAINING_ACTION_IDS.REQUEST_DATE_ANY,
+          title: isMalayalam ? "🔄 സൗകര്യപ്രദമായത്" : "🔄 Any convenient"
+        }
+      },
+      {
+        type: "reply",
+        reply: {
+          id: TRAINING_ACTION_IDS.REQUEST_CANCEL,
+          title: isMalayalam ? "❌ റദ്ദാക്കുക" : "❌ Cancel"
+        }
+      }
+    ] }
+  });
+}
+
 async function sendTrainingDatePrompt(to, language) {
   const isMalayalam =
     String(language || "").toLowerCase() === "malayalam";
@@ -2313,8 +2399,8 @@ async function sendTrainingDatePrompt(to, language) {
     type: "button",
     body: {
       text: isMalayalam
-        ? "ഇഷ്ടപ്പെട്ട തീയതി അല്ലെങ്കിൽ തീയതി പരിധി ടൈപ്പ് ചെയ്യുക. ബാധകമല്ലെങ്കിൽ SKIP എന്ന് അയക്കുക."
-        : "Type your preferred date or date range. Send SKIP if it is not applicable."
+        ? "ഇഷ്ടപ്പെട്ട പ്രത്യേക തീയതി അല്ലെങ്കിൽ തീയതി പരിധി ടൈപ്പ് ചെയ്യുക. നിർത്താൻ CANCEL എന്ന് അയയ്ക്കുക."
+        : "Type your specific preferred date or date range. Type CANCEL to stop."
     },
     action: {
       buttons: [{
@@ -2420,14 +2506,14 @@ async function sendTrainingRequestConfirmation(
           type: "reply",
           reply: {
             id: TRAINING_ACTION_IDS.REQUEST_SUBMIT,
-            title: isMalayalam ? "✅ സമർപ്പിക്കുക" : "✅ Submit"
+            title: isMalayalam ? "✅ അഭ്യർത്ഥന നൽകുക" : "✅ Submit Request"
           }
         },
         {
           type: "reply",
           reply: {
             id: TRAINING_ACTION_IDS.REQUEST_CHANGE,
-            title: isMalayalam ? "✏️ മാറ്റുക" : "✏️ Change"
+            title: isMalayalam ? "✏️ തിരുത്തുക" : "✏️ Edit Request"
           }
         },
         {
@@ -2442,7 +2528,7 @@ async function sendTrainingRequestConfirmation(
   });
 }
 
-async function sendTrainingRequestSubmitted(to, language, topic) {
+async function sendTrainingRequestSubmitted(to, language, topic, requestId) {
   const isMalayalam =
     String(language || "").toLowerCase() === "malayalam";
   const text = isMalayalam
@@ -2451,6 +2537,7 @@ async function sendTrainingRequestSubmitted(to, language, topic) {
         "",
         "ആവശ്യപ്പെട്ട പരിശീലനം:",
         String(topic || "").trim(),
+        "അഭ്യർത്ഥന ഐഡി: " + String(requestId || "").trim(),
         "",
         "നിങ്ങളുടെ അഭ്യർത്ഥന ICAR-KVK പത്തനംതിട്ടയിലേക്ക് അയച്ചു. പരിപാടി നിശ്ചയിച്ചാൽ നിങ്ങളെ അറിയിക്കും."
       ].join("\n")
@@ -2459,6 +2546,7 @@ async function sendTrainingRequestSubmitted(to, language, topic) {
         "",
         "Requested training:",
         String(topic || "").trim(),
+        "Request ID: " + String(requestId || "").trim(),
         "",
         "Your request has been sent to ICAR-KVK Pathanamthitta. You will be informed if a programme is scheduled."
       ].join("\n");
@@ -2592,6 +2680,7 @@ async function sendSchemesMenu(to, language) {
     [SCHEME_ACTION_IDS.RELEVANT, "Relevant Schemes for Me", "എനിക്ക് പ്രസക്തമായവ"],
     [SCHEME_ACTION_IDS.CENTRAL, "Central Government", "കേന്ദ്ര സർക്കാർ പദ്ധതികൾ"],
     [SCHEME_ACTION_IDS.KERALA, "Kerala Government", "കേരള സർക്കാർ പദ്ധതികൾ"],
+    [SCHEME_ACTION_IDS.SEARCH, "Search by Topic", "വിഷയം തിരയുക"],
     [SCHEME_ACTION_IDS.APPLICATION_GUIDANCE, "Details / Application", "വിശദാംശം / അപേക്ഷ"],
     [SCHEME_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു"]
   ].map(function (entry) {
@@ -3256,6 +3345,7 @@ return {
   sendTrainingModePreference,
   sendTrainingTimePreference,
   sendTrainingLocationPrompt,
+  sendTrainingDateChoice,
   sendTrainingDatePrompt,
   sendTrainingRemarksPrompt,
   sendTrainingRequestConfirmation,
@@ -3296,6 +3386,8 @@ return {
   sendTeamDirectory,
   sendTeamMemberProfile,
   sendHelpMenu,
+  sendUserGuidePage,
+  sendUserGuideTopic,
   sendTermsPrivacyMenu,
   sendWhatsNewAnnouncement,
   sendPersonalRecordsMenu,

@@ -80,24 +80,23 @@ This tab is **proposed, absent/unverified, and not read or written by V1 code**.
 
 ## V1 About BhoomiMitra and Our Team readiness
 
-These are public informational surfaces only. They do not read or write Google Sheets, change operational coordinator assignments, or replace the `Expert_Directory`. All institutional attribution is subject to approval by the named institution before public deployment.
+These are public informational surfaces only. They do not read or write Google Sheets, change operational coordinator assignments, or replace the `Expert_Directory`.
 
 | Status | Public profile | Designation | Project role |
 |---|---|---|---|
-| `NOT TESTED` | Dr. C. P. Robert | Senior Scientist & Head | Project Leader |
-| `NOT TESTED` | Dr. Vinod Mathew | Subject Matter Specialist – Agronomy | Crop Production & Agronomy Coordinator |
-| `NOT TESTED` | Dr. Shana Harshan | Subject Matter Specialist – Home Science | Farm Family Welfare & Value Addition Coordinator |
-| `NOT TESTED` | Dr. Sency Mathew | Subject Matter Specialist – Animal Science | Animal Husbandry & Livestock Advisory Coordinator |
-| `NOT TESTED` | Dr. Sindhu Sadanandan | Subject Matter Specialist – Agricultural Extension | Overall Field Implementation & Farmer Outreach Coordinator |
-| `NOT TESTED` | Dr. Rincy K. Abraham | Subject Matter Specialist – Horticulture | Horticulture Coordinator |
-| `NOT TESTED` | Dr. Alex John | Subject Matter Specialist – Plant Protection | Plant Health & Technical Validation Coordinator |
-| `NOT TESTED` | Sri Binu John | Programme Assistant – Computer | Digital Operations & Training Coordinator |
-| `NOT TESTED` | Smt. Ambily Varughese | Farm Manager | Farm Demonstration & Field Operations Coordinator |
-| `NOT TESTED` | Smt. Gayatri S | Programme Assistant – Lab Technician | Laboratory Information & Data Support Coordinator |
-| `NOT TESTED` | Smt. Anu John | Junior Stenographer | Administrative Support |
+| `NOT TESTED` | Dr. C. P. Robert | Senior Scientist & Head | Project Director & Strategic Leadership |
+| `NOT TESTED` | Dr. Sindhu Sadanandan | Subject Matter Specialist – Agricultural Extension | Project Coordinator & Farmer Outreach |
+| `NOT TESTED` | Sri Binu John | Programme Assistant (Computer) | Digital Operations & Training Coordination |
+| `NOT TESTED` | Smt. Gayathri | Programme Assistant (Lab) | Field Coordination & Farmer Engagement |
+| `NOT TESTED` | Dr. Vinod Mathew | Subject Matter Specialist – Agronomy | Crop Production & Nutrient Management |
+| `NOT TESTED` | Dr. Rincy K. Abraham | Subject Matter Specialist – Horticulture | Horticultural Crops & Orchard Advisory |
+| `NOT TESTED` | Dr. Sency Mathew | Subject Matter Specialist – Animal Science | Livestock, Poultry & Veterinary Advisory Coordination |
+| `NOT TESTED` | Dr. Alex John | Subject Matter Specialist – Plant Protection | Crop Health & Pest-Disease Management |
+| `NOT TESTED` | Dr. Shana Harshan | Subject Matter Specialist – Home Science | Value Addition & Agri-Enterprise Development |
+| `NOT TESTED` | Smt. Ambily Varughese | Farm Manager | Farm Operations & Technology Demonstration |
 
-- [ ] `NOT TESTED` — Obtain institutional approval for the public “A Project of: ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta” attribution before deployment.
-- [ ] `NOT TESTED` — Confirm the “Powered by: Ilumivision, Manjadi, Thiruvalla” attribution and Malayalam tagline are approved for public display.
+- [ ] `NOT TESTED` — Confirm the approved “A Project of ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta” wording is rendered correctly in the deployed WhatsApp UI.
+- [ ] `NOT TESTED` — Confirm the approved “Powered by IlumiVision” attribution is displayed with capital V and without an added IlumiVision logo.
 - [ ] `NOT TESTED` — Verify `My BhoomiMitra → About BhoomiMitra → Our Team` in English and Malayalam, including pagination, every member profile, Back, and Main Menu.
-- [ ] `NOT TESTED` — Have authorised KVK staff verify every public name, designation, project role, and responsibility summary; Smt. Anu John must show no detailed responsibilities.
-- [ ] `NOT TESTED` — Confirm the public directory does not change Training Coordinator Sri Binu John, Overall Field Implementation Coordinator Dr. Sindhu Sadanandan, or programme-specific coordinator precedence in operational records.
+- [ ] `NOT TESTED` — Have authorised KVK staff verify every public name, designation, project role, and responsibility summary against the approved ten-member list.
+- [ ] `NOT TESTED` — Confirm the public directory does not change the operational training routing to Dr. Sindhu Sadanandan – KVK Administration and Sri Binu John – Training Coordination.

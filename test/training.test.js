@@ -11,6 +11,7 @@ const {
   TRAINING_ACTION_IDS,
   TRAINING_COORDINATION,
   TRAINING_DYNAMIC_PREFIXES,
+  TRAINING_DATES,
   TRAINING_MODES,
   TRAINING_TIMES,
   buildPromotedTrainingDetails,
@@ -29,6 +30,7 @@ const {
   getMyTrainings,
   getPromotedTrainingPrograms,
   inferTrainingCategory,
+  isTrainingRequestCancellation,
   parseTrainingAction,
   readTrainingRequests,
   readTrainingPrograms,
@@ -36,6 +38,7 @@ const {
   registrationAvailability,
   sendTrainingRequestAlert,
   selectTrainingRequestMode,
+  selectTrainingRequestDateChoice,
   selectTrainingRequestTime,
   submitTrainingRequest,
   trainingRequestId
@@ -585,6 +588,8 @@ test("submitting a training request stores identity from the farmer record by he
   assert.equal(valueFromRequestRow(appended[0].row, "Request_Status"), "Requested");
   assert.equal(valueFromRequestRow(appended[0].row, "Assigned_Coordinator"), TRAINING_COORDINATION.TRAINING);
   assert.equal(valueFromRequestRow(appended[0].row, "Overall_Coordinator"), TRAINING_COORDINATION.OVERALL);
+  assert.equal(valueFromRequestRow(appended[0].row, "Training_Coordinator"), "Sri Binu John – Training Coordination");
+  assert.equal(valueFromRequestRow(appended[0].row, "Overall_Coordinator"), "Dr. Sindhu Sadanandan – KVK Administration");
 });
 
 test("farmer never supplies internal identity in the training request topic", async function () {
@@ -717,7 +722,8 @@ test("English Request a Training flow is click-first through confirmation", asyn
   );
 
   assert.match(harness.calls[0].body.interactive.body.text, /registrations and popular trainings/);
-  assert.match(harness.calls[1].body.interactive.body.text, /type your need or send a voice message/);
+  assert.match(harness.calls[1].body.interactive.body.text, /Type your training requirement and send it/);
+  assert.match(harness.calls[1].body.interactive.body.text, /Type CANCEL to stop/);
   assert.match(harness.calls[2].body.interactive.body.text, /Submit this request to KVK/);
   assert.match(harness.calls[3].body.interactive.body.text, /Training Request Submitted/);
 });
@@ -741,7 +747,8 @@ test("Malayalam Request a Training flow and history stay in Malayalam", async fu
     }]
   );
 
-  assert.match(harness.calls[0].body.interactive.body.text, /വോയ്സ് സന്ദേശം/);
+  assert.match(harness.calls[0].body.interactive.body.text, /വോയ്സ് സന്ദേശവും/);
+  assert.match(harness.calls[0].body.interactive.body.text, /CANCEL/);
   assert.match(harness.calls[1].body.interactive.body.text, /പരിശീലന അഭ്യർത്ഥന/);
   assert.match(harness.calls[2].body.interactive.body.text, /എന്റെ പരിശീലന അഭ്യർത്ഥനകൾ/);
   assert.doesNotMatch(harness.calls[2].body.interactive.body.text, /BM-TRQ/);
@@ -828,7 +835,7 @@ test("Offline mode selection skips the online time question", function () {
 
   assert.equal(selected.success, true);
   assert.equal(selected.session.mode, "Offline / In-person");
-  assert.equal(selected.session.step, "awaiting_location");
+  assert.equal(selected.session.step, "awaiting_date_choice");
   assert.equal(selected.session.preferredTime, "Not applicable");
 });
 
@@ -841,38 +848,70 @@ test("Either mode selection skips the online time question", function () {
 
   assert.equal(selected.success, true);
   assert.equal(selected.session.mode, "Either");
-  assert.equal(selected.session.step, "awaiting_location");
+  assert.equal(selected.session.step, "awaiting_date_choice");
   assert.equal(selected.session.preferredTime, "Not applicable");
 });
 
-test("location date and remarks advance the request to confirmation", function () {
+test("online any-convenient date skips location and reaches confirmation", function () {
+  const mode = selectTrainingRequestMode(
+    capturedTrainingRequest(),
+    TRAINING_MODES.ONLINE,
+    NOW
+  );
+  const time = selectTrainingRequestTime(mode.session, TRAINING_TIMES.EITHER, NOW);
+  const date = selectTrainingRequestDateChoice(time.session, TRAINING_DATES.ANY, NOW);
+
+  assert.equal(date.success, true);
+  assert.equal(date.session.step, "awaiting_confirmation");
+  assert.equal(date.session.preferredDate, "Any convenient date");
+  assert.equal(date.session.preferredLocation, "");
+});
+
+test("offline any-convenient date asks location only because it is necessary", function () {
+  const mode = selectTrainingRequestMode(
+    capturedTrainingRequest(),
+    TRAINING_MODES.OFFLINE,
+    NOW
+  );
+  const date = selectTrainingRequestDateChoice(mode.session, TRAINING_DATES.ANY, NOW);
+
+  assert.equal(date.success, true);
+  assert.equal(date.session.step, "awaiting_location");
+});
+
+test("typed CANCEL is recognized case-insensitively without matching other text", function () {
+  assert.equal(isTrainingRequestCancellation("CANCEL"), true);
+  assert.equal(isTrainingRequestCancellation(" cancel "), true);
+  assert.equal(isTrainingRequestCancellation("cancel my earlier saved request"), false);
+});
+
+test("specific date then offline location advances the request to confirmation", function () {
   const modeSelected = selectTrainingRequestMode(
     capturedTrainingRequest(),
     TRAINING_MODES.OFFLINE,
     NOW
   );
-  const location = captureTrainingRequestLocation(
+  const dateChoice = selectTrainingRequestDateChoice(
     modeSelected.session,
-    "Konni",
+    TRAINING_DATES.SPECIFIC,
     NOW
   );
   const date = captureTrainingRequestDate(
-    location.session,
+    dateChoice.session,
     "15 November 2026",
     NOW
   );
-  const remarks = captureTrainingRequestRemarks(
+  const location = captureTrainingRequestLocation(
     date.session,
-    "Morning preferred",
+    "Konni",
     NOW
   );
 
-  assert.equal(location.session.step, "awaiting_date");
-  assert.equal(date.session.step, "awaiting_remarks");
-  assert.equal(remarks.session.step, "awaiting_confirmation");
-  assert.equal(remarks.session.preferredLocation, "Konni");
-  assert.equal(remarks.session.preferredDate, "15 November 2026");
-  assert.equal(remarks.session.remarks, "Morning preferred");
+  assert.equal(dateChoice.session.step, "awaiting_date");
+  assert.equal(date.session.step, "awaiting_location");
+  assert.equal(location.session.step, "awaiting_confirmation");
+  assert.equal(location.session.preferredLocation, "Konni");
+  assert.equal(location.session.preferredDate, "15 November 2026");
 });
 
 test("training categories are inferred conservatively from the requested topic", function () {
@@ -901,7 +940,7 @@ test("training categories are inferred conservatively from the requested topic",
     );
 
     assert.equal(timeSelected.success, true);
-    assert.equal(timeSelected.session.step, "awaiting_location");
+    assert.equal(timeSelected.session.step, "awaiting_date_choice");
     assert.equal(timeSelected.session.preferredTime, preferredTime);
   });
 });
@@ -1063,12 +1102,47 @@ test("English preference UI is click-first", async function () {
 
   await harness.ui.sendTrainingModePreference("919111111111", "English");
   await harness.ui.sendTrainingTimePreference("919111111111", "English");
+  await harness.ui.sendTrainingDateChoice("919111111111", "English");
 
   assert.equal(harness.calls[0].body.interactive.type, "list");
   assert.equal(harness.calls[0].body.interactive.action.sections[0].rows.length, 3);
   assert.equal(harness.calls[1].body.interactive.action.buttons.length, 3);
+  assert.deepEqual(
+    harness.calls[2].body.interactive.action.buttons.slice(0, 2).map(function (button) {
+      return button.reply.id;
+    }),
+    [TRAINING_ACTION_IDS.REQUEST_DATE_SPECIFIC, TRAINING_ACTION_IDS.REQUEST_DATE_ANY]
+  );
   assert.match(harness.calls[0].body.interactive.body.text, /Preferred training mode/);
   assert.match(harness.calls[1].body.interactive.body.text, /Preferred time/);
+});
+
+test("concurrent duplicate training submissions append only once", async function () {
+  let appendCount = 0;
+  let releaseAppend;
+  const appendGate = new Promise(function (resolve) { releaseAppend = resolve; });
+  const input = {
+    farmer: { memberId: "BM-F-100", name: "Anu" },
+    topic: "Mushroom cultivation",
+    sourceMessageId: "wamid.concurrent-training-request",
+    requestRows: [REQUEST_HEADERS],
+    now: NOW,
+    appendRegistration: async function () {
+      appendCount += 1;
+      await appendGate;
+      return true;
+    }
+  };
+
+  const first = submitTrainingRequest(input);
+  const second = submitTrainingRequest(input);
+  releaseAppend();
+  const results = await Promise.all([first, second]);
+
+  assert.equal(appendCount, 1);
+  assert.equal(results[0].success, true);
+  assert.equal(results[1].success, true);
+  assert.equal(results.filter(function (result) { return result.duplicate; }).length, 1);
 });
 
 test("Malayalam preference and pilot-payment UI stays localized", async function () {

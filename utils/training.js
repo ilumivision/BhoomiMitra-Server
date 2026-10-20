@@ -7,9 +7,11 @@ const TRAINING_REGISTRATION_SHEET = "Service_Request";
 const TRAINING_REQUEST_SHEET = "Training_Requests";
 
 const TRAINING_COORDINATION = Object.freeze({
-  OVERALL: "Dr. Sindhu Sadanandan",
-  TRAINING: "Sri Binu John"
+  OVERALL: "Dr. Sindhu Sadanandan – KVK Administration",
+  TRAINING: "Sri Binu John – Training Coordination"
 });
+
+const trainingRequestSubmissions = new Map();
 
 const TRAINING_ACTION_IDS = Object.freeze({
   OPEN: "HOME_TRAINING",
@@ -31,6 +33,8 @@ const TRAINING_ACTION_IDS = Object.freeze({
   REQUEST_TIME_AFTERNOON: "TRAINING_TIME_2_5",
   REQUEST_TIME_EVENING: "TRAINING_TIME_7_10",
   REQUEST_TIME_EITHER: "TRAINING_TIME_EITHER",
+  REQUEST_DATE_SPECIFIC: "TRAINING_DATE_SPECIFIC",
+  REQUEST_DATE_ANY: "TRAINING_DATE_ANY",
   REQUEST_SUBMIT: "TRAINING_REQUEST_SUBMIT",
   REQUEST_CHANGE: "TRAINING_REQUEST_CHANGE",
   REQUEST_CANCEL: "TRAINING_REQUEST_CANCEL",
@@ -58,6 +62,11 @@ const TRAINING_TIMES = Object.freeze({
   EVENING: "7:00–10:00 PM",
   EITHER: "Either",
   NOT_APPLICABLE: "Not applicable"
+});
+
+const TRAINING_DATES = Object.freeze({
+  SPECIFIC: "Specific date",
+  ANY: "Any convenient date"
 });
 
 function clean(value) {
@@ -328,6 +337,14 @@ function parseTrainingAction(selectionId) {
   fixed[TRAINING_ACTION_IDS.REQUEST_TIME_EITHER] = {
     action: "REQUEST_TIME",
     preferredTime: TRAINING_TIMES.EITHER
+  };
+  fixed[TRAINING_ACTION_IDS.REQUEST_DATE_SPECIFIC] = {
+    action: "REQUEST_DATE_CHOICE",
+    dateChoice: TRAINING_DATES.SPECIFIC
+  };
+  fixed[TRAINING_ACTION_IDS.REQUEST_DATE_ANY] = {
+    action: "REQUEST_DATE_CHOICE",
+    dateChoice: TRAINING_DATES.ANY
   };
   fixed[TRAINING_ACTION_IDS.REQUEST_SUBMIT] = { action: "REQUEST_SUBMIT" };
   fixed[TRAINING_ACTION_IDS.REQUEST_CHANGE] = { action: "REQUEST_CHANGE" };
@@ -702,7 +719,7 @@ function selectTrainingRequestMode(session, mode, now) {
 
   const online = normalizedMode === TRAINING_MODES.ONLINE;
   const updated = Object.assign({}, session, {
-    step: online ? "awaiting_time" : "awaiting_location",
+    step: online ? "awaiting_time" : "awaiting_date_choice",
     mode: normalizedMode,
     preferredTime: online ? "" : TRAINING_TIMES.NOT_APPLICABLE,
     updatedAt: now instanceof Date ? now.getTime() : Date.now()
@@ -733,8 +750,34 @@ function selectTrainingRequestTime(session, preferredTime, now) {
   return {
     success: true,
     session: Object.assign({}, session, {
-      step: "awaiting_location",
+      step: "awaiting_date_choice",
       preferredTime: normalizedTime,
+      updatedAt: now instanceof Date ? now.getTime() : Date.now()
+    })
+  };
+}
+
+function trainingRequestNeedsLocation(session) {
+  return Boolean(session && session.mode === TRAINING_MODES.OFFLINE);
+}
+
+function selectTrainingRequestDateChoice(session, dateChoice, now) {
+  const normalizedChoice = Object.values(TRAINING_DATES).find(function (item) {
+    return item.toLowerCase() === clean(dateChoice).toLowerCase();
+  });
+
+  if (!session || session.step !== "awaiting_date_choice" || !normalizedChoice) {
+    return { success: false, code: "INVALID_DATE_CHOICE", session: session || null };
+  }
+
+  const specific = normalizedChoice === TRAINING_DATES.SPECIFIC;
+  return {
+    success: true,
+    session: Object.assign({}, session, {
+      step: specific
+        ? "awaiting_date"
+        : (trainingRequestNeedsLocation(session) ? "awaiting_location" : "awaiting_confirmation"),
+      preferredDate: specific ? "" : TRAINING_DATES.ANY,
       updatedAt: now instanceof Date ? now.getTime() : Date.now()
     })
   };
@@ -755,7 +798,7 @@ function captureTrainingRequestLocation(session, value, now) {
   return {
     success: true,
     session: Object.assign({}, session, {
-      step: "awaiting_date",
+      step: "awaiting_confirmation",
       preferredLocation: optionalTrainingRequestValue(value, 200),
       updatedAt: now instanceof Date ? now.getTime() : Date.now()
     })
@@ -769,11 +812,17 @@ function captureTrainingRequestDate(session, value, now) {
   return {
     success: true,
     session: Object.assign({}, session, {
-      step: "awaiting_remarks",
+      step: trainingRequestNeedsLocation(session)
+        ? "awaiting_location"
+        : "awaiting_confirmation",
       preferredDate: optionalTrainingRequestValue(value, 100),
       updatedAt: now instanceof Date ? now.getTime() : Date.now()
     })
   };
+}
+
+function isTrainingRequestCancellation(value) {
+  return /^cancel$/i.test(clean(value));
 }
 
 function captureTrainingRequestRemarks(session, value, now) {
@@ -993,15 +1042,22 @@ async function submitTrainingRequest(options) {
     Training_Coordinator: TRAINING_COORDINATION.TRAINING,
     Source_Message_ID: clean(input.sourceMessageId)
   });
-  const appendResult = await input.appendRegistration(
-    TRAINING_REQUEST_SHEET,
-    row
-  );
-  const appended = appendResult === true ||
-    Boolean(appendResult && appendResult.success === true);
+  if (trainingRequestSubmissions.has(requestId)) {
+    const pendingResult = await trainingRequestSubmissions.get(requestId);
+    return pendingResult && pendingResult.success
+      ? Object.assign({}, pendingResult, { duplicate: true })
+      : pendingResult;
+  }
 
-  return appended
-    ? {
+  const submission = (async function () {
+    const appendResult = await input.appendRegistration(
+      TRAINING_REQUEST_SHEET,
+      row
+    );
+    const appended = appendResult === true ||
+      Boolean(appendResult && appendResult.success === true);
+
+    return appended ? {
         success: true,
         duplicate: false,
         requestId: requestId,
@@ -1014,8 +1070,15 @@ async function submitTrainingRequest(options) {
         category: category,
         assignedCoordinator: assignedCoordinator,
         row: row
-      }
-    : { success: false, code: "REQUEST_SAVE_FAILED", topic: topic };
+      } : { success: false, code: "REQUEST_SAVE_FAILED", topic: topic };
+  })();
+
+  trainingRequestSubmissions.set(requestId, submission);
+  try {
+    return await submission;
+  } finally {
+    trainingRequestSubmissions.delete(requestId);
+  }
 }
 
 function buildTrainingRequestAlert(farmer, topic, mode, preferredTime) {
@@ -1203,6 +1266,7 @@ module.exports = {
   TRAINING_REGISTRATION_SHEET,
   TRAINING_REQUEST_SHEET,
   TRAINING_TIMES,
+  TRAINING_DATES,
   buildPromotedTrainingDetails,
   buildPromotedTrainingListRows,
   buildTrainingRequestAlert,
@@ -1223,6 +1287,7 @@ module.exports = {
   getMyTrainings,
   getPromotedTrainingPrograms,
   inferTrainingCategory,
+  isTrainingRequestCancellation,
   isUpcoming,
   parseTrainingAction,
   parseTrainingRequestPreferences,
@@ -1234,7 +1299,9 @@ module.exports = {
   resolveTrainingAlertDestination,
   sendTrainingRequestAlert,
   selectTrainingRequestMode,
+  selectTrainingRequestDateChoice,
   selectTrainingRequestTime,
+  trainingRequestNeedsLocation,
   submitTrainingRequest,
   trainingRequestId
 };
