@@ -37,6 +37,7 @@ const {
   registerFarmerForTraining,
   registrationAvailability,
   sendTrainingRequestAlert,
+  sendTrainingRequestAlertForSubmission,
   selectTrainingRequestMode,
   selectTrainingRequestDateChoice,
   selectTrainingRequestTime,
@@ -801,6 +802,54 @@ test("missing KVK alert destination does not send and does not affect stored req
   assert.equal(appendCount, 1);
   assert.equal(alert.sent, false);
   assert.equal(alert.code, "NOT_CONFIGURED");
+  assert.equal(alertCount, 0);
+});
+
+test("saved non-duplicate training request notifies the configured coordinator once", async function () {
+  const alerts = [];
+  const result = await sendTrainingRequestAlertForSubmission({
+    requestResult: {
+      success: true,
+      duplicate: false,
+      topic: "Mushroom cultivation",
+      mode: TRAINING_MODES.ONLINE,
+      preferredTime: TRAINING_TIMES.EVENING
+    },
+    destination: "+91 98765 43210",
+    farmer: { name: "Anu", panchayath: "Konni" },
+    sendAlert: async function (to, text) {
+      alerts.push({ to: to, text: text });
+      return { accepted: true };
+    }
+  });
+
+  assert.equal(result.sent, true);
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].to, "919876543210");
+  assert.match(alerts[0].text, /Mushroom cultivation/);
+  assert.match(alerts[0].text, /Mode: Online/);
+  assert.match(alerts[0].text, /Preferred time: 7:00–10:00 PM/);
+});
+
+test("failed or duplicate training submissions never notify the coordinator", async function () {
+  let alertCount = 0;
+  const sendAlert = async function () {
+    alertCount += 1;
+  };
+
+  const failed = await sendTrainingRequestAlertForSubmission({
+    requestResult: { success: false, code: "REQUEST_SAVE_FAILED" },
+    destination: "919876543210",
+    sendAlert: sendAlert
+  });
+  const duplicate = await sendTrainingRequestAlertForSubmission({
+    requestResult: { success: true, duplicate: true, topic: "Mushroom cultivation" },
+    destination: "919876543210",
+    sendAlert: sendAlert
+  });
+
+  assert.equal(failed.code, "REQUEST_NOT_SAVED");
+  assert.equal(duplicate.code, "DUPLICATE_REQUEST");
   assert.equal(alertCount, 0);
 });
 

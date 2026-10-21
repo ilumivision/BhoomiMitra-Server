@@ -84,3 +84,18 @@ test("guide details are bilingual farmer-friendly and mark pilot features", func
     page: 2
   });
 });
+
+test("guide explains explicit registration and the approved language-menu path", function () {
+  const registration = USER_GUIDE_TOPICS.find(function (topic) {
+    return topic.id === "farmer-registration";
+  });
+  const faq = USER_GUIDE_TOPICS.find(function (topic) {
+    return topic.id === "faq";
+  });
+
+  assert.match(registration.textEnglish, /Registration starts only when you choose it/);
+  assert.match(registration.textEnglish, /does not register you automatically/);
+  assert.match(registration.textEnglish, /resumes an incomplete registration/);
+  assert.match(faq.textEnglish, /Main Menu → More Options → Change Language/);
+  assert.match(faq.textMalayalam, /കൂടുതൽ ഓപ്ഷനുകൾ → ഭാഷ മാറ്റുക/);
+});

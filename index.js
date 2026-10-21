@@ -2,6 +2,7 @@ const express = require("express");
 const axios = require("axios");
 const path = require("path");
 require("dotenv").config();
+const SERVER_VERSION = require("./package.json").version;
 
 const OpenAI = require("openai");
 const { google } = require("googleapis");
@@ -245,6 +246,7 @@ const {
   selectTrainingRequestDateChoice,
   selectTrainingRequestMode,
   selectTrainingRequestTime,
+  sendTrainingRequestAlertForSubmission,
   submitTrainingRequest
 } = require("./utils/training");
 const {
@@ -1160,6 +1162,15 @@ async function sendStatusAwareHome(from, language, status, includeNotice) {
   const access = status || await resolveCurrentUserRegistration(from);
   const selectedLanguage = language || userLanguagePreferences[from] || "Malayalam";
 
+  if (access.state === USER_REGISTRATION_STATES.REGISTERED_SERVICE_MEMBER) {
+    await bhoomiMitraUI.sendServiceMemberMenu(
+      from,
+      selectedLanguage,
+      access.roles
+    );
+    return access;
+  }
+
   if (isLimitedAccessState(access)) {
     if (includeNotice) {
       await sendWhatsAppMessage(
@@ -1168,7 +1179,7 @@ async function sendStatusAwareHome(from, language, status, includeNotice) {
         { skipPreferredLanguageConversion: true }
       );
     }
-    await bhoomiMitraUI.sendGuestMenu(from, selectedLanguage);
+    await bhoomiMitraUI.sendGuestMenu(from, selectedLanguage, access);
     return access;
   }
 
@@ -1325,7 +1336,7 @@ const SYSTEM_PROMPT = [
 ].join("\n");
 
 app.get("/", function (req, res) {
-  res.status(200).send("BhoomiMitra AI Server v2.0 is running.");
+  res.status(200).send("BhoomiMitra AI Server v" + SERVER_VERSION + " is running.");
 });
 
 app.get("/webhook", function (req, res) {
@@ -2038,6 +2049,27 @@ async function handleTrainingAction(options) {
           : "The training request could not be saved. Please try again."
       );
       return true;
+    }
+
+    const trainingAlertResult = await sendTrainingRequestAlertForSubmission({
+      requestResult: requestResult,
+      destination: process.env.KVK_TRAINING_ALERT_WHATSAPP,
+      farmer: farmer,
+      sendAlert: function (to, text) {
+        return sendWhatsAppMessage(to, text, {
+          skipPreferredLanguageConversion: true
+        });
+      }
+    });
+
+    if (
+      trainingAlertResult.code === "ALERT_FAILED" &&
+      trainingAlertResult.error
+    ) {
+      logSafeError(
+        "Training coordinator notification failed.",
+        trainingAlertResult.error
+      );
     }
 
     delete trainingRequestSessions[from];
@@ -4099,9 +4131,11 @@ if (
             : "This service requires a complete active farmer registration. Your expert, worker, or service-provider registration has not been changed.",
           { skipPreferredLanguageConversion: true }
         );
-        await bhoomiMitraUI.sendMainMenu(
+        await sendStatusAwareHome(
           from,
-          userLanguagePreferences[from] || "English"
+          userLanguagePreferences[from] || "English",
+          registrationAccess,
+          false
         );
         return;
       }
@@ -4365,6 +4399,11 @@ if (
 
         if (navigationAction === "MAIN_MENU_MORE") {
           await bhoomiMitraUI.sendMainMenuMore(from, preferredUiLanguage);
+          return;
+        }
+
+        if (navigationAction === "PUBLIC_SERVICES_MENU") {
+          await bhoomiMitraUI.sendGuestExploreMenu(from, preferredUiLanguage);
           return;
         }
 
@@ -6110,9 +6149,11 @@ if (
           : "This service requires a complete active farmer registration. Your existing service membership has not been changed.",
         { skipPreferredLanguageConversion: true }
       );
-      await bhoomiMitraUI.sendMainMenu(
+      await sendStatusAwareHome(
         from,
-        userLanguagePreferences[from] || "English"
+        userLanguagePreferences[from] || "English",
+        naturalAccess,
+        false
       );
     } else {
       await sendStatusAwareHome(
@@ -9015,9 +9056,11 @@ if (
           : "This service requires a complete active farmer registration.",
         { skipPreferredLanguageConversion: true }
       );
-      await bhoomiMitraUI.sendMainMenu(
+      await sendStatusAwareHome(
         from,
-        userLanguagePreferences[from] || "English"
+        userLanguagePreferences[from] || "English",
+        selectionAccess,
+        false
       );
     } else {
       await sendStatusAwareHome(
@@ -13351,5 +13394,5 @@ app.use(function (error, _req, res, _next) {
 });
 
 app.listen(PORT, "0.0.0.0", function () {
-  console.log("BhoomiMitra Server v2.0 running on port " + PORT);
+  console.log("BhoomiMitra Server v" + SERVER_VERSION + " running on port " + PORT);
 }); 

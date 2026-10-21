@@ -21,8 +21,8 @@ const USER_GUIDE_TOPICS = Object.freeze([
     id: "farmer-registration",
     titleEnglish: "Farmer Registration",
     titleMalayalam: "കർഷക രജിസ്ട്രേഷൻ",
-    textEnglish: "Open My BhoomiMitra → Membership and follow the prompts. Existing registrations are recovered when the saved WhatsApp identity matches safely.",
-    textMalayalam: "എന്റെ BhoomiMitra → അംഗത്വം തുറന്ന് നിർദേശങ്ങൾ പാലിക്കുക. സേവ് ചെയ്ത WhatsApp തിരിച്ചറിയൽ സുരക്ഷിതമായി പൊരുത്തപ്പെടുമ്പോൾ നിലവിലെ രജിസ്ട്രേഷൻ കണ്ടെത്തും."
+    textEnglish: "Choose Register in the Guest Menu and follow the prompts. Registration starts only when you choose it; a greeting does not register you automatically. If your WhatsApp identity safely matches an existing registration, BhoomiMitra recognizes it or resumes an incomplete registration instead of creating a duplicate.",
+    textMalayalam: "അതിഥി മെനുവിലെ രജിസ്റ്റർ തിരഞ്ഞെടുക്കുകയും നിർദേശങ്ങൾ പാലിക്കുകയും ചെയ്യുക. നിങ്ങൾ തിരഞ്ഞെടുക്കുമ്പോൾ മാത്രമാണ് രജിസ്ട്രേഷൻ തുടങ്ങുന്നത്; അഭിവാദ്യം അയച്ചാൽ സ്വയമേവ രജിസ്റ്റർ ചെയ്യില്ല. നിങ്ങളുടെ WhatsApp തിരിച്ചറിയൽ നിലവിലെ രജിസ്ട്രേഷനുമായി സുരക്ഷിതമായി പൊരുത്തപ്പെടുന്നുവെങ്കിൽ, പുതിയ പകർപ്പ് സൃഷ്ടിക്കാതെ BhoomiMitra അത് തിരിച്ചറിയുകയോ അപൂർണ്ണ രജിസ്ട്രേഷൻ തുടരുകയോ ചെയ്യും."
   },
   {
     id: "crop-animal-advisory",
@@ -77,8 +77,8 @@ const USER_GUIDE_TOPICS = Object.freeze([
     id: "faq",
     titleEnglish: "Frequently Asked Questions",
     titleMalayalam: "പതിവുചോദ്യങ്ങൾ",
-    textEnglish: "Change language in My BhoomiMitra → Account and Privacy. Type MENU to restart navigation or CANCEL to stop a supported form. If current data is unavailable, try later or contact KVK through the shown service path.",
-    textMalayalam: "My BhoomiMitra → അക്കൗണ്ടും സ്വകാര്യതയും വഴി ഭാഷ മാറ്റാം. നാവിഗേഷൻ പുനരാരംഭിക്കാൻ MENU, പിന്തുണയുള്ള ഫോം നിർത്താൻ CANCEL എന്ന് അയയ്ക്കുക. നിലവിലെ വിവരം ലഭ്യമല്ലെങ്കിൽ പിന്നീട് ശ്രമിക്കുക അല്ലെങ്കിൽ കാണിച്ചിരിക്കുന്ന സേവനപാത വഴി KVK-യെ ബന്ധപ്പെടുക."
+    textEnglish: "Change language from Main Menu → More Options → Change Language. Type MENU to restart navigation or CANCEL to stop a supported form. If current data is unavailable, try later or contact KVK through the shown service path.",
+    textMalayalam: "പ്രധാന മെനു → കൂടുതൽ ഓപ്ഷനുകൾ → ഭാഷ മാറ്റുക വഴി ഭാഷ മാറ്റാം. നാവിഗേഷൻ പുനരാരംഭിക്കാൻ MENU, പിന്തുണയുള്ള ഫോം നിർത്താൻ CANCEL എന്ന് അയയ്ക്കുക. നിലവിലെ വിവരം ലഭ്യമല്ലെങ്കിൽ പിന്നീട് ശ്രമിക്കുക അല്ലെങ്കിൽ കാണിച്ചിരിക്കുന്ന സേവനപാത വഴി KVK-യെ ബന്ധപ്പെടുക."
   }
 ]);
 

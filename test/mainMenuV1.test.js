@@ -43,7 +43,7 @@ function rows(payload) {
   });
 }
 
-test("registered farmer menu presents all eleven required categories within WhatsApp limits", async function () {
+test("registered farmer menu presents the ten approved options within WhatsApp limits", async function () {
   const { calls, ui } = harness();
   await ui.sendMainMenu("919000000000", "English");
   await ui.sendMainMenuMore("919000000000", "English");
@@ -65,11 +65,12 @@ test("registered farmer menu presents all eleven required categories within What
   assert.deepEqual(rows(calls[1]).map(function (row) { return row.id; }), [
     "PROFILE_ABOUT",
     "PROFILE_HELP",
+    "CHANGE_LANGUAGE",
     "NAV_HOME"
   ]);
-  assert.equal(rows(calls[0]).length + rows(calls[1]).length - 2, 11);
   assert.equal(rows(calls[1])[0].title, "About BhoomiMitra");
   assert.equal(rows(calls[1])[1].title, "Help & User Guide");
+  assert.equal(rows(calls[1])[2].title, "Change Language");
 });
 
 test("main menu preserves approved institutional wording", async function () {
@@ -124,7 +125,7 @@ test("Experts and Training submenu connects only its current destinations", asyn
   });
 });
 
-test("Enterprise and Services is a Phase 2 view with only operational directory routes", async function () {
+test("Enterprise and Services exposes only operational directory routes", async function () {
   const { calls, ui } = harness();
   await ui.sendEnterpriseServicesMenu("919000000000", "English");
   const payloadText = JSON.stringify(calls[0].interactive);
@@ -134,8 +135,7 @@ test("Enterprise and Services is a Phase 2 view with only operational directory 
     "SERVICE_8",
     "NAV_HOME"
   ]);
-  assert.match(calls[0].interactive.body.text, /Phase 2/);
-  assert.match(calls[0].interactive.body.text, /coming later/i);
+  assert.doesNotMatch(calls[0].interactive.body.text, /Phase 2|coming later/i);
   assert.doesNotMatch(payloadText, /Karshikam|Samrambham|paid|payment/i);
 });
 
@@ -145,18 +145,61 @@ test("registered and guest menu surfaces remain separate", async function () {
   await ui.sendGuestMenu("919000000000", "English");
 
   assert.deepEqual(rows(calls[1]).map(function (row) { return row.id; }), [
-    "HOME_ASK",
-    "SERVICE_3",
-    "SERVICE_4",
-    "HOME_MARKET",
-    "PROFILE_HELP",
-    "PROFILE_ABOUT",
     "SERVICE_11",
+    "GUEST_EXPLORE",
+    "PROFILE_ABOUT",
+    "PROFILE_HELP",
     "CHANGE_LANGUAGE"
   ]);
   assert.equal(rows(calls[1]).some(function (row) {
     return ["HOME_FARM", "HOME_PROFILE", "HOME_ENTERPRISE"].includes(row.id);
   }), false);
+});
+
+test("guest Explore Services retains approved public information routes", async function () {
+  const { calls, ui } = harness();
+  await ui.sendGuestExploreMenu("919000000000", "English");
+
+  assert.deepEqual(rows(calls[0]).map(function (row) { return row.id; }), [
+    "HOME_ASK",
+    "SERVICE_3",
+    "SERVICE_4",
+    "HOME_MARKET",
+    "NAV_HOME"
+  ]);
+  assert.equal(ui.getNavigationAction("GUEST_EXPLORE"), "PUBLIC_SERVICES_MENU");
+});
+
+test("incomplete users receive a Resume Registration guest action", async function () {
+  const { calls, ui } = harness();
+  await ui.sendGuestMenu("919000000000", "English", { state: "INCOMPLETE" });
+
+  assert.equal(rows(calls[0])[0].id, "SERVICE_11");
+  assert.equal(rows(calls[0])[0].title, "Resume Registration");
+});
+
+test("service-member menus expose role routes without farmer records or registration", async function () {
+  const { calls, ui } = harness();
+  await ui.sendServiceMemberMenu("919000000000", "English", ["expert"]);
+  await ui.sendServiceMemberMenu("919000000000", "English", ["skilled_worker"]);
+  await ui.sendServiceMemberMenu("919000000000", "English", ["service_provider"]);
+
+  assert.deepEqual(rows(calls[0]).map(function (row) { return row.id; }), [
+    "GUEST_EXPLORE", "HOME_EXPERT", "PROFILE_ABOUT", "PROFILE_HELP", "CHANGE_LANGUAGE"
+  ]);
+  assert.deepEqual(rows(calls[1]).map(function (row) { return row.id; }), [
+    "GUEST_EXPLORE", "SERVICE_7", "PROFILE_ABOUT", "PROFILE_HELP", "CHANGE_LANGUAGE"
+  ]);
+  assert.deepEqual(rows(calls[2]).map(function (row) { return row.id; }), [
+    "GUEST_EXPLORE", "SERVICE_8", "PROFILE_ABOUT", "PROFILE_HELP", "CHANGE_LANGUAGE"
+  ]);
+  calls.forEach(function (payload) {
+    const ids = rows(payload).map(function (row) { return row.id; });
+    assert.equal(ids.includes("SERVICE_11"), false);
+    assert.equal(ids.some(function (id) {
+      return ["HOME_FARM", "HOME_PROFILE", "SERVICE_9", "SERVICE_10"].includes(id);
+    }), false);
+  });
 });
 
 test("all main-menu list payloads obey WhatsApp row and text limits", async function () {
@@ -165,6 +208,9 @@ test("all main-menu list payloads obey WhatsApp row and text limits", async func
   await ui.sendMainMenuMore("919000000000", "Malayalam");
   await ui.sendExpertsTrainingMenu("919000000000", "Malayalam");
   await ui.sendEnterpriseServicesMenu("919000000000", "Malayalam");
+  await ui.sendGuestMenu("919000000000", "Malayalam");
+  await ui.sendGuestExploreMenu("919000000000", "Malayalam");
+  await ui.sendServiceMemberMenu("919000000000", "Malayalam", ["expert", "skilled_worker", "service_provider"]);
 
   calls.forEach(function (payload) {
     const listRows = rows(payload);
@@ -177,8 +223,8 @@ test("all main-menu list payloads obey WhatsApp row and text limits", async func
   });
 });
 
-test("MENU HOME and BACK remain free of unsolicited What's New", function () {
-  ["MENU", "HOME", "BACK", "MAIN_MENU", "NAV_HOME", "HOME_MORE"].forEach(function (trigger) {
+test("Hi Hello MENU HOME and BACK remain free of unsolicited What's New", function () {
+  ["Hi", "Hello", "MENU", "HOME", "BACK", "MAIN_MENU", "NAV_HOME", "HOME_MORE"].forEach(function (trigger) {
     assert.equal(shouldShowWhatsNew(trigger), false, trigger);
   });
   assert.equal(shouldShowWhatsNew("WHATS_NEW"), true);

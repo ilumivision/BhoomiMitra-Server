@@ -1,3 +1,7 @@
+# BhoomiMitra Server 1.0.0
+
+BhoomiMitra Version 1.0.0 is the WhatsApp backend for the controlled ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta pilot.
+
 ## Current Architecture
 
 Farmer
@@ -61,5 +65,6 @@ GOOGLE_PRIVATE_KEY
 LAND_MAP_ACCESS_SECRET
 COPERNICUS_CLIENT_ID
 COPERNICUS_CLIENT_SECRET
+KVK_TRAINING_ALERT_WHATSAPP
 OPENAI_MODEL
 PORT

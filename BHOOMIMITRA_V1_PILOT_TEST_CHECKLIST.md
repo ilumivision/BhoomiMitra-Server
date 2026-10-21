@@ -1,4 +1,4 @@
-# BhoomiMitra V1 — controlled KVK Pathanamthitta pilot checklist
+# BhoomiMitra Version 1.0.0 — controlled KVK Pathanamthitta pilot checklist
 
 Status values: `PASS`, `FAIL`, `BLOCKED`, `NOT TESTED`.
 
@@ -8,7 +8,7 @@ Overall pilot coordination: **Dr. Sindhu Sadanandan**
 Training coordination: **Sri Binu John**
 Technology support: **Dr. Alex John**
 
-Suggested authorised participants: Dr. C. P. Robert, Dr. Vinod Mathew, Dr. Shana Harshan, Dr. Sency Mathew, Dr. Sindhu Sadanandan, Dr. Rincy K. Abraham, Dr. Alex John, Sri Binu John, Smt. Ambily Varughese, Smt. Gayatri S, Smt. Anu John, and other specifically authorised staff.
+Suggested authorised participants: Dr. C. P. Robert, Dr. Sindhu Sadanandan, Sri Binu John, Smt. Gayathri, Dr. Vinod Mathew, Dr. Rincy K. Abraham, Dr. Sency Mathew, Dr. Alex John, Dr. Shana Harshan, Smt. Ambily Varughese, and other specifically authorised staff.
 
 ## Public About and team profile verification
 
@@ -16,17 +16,16 @@ Institutional attribution and staff profiles require approval and verification b
 
 | Status | Public profile | Designation | Project role |
 |---|---|---|---|
-| `NOT TESTED` | Dr. C. P. Robert | Senior Scientist & Head | Project Leader |
-| `NOT TESTED` | Dr. Vinod Mathew | Subject Matter Specialist – Agronomy | Crop Production & Agronomy Coordinator |
-| `NOT TESTED` | Dr. Shana Harshan | Subject Matter Specialist – Home Science | Farm Family Welfare & Value Addition Coordinator |
-| `NOT TESTED` | Dr. Sency Mathew | Subject Matter Specialist – Animal Science | Animal Husbandry & Livestock Advisory Coordinator |
-| `NOT TESTED` | Dr. Sindhu Sadanandan | Subject Matter Specialist – Agricultural Extension | Overall Field Implementation & Farmer Outreach Coordinator |
-| `NOT TESTED` | Dr. Rincy K. Abraham | Subject Matter Specialist – Horticulture | Horticulture Coordinator |
-| `NOT TESTED` | Dr. Alex John | Subject Matter Specialist – Plant Protection | Plant Health & Technical Validation Coordinator |
-| `NOT TESTED` | Sri Binu John | Programme Assistant – Computer | Digital Operations & Training Coordinator |
-| `NOT TESTED` | Smt. Ambily Varughese | Farm Manager | Farm Demonstration & Field Operations Coordinator |
-| `NOT TESTED` | Smt. Gayatri S | Programme Assistant – Lab Technician | Laboratory Information & Data Support Coordinator |
-| `NOT TESTED` | Smt. Anu John | Junior Stenographer | Administrative Support |
+| `NOT TESTED` | Dr. C. P. Robert | Senior Scientist & Head | Project Director & Strategic Leadership |
+| `NOT TESTED` | Dr. Sindhu Sadanandan | Subject Matter Specialist – Agricultural Extension | Project Coordinator & Farmer Outreach |
+| `NOT TESTED` | Sri Binu John | Programme Assistant (Computer) | Digital Operations & Training Coordination |
+| `NOT TESTED` | Smt. Gayathri | Programme Assistant (Lab) | Field Coordination & Farmer Engagement |
+| `NOT TESTED` | Dr. Vinod Mathew | Subject Matter Specialist – Agronomy | Crop Production & Nutrient Management |
+| `NOT TESTED` | Dr. Rincy K. Abraham | Subject Matter Specialist – Horticulture | Horticultural Crops & Orchard Advisory |
+| `NOT TESTED` | Dr. Sency Mathew | Subject Matter Specialist – Animal Science | Livestock, Poultry & Veterinary Advisory Coordination |
+| `NOT TESTED` | Dr. Alex John | Subject Matter Specialist – Plant Protection | Crop Health & Pest-Disease Management |
+| `NOT TESTED` | Dr. Shana Harshan | Subject Matter Specialist – Home Science | Value Addition & Agri-Enterprise Development |
+| `NOT TESTED` | Smt. Ambily Varughese | Farm Manager | Farm Operations & Technology Demonstration |
 
 ## Preconditions
 
@@ -35,15 +34,16 @@ Institutional attribution and staff profiles require approval and verification b
 - [ ] `NOT TESTED` — Production Sheet backup exists and the V1 schema checklist has been reviewed read-only.
 - [ ] `NOT TESTED` — Approved policy URL/contact values are configured, or the pilot accepts the explicit “not configured” limitation.
 - [ ] `NOT TESTED` — Optional welcome media is an approved HTTPS MP4/GIF; otherwise the URL remains blank.
+- [ ] `NOT TESTED` — `KVK_TRAINING_ALERT_WHATSAPP` is blank or contains the specifically approved training-coordinator destination; no production number is used during local verification.
 - [ ] `NOT TESTED` — Reminder runners, schedulers, scheme ingestion writes, broadcasts, payments and advertisements remain disabled.
 
 ## Farmer journey and safety tests
 
 | # | Status | Test | Expected evidence |
 |---:|---|---|---|
-| 1 | `NOT TESTED` | New farmer registration | Welcome → language → affirmative consent → existing registration → preserved Farmer ID → Main Menu. |
+| 1 | `NOT TESTED` | New farmer registration | Guest Menu → Register → language → affirmative consent → existing-registration check → preserved Farmer ID → Main Menu. A greeting never starts registration automatically. |
 | 2 | `NOT TESTED` | Returning farmer welcome | Saved language, short welcome and Main Menu; no duplicate registration or unchanged-consent request. |
-| 3 | `NOT TESTED` | Language switching | English/Malayalam controls save through the existing preference field and menus remain navigable. |
+| 3 | `NOT TESTED` | Language switching | Main Menu → More Options → Change Language saves English/Malayalam through the existing preference field and menus remain navigable. |
 | 4 | `NOT TESTED` | Privacy consent | I Agree writes current policy versions; Terms opens policy; Not Now does not start registration. |
 | 5 | `NOT TESTED` | Text question | Meaningful agricultural question reaches normal Q&A without forced menu routing. |
 | 6 | `NOT TESTED` | Voice question | Approved test voice is transcribed and handled; failure gives a safe retry message. |
@@ -67,17 +67,17 @@ Institutional attribution and staff profiles require approval and verification b
 | 24 | `NOT TESTED` | Machinery services | Existing provider search works and offers no payment action. |
 | 25 | `NOT TESTED` | Government Schemes | Categories, relevance, source, freshness, deadlines and cautious eligibility wording work. |
 | 26 | `NOT TESTED` | Training programmes | Only verified upcoming programme records appear; coordinator/fee/availability are stored facts. |
-| 27 | `NOT TESTED` | Training requests | Topic → format → online time when relevant → location → date → remarks → confirm; one request ID. |
+| 27 | `NOT TESTED` | Training requests | Topic → format → online time when relevant → location → date → remarks → confirm; one request ID and, only after a new save, one alert to the configured authorised training coordinator. |
 | 28 | `NOT TESTED` | My Records | Profile, Farmer ID, lands and animals are limited to inbound sender ownership. |
 | 29 | `NOT TESTED` | Help | Concise Malayalam and English examples plus Back/Main routes work. |
-| 30 | `NOT TESTED` | What’s New | One tested feature appears at most once per running-session memory; Try/Dismiss work; no proactive message. |
+| 30 | `NOT TESTED` | What’s New | One tested feature appears at most once per running-session memory; Try/Dismiss work; Hi, Hello, MENU, HOME and BACK never produce an unsolicited announcement. |
 | 31 | `NOT TESTED` | Back and Main Menu | Every visible menu returns correctly; no dead button, loop or stale registration state. |
 | 32 | `NOT TESTED` | Error handling | Missing Sheet/tab/data/API returns cautious messages without false success or record mutation. |
 | 33 | `NOT TESTED` | Data ownership and privacy | Cross-farmer land/crop/animal/case access is denied; logs contain no raw sensitive content. |
 | 34 | `NOT TESTED` | Malayalam/English consistency | Stable IDs route identically; titles render and stay within WhatsApp limits. |
 | 35 | `NOT TESTED` | About BhoomiMitra | My BhoomiMitra opens the bilingual identity page with the approved platform description, project institution, technology provider and Malayalam tagline. |
-| 36 | `NOT TESTED` | Our Team directory | About opens a paginated directory containing exactly the 11 approved staff profiles, with no obsolete public names. |
-| 37 | `NOT TESTED` | Member profile details | Every profile shows the verified name, designation, project role and brief responsibilities; Smt. Anu John shows no detailed responsibilities. |
+| 36 | `NOT TESTED` | Our Team directory | About opens a paginated directory containing exactly the 10 approved staff profiles, with no obsolete public names. |
+| 37 | `NOT TESTED` | Member profile details | Every approved profile shows the verified name, designation, project role and brief responsibilities. |
 | 38 | `NOT TESTED` | About/team navigation | English and Malayalam pages retain working Team, Previous/Next, Back, About and Main Menu controls within WhatsApp limits. |
 | 39 | `NOT TESTED` | Institutional and staff approval | Authorised KVK staff approve public attribution and verify all names, designations, roles and responsibilities before deployment. |
 

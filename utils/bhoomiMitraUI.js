@@ -301,9 +301,9 @@ async function sendMainMenu(
     ["HOME_MARKET", "Market Intelligence", "വിപണി വിവരം", "Agricultural market-price information", "കാർഷിക വിപണി വില വിവരങ്ങൾ"],
     ["HOME_EXPERT", "Experts & Training", "വിദഗ്ധർ & പരിശീലനം", "Crop and veterinary experts plus training", "വിള-മൃഗ വിദഗ്ധരും പരിശീലനവും"],
     [SCHEME_ACTION_IDS.OPEN, "Government Schemes", "സർക്കാർ പദ്ധതികൾ", "Verified government-support information", "സ്ഥിരീകരിച്ച സർക്കാർ സഹായ വിവരങ്ങൾ"],
-    ["HOME_ENTERPRISE", "Enterprise & Services", "Enterprise & Services", "Operational services; more coming later", "പ്രവർത്തന സേവനങ്ങൾ; കൂടുതൽ പിന്നീട്"],
+    ["HOME_ENTERPRISE", "Enterprise & Services", "Enterprise & Services", "Skilled-worker and machinery directories", "വിദഗ്ധ തൊഴിലാളി, യന്ത്ര സേവന ഡയറക്ടറികൾ"],
     ["HOME_PROFILE", "My Profile", "എന്റെ പ്രൊഫൈൽ", "Farmer records, ID, privacy and language", "കർഷക രേഖകൾ, ഐഡി, സ്വകാര്യത, ഭാഷ"],
-    ["HOME_MORE", "More Options", "കൂടുതൽ ഓപ്ഷനുകൾ", "About BhoomiMitra and Help / User Guide", "BhoomiMitra വിവരവും സഹായവും"]
+    ["HOME_MORE", "More Options", "കൂടുതൽ ഓപ്ഷനുകൾ", "About, Help / User Guide and Change Language", "വിവരവും സഹായവും ഭാഷ മാറ്റലും"]
   ];
 
   const rows = items.map(function (item) {
@@ -349,6 +349,7 @@ async function sendMainMenuMore(to, language) {
   const items = [
     ["PROFILE_ABOUT", "About BhoomiMitra", "BhoomiMitraയെക്കുറിച്ച്", "Project identity and approved Project Team", "പദ്ധതിയും അംഗീകൃത പ്രോജക്ട് ടീമും"],
     ["PROFILE_HELP", "Help & User Guide", "സഹായം & ഉപയോക്തൃ ഗൈഡ്", "Bilingual help and ten-topic user guide", "ദ്വിഭാഷാ സഹായവും ഉപയോക്തൃ ഗൈഡും"],
+    ["CHANGE_LANGUAGE", "Change Language", "ഭാഷ മാറ്റുക", "English / Malayalam", "English / മലയാളം"],
     ["NAV_HOME", "Back to Main Menu", "പ്രധാന മെനുവിലേക്ക്", "Return to all BhoomiMitra services", "എല്ലാ BhoomiMitra സേവനങ്ങളിലേക്കും"]
   ];
 
@@ -418,8 +419,8 @@ async function sendEnterpriseServicesMenu(to, language) {
     type: "list",
     body: {
       text: ml
-        ? "Enterprise & Services – Phase 2\nനിലവിൽ പ്രവർത്തിക്കുന്ന ഡയറക്ടറി സേവനങ്ങൾ താഴെ നൽകിയിരിക്കുന്നു. കൂടുതൽ സേവനങ്ങൾ പിന്നീട് ലഭ്യമാകും."
-        : "Enterprise & Services – Phase 2\nCurrent operational directory services are listed below. Additional services are coming later."
+        ? "Enterprise & Services\nനിലവിൽ പ്രവർത്തിക്കുന്ന ഡയറക്ടറി സേവനങ്ങൾ താഴെ നൽകിയിരിക്കുന്നു."
+        : "Enterprise & Services\nCurrent operational directory services are listed below."
     },
     action: {
       button: ml ? "ലഭ്യമായ സേവനങ്ങൾ" : "Available Services",
@@ -437,35 +438,112 @@ async function sendEnterpriseServicesMenu(to, language) {
   });
 }
 
-async function sendGuestMenu(to, language) {
+async function sendGuestMenu(to, language, access) {
   const ml = String(language || "").toLowerCase() === "malayalam";
+  const resumeRegistration = access && access.state === "INCOMPLETE";
   const items = [
-    ["HOME_ASK", "Ask & Diagnose", "ചോദിക്കൂ / രോഗനിർണയം", "General agricultural questions and crop photos", "പൊതുവായ കാർഷിക ചോദ്യങ്ങളും വിള ചിത്രങ്ങളും"],
-    ["SERVICE_3", "Soil Information", "മണ്ണ് വിവരം", "General location-based soil information", "സ്ഥലാധിഷ്ഠിത പൊതുവായ മണ്ണ് വിവരം"],
-    ["SERVICE_4", "Weather", "കാലാവസ്ഥ", "Weather and rainfall information", "കാലാവസ്ഥയും മഴ വിവരവും"],
-    ["HOME_MARKET", "Market Prices", "വിപണി വില", "Agricultural market information", "കാർഷിക വിപണി വിവരം"],
-    ["PROFILE_HELP", "Help / User Guide", "സഹായം / വഴികാട്ടി", "Bilingual BhoomiMitra user guide", "ദ്വിഭാഷാ BhoomiMitra വഴികാട്ടി"],
+    ["SERVICE_11", resumeRegistration ? "Resume Registration" : "Register", resumeRegistration ? "രജിസ്ട്രേഷൻ തുടരുക" : "രജിസ്റ്റർ", "Farmer, Expert, Skilled Worker or Workforce Provider", "കർഷകൻ, വിദഗ്ധൻ, തൊഴിലാളി അല്ലെങ്കിൽ സേവനദാതാവ്"],
+    ["GUEST_EXPLORE", "Explore Services", "സേവനങ്ങൾ അറിയുക", "Crop advice, soil, weather and market information", "വിള ഉപദേശം, മണ്ണ്, കാലാവസ്ഥ, വിപണി വിവരം"],
     ["PROFILE_ABOUT", "About BhoomiMitra", "BhoomiMitraയെക്കുറിച്ച്", "Project and approved team information", "പദ്ധതിയും അംഗീകൃത ടീമും"],
-    ["SERVICE_11", "Membership", "അംഗത്വം", "Register or recover a registration", "രജിസ്റ്റർ ചെയ്യുക അല്ലെങ്കിൽ രജിസ്ട്രേഷൻ കണ്ടെത്തുക"],
-    ["CHANGE_LANGUAGE", "Language", "ഭാഷ", "English or Malayalam", "English അല്ലെങ്കിൽ മലയാളം"]
+    ["PROFILE_HELP", "Help & User Guide", "സഹായം & ഉപയോക്തൃ ഗൈഡ്", "Bilingual BhoomiMitra user guide", "ദ്വിഭാഷാ BhoomiMitra വഴികാട്ടി"],
+    ["CHANGE_LANGUAGE", "Change Language", "ഭാഷ മാറ്റുക", "English or Malayalam", "English അല്ലെങ്കിൽ മലയാളം"]
   ];
 
   return sendInteractiveMessage(to, {
     type: "list",
     body: {
       text: ml
-        ? "🌱 BhoomiMitra\n\nപരിമിതമായ പൊതുവായ സേവനങ്ങൾ ഉപയോഗിക്കാം. വ്യക്തിഗതവും രജിസ്ട്രേഷൻ ആവശ്യമായതുമായ സേവനങ്ങൾക്ക് സജീവമായ സ്ഥിരീകരിച്ച അംഗത്വം ആവശ്യമാണ്."
-        : "🌱 BhoomiMitra\n\nLimited general services are available. Personal and registration-dependent services require an active verified membership."
+        ? "🌱 BhoomiMitra\n\nപൊതുവായ സേവനങ്ങൾ ഉപയോഗിക്കാം. വ്യക്തിഗത സേവനങ്ങൾക്ക് സജീവമായ സ്ഥിരീകരിച്ച കർഷക അംഗത്വം ആവശ്യമാണ്."
+        : "🌱 BhoomiMitra\n\nPublic services are available. Personal services require an active verified farmer membership."
     },
     action: {
-      button: ml ? "☰ സേവനങ്ങൾ" : "☰ Guest Services",
+      button: ml ? "☰ അതിഥി മെനു" : "☰ Guest Menu",
+      sections: [{
+        title: ml ? "ലഭ്യമായ ഓപ്ഷനുകൾ" : "Available Options",
+        rows: items.map(function (item) {
+          return {
+            id: item[0],
+            title: Array.from(ml ? item[2] : item[1]).slice(0, 24).join(""),
+            description: Array.from(ml ? item[4] : item[3]).slice(0, 72).join("")
+          };
+        })
+      }]
+    }
+  });
+}
+
+async function sendGuestExploreMenu(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const items = [
+    ["HOME_ASK", "Crop Advice", "വിള ഉപദേശം", "Agricultural questions and crop-photo guidance", "കാർഷിക ചോദ്യങ്ങളും വിള ചിത്ര സഹായവും"],
+    ["SERVICE_3", "Soil Information", "മണ്ണ് വിവരം", "General location-based soil information", "സ്ഥലാധിഷ്ഠിത പൊതുവായ മണ്ണ് വിവരം"],
+    ["SERVICE_4", "Weather", "കാലാവസ്ഥ", "Weather and rainfall information", "കാലാവസ്ഥയും മഴ വിവരവും"],
+    ["HOME_MARKET", "Market Information", "വിപണി വിവരം", "Agricultural market-price information", "കാർഷിക വിപണി വില വിവരം"],
+    ["NAV_HOME", "Back", "പിന്നോട്ട്", "Return to the appropriate home menu", "അനുയോജ്യമായ പ്രധാന മെനുവിലേക്ക്"]
+  ];
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: ml
+        ? "🌱 പൊതുവായ കാർഷിക സേവനങ്ങൾ\n\nആവശ്യമായ സേവനം തിരഞ്ഞെടുക്കുക."
+        : "🌱 Public Agricultural Services\n\nChoose the information service you need."
+    },
+    action: {
+      button: ml ? "സേവനം തിരഞ്ഞെടുക്കുക" : "Explore Services",
+      sections: [{
+        title: ml ? "പൊതുവായ സേവനങ്ങൾ" : "Public Services",
+        rows: items.map(function (item) {
+          return {
+            id: item[0],
+            title: Array.from(ml ? item[2] : item[1]).slice(0, 24).join(""),
+            description: Array.from(ml ? item[4] : item[3]).slice(0, 72).join("")
+          };
+        })
+      }]
+    }
+  });
+}
+
+async function sendServiceMemberMenu(to, language, roles) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const memberRoles = Array.isArray(roles) ? roles : [];
+  const items = [
+    ["GUEST_EXPLORE", "Explore Services", "സേവനങ്ങൾ അറിയുക", "Public crop, soil, weather and market information", "പൊതു വിള, മണ്ണ്, കാലാവസ്ഥ, വിപണി വിവരം"]
+  ];
+
+  if (memberRoles.includes("expert")) {
+    items.push(["HOME_EXPERT", "Experts & Training", "വിദഗ്ധർ & പരിശീലനം", "Expert support and training information", "വിദഗ്ധ സഹായവും പരിശീലന വിവരവും"]);
+  }
+  if (memberRoles.includes("skilled_worker")) {
+    items.push(["SERVICE_7", "Worker Directory", "തൊഴിലാളി ഡയറക്ടറി", "Use the existing skilled-worker directory", "നിലവിലെ വിദഗ്ധ തൊഴിലാളി ഡയറക്ടറി"]);
+  }
+  if (memberRoles.includes("service_provider")) {
+    items.push(["SERVICE_8", "Service Directory", "സേവന ഡയറക്ടറി", "Use the existing machinery and provider directory", "നിലവിലെ യന്ത്ര, സേവനദാതൃ ഡയറക്ടറി"]);
+  }
+
+  items.push(
+    ["PROFILE_ABOUT", "About BhoomiMitra", "BhoomiMitraയെക്കുറിച്ച്", "Project and approved team information", "പദ്ധതിയും അംഗീകൃത ടീമും"],
+    ["PROFILE_HELP", "Help & User Guide", "സഹായം & ഉപയോക്തൃ ഗൈഡ്", "Guidance for using BhoomiMitra", "BhoomiMitra ഉപയോഗ സഹായം"],
+    ["CHANGE_LANGUAGE", "Change Language", "ഭാഷ മാറ്റുക", "English or Malayalam", "English അല്ലെങ്കിൽ മലയാളം"]
+  );
+
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: {
+      text: ml
+        ? "🌱 BhoomiMitra സേവന അംഗ മെനു\n\nനിങ്ങളുടെ നിലവിലെ അംഗത്വം അംഗീകരിച്ചിട്ടുണ്ട്. കർഷകനായി വീണ്ടും രജിസ്റ്റർ ചെയ്യേണ്ടതില്ല."
+        : "🌱 BhoomiMitra Service Member\n\nYour existing service membership is recognized. You do not need to register again as a farmer."
+    },
+    action: {
+      button: ml ? "അംഗ സേവനങ്ങൾ" : "Member Services",
       sections: [{
         title: ml ? "ലഭ്യമായ സേവനങ്ങൾ" : "Available Services",
         rows: items.map(function (item) {
           return {
             id: item[0],
-            title: (ml ? item[2] : item[1]).slice(0, 24),
-            description: (ml ? item[4] : item[3]).slice(0, 72)
+            title: Array.from(ml ? item[2] : item[1]).slice(0, 24).join(""),
+            description: Array.from(ml ? item[4] : item[3]).slice(0, 72).join("")
           };
         })
       }]
@@ -3368,6 +3446,7 @@ function getNavigationAction(selectionId) {
     HOME_PROFILE: "PROFILE_MENU",
     HOME_ENTERPRISE: "ENTERPRISE_SERVICES_MENU",
     HOME_MORE: "MAIN_MENU_MORE",
+    GUEST_EXPLORE: "PUBLIC_SERVICES_MENU",
     FARM_WEATHER_ALERTS: "WEATHER_ALERTS_MENU",
     PROFILE_HELP: "HELP_MENU",
     PROFILE_WHATS_NEW: "WHATS_NEW",
@@ -3402,6 +3481,8 @@ return {
   sendExpertsTrainingMenu,
   sendEnterpriseServicesMenu,
   sendGuestMenu,
+  sendGuestExploreMenu,
+  sendServiceMemberMenu,
   sendAskMenu,
   sendFarmMenu,
   sendWeatherAlertsMenu,

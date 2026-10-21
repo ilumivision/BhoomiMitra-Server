@@ -1133,6 +1133,28 @@ async function sendTrainingRequestAlert(options) {
   }
 }
 
+async function sendTrainingRequestAlertForSubmission(options) {
+  const input = options || {};
+  const requestResult = input.requestResult;
+
+  if (!requestResult || requestResult.success !== true) {
+    return { sent: false, code: "REQUEST_NOT_SAVED" };
+  }
+
+  if (requestResult.duplicate === true) {
+    return { sent: false, code: "DUPLICATE_REQUEST" };
+  }
+
+  return sendTrainingRequestAlert({
+    destination: input.destination,
+    farmer: input.farmer,
+    topic: requestResult.topic || input.topic,
+    mode: requestResult.mode || input.mode,
+    preferredTime: requestResult.preferredTime || input.preferredTime,
+    sendAlert: input.sendAlert
+  });
+}
+
 function findTrainingRegistration(registrationRows, farmerId, programId) {
   const rows = Array.isArray(registrationRows) ? registrationRows : [];
   const headers = rows[0] || [];
@@ -1298,6 +1320,7 @@ module.exports = {
   registrationAvailability,
   resolveTrainingAlertDestination,
   sendTrainingRequestAlert,
+  sendTrainingRequestAlertForSubmission,
   selectTrainingRequestMode,
   selectTrainingRequestDateChoice,
   selectTrainingRequestTime,

@@ -287,7 +287,7 @@ test("guest allowlist permits only public information registration help about an
   [
     "HOME_ASK", "HOME_MARKET", "SERVICE_1", "SERVICE_2", "SERVICE_3",
     "SERVICE_4", "SERVICE_5", "SERVICE_11", "PROFILE_HELP", "PROFILE_ABOUT",
-    "CHANGE_LANGUAGE", "ABOUT_TEAM", "GUIDE_PAGE_1"
+    "CHANGE_LANGUAGE", "GUEST_EXPLORE", "ABOUT_TEAM", "GUIDE_PAGE_1"
   ].forEach(function (id) {
     assert.equal(isGuestAllowedAction(id), true, id);
   });
@@ -299,8 +299,8 @@ test("guest allowlist permits only public information registration help about an
   });
 });
 
-test("MENU HOME and BACK never request What's New while explicit action does", function () {
-  ["MENU", "HOME", "BACK", "MAIN_MENU", "NAV_HOME", ""].forEach(function (trigger) {
+test("Hi Hello MENU HOME and BACK never request What's New while explicit action does", function () {
+  ["Hi", "Hello", "MENU", "HOME", "BACK", "MAIN_MENU", "NAV_HOME", ""].forEach(function (trigger) {
     assert.equal(shouldShowWhatsNew(trigger), false, trigger);
   });
   assert.equal(shouldShowWhatsNew("WHATS_NEW"), true);
@@ -325,11 +325,11 @@ test("guest menu is bilingual and contains only approved stable actions", async 
   calls.forEach(function (payload) {
     const rows = payload.interactive.action.sections[0].rows;
     assert.deepEqual(rows.map(function (item) { return item.id; }), [
-      "HOME_ASK", "SERVICE_3", "SERVICE_4", "HOME_MARKET",
-      "PROFILE_HELP", "PROFILE_ABOUT", "SERVICE_11", "CHANGE_LANGUAGE"
+      "SERVICE_11", "GUEST_EXPLORE", "PROFILE_ABOUT",
+      "PROFILE_HELP", "CHANGE_LANGUAGE"
     ]);
     assert.ok(rows.every(function (item) { return isGuestAllowedAction(item.id); }));
   });
-  assert.match(calls[0].interactive.body.text, /Limited general services/);
-  assert.match(calls[1].interactive.body.text, /പരിമിതമായ പൊതുവായ സേവനങ്ങൾ/);
+  assert.match(calls[0].interactive.body.text, /Public services are available/);
+  assert.match(calls[1].interactive.body.text, /പൊതുവായ സേവനങ്ങൾ ഉപയോഗിക്കാം/);
 });
