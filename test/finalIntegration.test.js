@@ -203,7 +203,7 @@ test("deterministic bilingual navigation covers the requested reliable phrases",
   assert.equal(getNaturalFeatureEntry("Why are my coconut leaves yellow?"), "");
 });
 
-test("feature discovery shows at most once and records only session-memory acknowledgement", function () {
+test("local feature-discovery fallback records session-memory acknowledgement", function () {
   const discovery = createFeatureDiscovery();
   const first = discovery.select("farmer-1", {
     userCategory: "FARMER",

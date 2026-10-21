@@ -226,7 +226,7 @@ test("all main-menu list payloads obey WhatsApp row and text limits", async func
   });
 });
 
-test("Hi Hello MENU HOME and BACK remain free of unsolicited What's New", function () {
+test("all ordinary messages and navigation remain free of unsolicited What's New", function () {
   ["Hi", "Hello", "MENU", "HOME", "BACK", "MAIN_MENU", "NAV_HOME", "HOME_MORE"].forEach(function (trigger) {
     assert.equal(shouldShowWhatsNew(trigger), false, trigger);
   });
@@ -237,7 +237,7 @@ test("Hi Hello MENU HOME and BACK remain free of unsolicited What's New", functi
   );
   assert.equal(
     canAutoShowWhatsNewAfterText("Why are my pepper leaves yellow?"),
-    true
+    false
   );
   assert.equal(shouldShowWhatsNew("WHATS_NEW"), true);
 });

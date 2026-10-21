@@ -292,7 +292,7 @@ return async function photoVision(data) {
 
             "Photograph of the stem, base, root zone, crown, fruit or other diagnostic part when relevant.",
 
-            "Allow a maximum of three useful photographs per user per day according to BhoomiMitra policy.",
+            "Registered farmers may receive at most three accepted photo analyses per India calendar day according to BhoomiMitra policy. The server enforces this before this prompt is called.",
 
             "------------------------------------------------------------",
 
@@ -428,7 +428,7 @@ return async function photoVision(data) {
 
             "Recent fertilizer, pesticide, medicine or treatment history.",
 
-            "Up to three useful photographs.",
+            "Up to three accepted photo analyses per registered farmer per India calendar day.",
 
             "A short voice description, if available.",
 

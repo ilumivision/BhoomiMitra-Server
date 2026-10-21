@@ -3176,11 +3176,14 @@ async function sendCropFarmMenu(to, language) {
 
 async function sendCropFarmLandList(to, language, rows, purpose) {
   const ml = String(language || "").toLowerCase() === "malayalam";
+  const prompt = purpose === "operation"
+    ? (ml ? "കൃഷിപ്പണി രേഖപ്പെടുത്തേണ്ട നിങ്ങളുടെ ഭൂമി തിരഞ്ഞെടുക്കുക." : "Choose your land for this farm activity.")
+    : purpose === "update"
+      ? (ml ? "വിശദാംശങ്ങൾ പുതുക്കേണ്ട നിങ്ങളുടെ ഭൂമി തിരഞ്ഞെടുക്കുക." : "Choose the land whose details you want to update.")
+      : (ml ? "വിള രജിസ്റ്റർ ചെയ്യേണ്ട നിങ്ങളുടെ ഭൂമി തിരഞ്ഞെടുക്കുക." : "Choose your land for crop registration.");
   return sendInteractiveMessage(to, {
     type: "list",
-    body: { text: purpose === "operation"
-      ? (ml ? "കൃഷിപ്പണി രേഖപ്പെടുത്തേണ്ട നിങ്ങളുടെ ഭൂമി തിരഞ്ഞെടുക്കുക." : "Choose your land for this farm activity.")
-      : (ml ? "വിള രജിസ്റ്റർ ചെയ്യേണ്ട നിങ്ങളുടെ ഭൂമി തിരഞ്ഞെടുക്കുക." : "Choose your land for crop registration.") },
+    body: { text: prompt },
     action: { button: ml ? "ഭൂമി തിരഞ്ഞെടുക്കുക" : "Choose land", sections: [{ title: ml ? "എന്റെ ഭൂമികൾ" : "My verified lands", rows: rows }] }
   });
 }
@@ -3228,7 +3231,9 @@ async function sendCropFarmMessage(to, language, text) {
 async function sendCropFarmConfirmation(to, language, text, kind) {
   const ml = String(language || "").toLowerCase() === "malayalam";
   const saveId = kind === "operation" ? CROP_FARM_ACTION_IDS.SAVE_OPERATION
-    : kind === "status" ? CROP_FARM_ACTION_IDS.SAVE_STATUS : CROP_FARM_ACTION_IDS.SAVE_CROP;
+    : kind === "status" ? CROP_FARM_ACTION_IDS.SAVE_STATUS
+      : kind === "land" ? CROP_FARM_ACTION_IDS.SAVE_LAND_UPDATE
+        : CROP_FARM_ACTION_IDS.SAVE_CROP;
   return sendInteractiveMessage(to, {
     type: "button",
     body: { text: String(text || "").slice(0, 1000) },

@@ -13,6 +13,10 @@ const {
 const {
   isExplicitRegistrationExit
 } = require("../utils/registrationSession");
+const {
+  CROP_FARM_PREFIXES,
+  parseCropFarmAction
+} = require("../utils/cropFarmRecords");
 
 const EXPECTED_IDS = [
   "LAND_REGISTER",
@@ -205,13 +209,15 @@ test("View lands click routes to existing option 2", function () {
   );
 });
 
-test("Update land click routes to safe option 3 handling", function () {
+test("Update land click routes to the implemented ownership-safe flow", function () {
   const ui = makeUi().ui;
 
   assert.equal(ui.getLandManagementCommand("LAND_UPDATE"), "3");
-  assert.match(
-    getUnavailableFarmOptionReply("3", "English"),
-    /not yet available/
+  assert.deepEqual(parseCropFarmAction("LAND_UPDATE"), { action: "UPDATE_LAND" });
+  assert.equal(getUnavailableFarmOptionReply("3", "English"), "");
+  assert.deepEqual(
+    parseCropFarmAction(CROP_FARM_PREFIXES.LAND_UPDATE + "BM-L-000001"),
+    { action: "LAND_UPDATE", landId: "BM-L-000001" }
   );
 });
 
@@ -230,26 +236,22 @@ test("Crop history click routes to implemented option 5 handling", function () {
   assert.equal(getUnavailableFarmOptionReply("5", "Malayalam"), "");
 });
 
-test("Usage history click routes to safe option 6 handling", function () {
+test("Usage history click routes to verified farm operations", function () {
   assert.equal(
     makeUi().ui.getLandManagementCommand("LAND_USAGE_HISTORY"),
     "6"
   );
-  assert.match(
-    getUnavailableFarmOptionReply("6", "English"),
-    /BhoomiMitra usage history/
-  );
+  assert.deepEqual(parseCropFarmAction("LAND_USAGE_HISTORY"), { action: "ACTIVITIES" });
+  assert.equal(getUnavailableFarmOptionReply("6", "English"), "");
 });
 
-test("Land summary click routes to safe option 7 handling", function () {
+test("Land summary click routes to the verified farm summary", function () {
   assert.equal(
     makeUi().ui.getLandManagementCommand("LAND_SUMMARY"),
     "7"
   );
-  assert.match(
-    getUnavailableFarmOptionReply("7", "English"),
-    /Land summary/
-  );
+  assert.deepEqual(parseCropFarmAction("LAND_SUMMARY"), { action: "FARM_SUMMARY" });
+  assert.equal(getUnavailableFarmOptionReply("7", "English"), "");
 });
 
 test("Soil click routes to existing soil option 8", function () {
@@ -386,15 +388,8 @@ test("numeric options 1 through 9 remain legacy fallbacks", function () {
   );
 });
 
-test("only currently unimplemented land options return safe unavailable replies", function () {
-  for (const choice of ["3", "6", "7"]) {
-    assert.match(
-      getUnavailableFarmOptionReply(choice, "English"),
-      /No land record was changed/
-    );
-  }
-
-  for (const choice of ["1", "2", "4", "5", "8", "9"]) {
+test("all current land choices are implemented without unavailable replies", function () {
+  for (const choice of ["1", "2", "3", "4", "5", "6", "7", "8", "9"]) {
     assert.equal(
       getUnavailableFarmOptionReply(choice, "English"),
       ""

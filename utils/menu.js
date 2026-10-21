@@ -80,11 +80,7 @@ const SERVICE_OPTIONS = {
 }
 };
 
-const UNAVAILABLE_FARM_OPTIONS = {
-  "3": "Update land details",
-  "6": "BhoomiMitra usage history",
-  "7": "Land summary"
-};
+const UNAVAILABLE_FARM_OPTIONS = {};
 
 function normalizeMenuText(value) {
   return String(value || "")

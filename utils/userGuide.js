@@ -28,15 +28,15 @@ const USER_GUIDE_TOPICS = Object.freeze([
     id: "crop-animal-advisory",
     titleEnglish: "Crop & Animal Advisory",
     titleMalayalam: "വിള-മൃഗ ഉപദേശം",
-    textEnglish: "Ask a crop or livestock question, or use the Animal Husbandry menu. Photo-based crop guidance and expert referral are available; recommendations should be verified before major action.",
-    textMalayalam: "വിളയെയോ മൃഗസംരക്ഷണത്തെയോ കുറിച്ച് ചോദിക്കുക, അല്ലെങ്കിൽ മൃഗസംരക്ഷണ മെനു ഉപയോഗിക്കുക. വിളയുടെ ഫോട്ടോ അടിസ്ഥാനമാക്കിയ മാർഗനിർദേശവും വിദഗ്ധ സഹായവും ലഭ്യമാണ്; പ്രധാന നടപടി മുമ്പ് ശുപാർശ ഉറപ്പാക്കുക."
+    textEnglish: "Ask a crop or livestock question, or use the Animal Husbandry menu. Registered farmers may submit up to three accepted photo analyses per India calendar day. Photo guidance and expert referral are available; verify recommendations before major action.",
+    textMalayalam: "വിളയെയോ മൃഗസംരക്ഷണത്തെയോ കുറിച്ച് ചോദിക്കുക, അല്ലെങ്കിൽ മൃഗസംരക്ഷണ മെനു ഉപയോഗിക്കുക. രജിസ്റ്റർ ചെയ്ത കർഷകന് ഇന്ത്യൻ കലണ്ടർ ദിവസത്തിൽ പരമാവധി മൂന്ന് അംഗീകരിച്ച ഫോട്ടോ വിശകലനങ്ങൾ അയയ്ക്കാം. പ്രധാന നടപടി മുമ്പ് ശുപാർശ ഉറപ്പാക്കുക."
   },
   {
     id: "land-farm-records",
     titleEnglish: "Land & Farm Records",
     titleMalayalam: "ഭൂമി-ഫാം രേഖകൾ",
-    textEnglish: "Use My Farm to register land, crops and animals, record farm operations, and view your own records. GPS and satellite features depend on saved land data and available imagery.",
-    textMalayalam: "ഭൂമി, വിള, മൃഗങ്ങൾ എന്നിവ രജിസ്റ്റർ ചെയ്യാനും ഫാം പ്രവർത്തനങ്ങൾ രേഖപ്പെടുത്താനും സ്വന്തം രേഖകൾ കാണാനും My Farm ഉപയോഗിക്കുക. GPS, സാറ്റലൈറ്റ് സേവനങ്ങൾ സേവ് ചെയ്ത ഭൂവിവരത്തെയും ലഭ്യമായ ചിത്രങ്ങളെയും ആശ്രയിക്കുന്നു."
+    textEnglish: "Use My Farm to register land, update supported land details, view owned farm-operation history and summary, register crops and animals, and record farm operations. GPS and satellite features depend on saved land data and available imagery.",
+    textMalayalam: "ഭൂമി രജിസ്റ്റർ ചെയ്യാനും പിന്തുണയ്ക്കുന്ന ഭൂവിവരങ്ങൾ പുതുക്കാനും സ്വന്തം കൃഷിപ്പണി ചരിത്രവും സംഗ്രഹവും കാണാനും വിളകളും മൃഗങ്ങളും രജിസ്റ്റർ ചെയ്യാനും My Farm ഉപയോഗിക്കുക. GPS, സാറ്റലൈറ്റ് സേവനങ്ങൾ സേവ് ചെയ്ത ഭൂവിവരത്തെയും ലഭ്യമായ ചിത്രങ്ങളെയും ആശ്രയിക്കുന്നു."
   },
   {
     id: "weather-market",

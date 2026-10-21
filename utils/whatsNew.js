@@ -80,19 +80,9 @@ function shouldShowWhatsNew(trigger) {
   return String(trigger || "").trim().toUpperCase() === "WHATS_NEW";
 }
 
-const AUTOMATICALLY_SUPPRESSED_TRIGGERS = new Set([
-  "hi", "hello", "hai", "menu", "main menu", "home", "back",
-  "ഹായ്", "ഹലോ", "ഹി", "നമസ്കാരം", "മെനു", "പ്രധാന മെനു", "പിന്നോട്ട്"
-]);
-
 function canAutoShowWhatsNewAfterText(text) {
-  const normalized = String(text || "")
-    .replace(/[\u200B-\u200D\uFEFF]/g, "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-
-  return Boolean(normalized) && !AUTOMATICALLY_SUPPRESSED_TRIGGERS.has(normalized);
+  void text;
+  return false;
 }
 
 function createFeatureDiscovery(options) {

@@ -10,7 +10,7 @@ const {
   createFeatureDiscovery
 } = require("../utils/whatsNew");
 
-test("automatic What's New delivery is durable and contains no raw farmer identifier", function (t) {
+test("What's New delivery status is durable and contains no raw farmer identifier", function (t) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "bhoomimitra-feature-"));
   const filePath = path.join(directory, "whats-new-state.json");
   t.after(function () {

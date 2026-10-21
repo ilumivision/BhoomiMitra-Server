@@ -37,8 +37,10 @@ const CROP_FARM_ACTION_IDS = Object.freeze({
   PLANNED: "CROP_FARM_PLANNED",
   ALERTS: "CROP_FARM_ALERTS",
   FERTILIZER: "FARM_ALERTS_OPEN",
+  FARM_SUMMARY: "CROP_FARM_SUMMARY",
   FARM_MENU: "CROP_FARM_FARM_MENU",
   MAIN_MENU: "CROP_FARM_MAIN_MENU",
+  SAVE_LAND_UPDATE: "CROP_FARM_SAVE_LAND_UPDATE",
   SAVE_CROP: "CROP_FARM_SAVE_CROP",
   SAVE_STATUS: "CROP_FARM_SAVE_STATUS",
   SAVE_OPERATION: "CROP_FARM_SAVE_OPERATION",
@@ -48,6 +50,7 @@ const CROP_FARM_ACTION_IDS = Object.freeze({
 });
 
 const CROP_FARM_PREFIXES = Object.freeze({
+  LAND_UPDATE: "CROP_FARM_LAND_UPDATE:",
   CROP_LAND: "CROP_FARM_CROP_LAND:",
   OPERATION_LAND: "CROP_FARM_OP_LAND:",
   OPERATION_TYPE: "CROP_FARM_OP_TYPE:",
@@ -164,14 +167,18 @@ function decode(value) {
 
 function parseCropFarmAction(selectionId) {
   const id = clean(selectionId);
+  if (id === "LAND_UPDATE") return { action: "UPDATE_LAND" };
   if (id === "LAND_ADD_CROP") return { action: "REGISTER" };
   if (id === "LAND_CROP_HISTORY") return { action: "HISTORY" };
+  if (id === "LAND_USAGE_HISTORY") return { action: "ACTIVITIES" };
+  if (id === "LAND_SUMMARY") return { action: "FARM_SUMMARY" };
   const fixed = {};
   Object.keys(CROP_FARM_ACTION_IDS).forEach(function (key) {
     fixed[CROP_FARM_ACTION_IDS[key]] = { action: key };
   });
   if (fixed[id]) return fixed[id];
   const dynamic = [
+    [CROP_FARM_PREFIXES.LAND_UPDATE, "LAND_UPDATE", "landId"],
     [CROP_FARM_PREFIXES.CROP_LAND, "CROP_LAND", "landId"],
     [CROP_FARM_PREFIXES.OPERATION_LAND, "OPERATION_LAND", "landId"],
     [CROP_FARM_PREFIXES.OPERATION_TYPE, "OPERATION_TYPE", "operationType"],
@@ -698,6 +705,80 @@ function formatOperationSummary(operations, lands, crops, language) {
   return lines.filter(function (line, index, array) { return line || index === 0 || array[index - 1] !== ""; }).join("\n").slice(0, 4000);
 }
 
+function formatFarmSummary(lands, crops, history, operations, language) {
+  const ml = normalize(language) === "malayalam";
+  const ownedLands = Array.isArray(lands) ? lands.filter(function (land) {
+    return Boolean(clean(land && land.landId));
+  }) : [];
+  if (!ownedLands.length) {
+    return ml
+      ? "സ്ഥിരീകരിച്ച Farmer ID-യുമായി ബന്ധിപ്പിച്ച കൃഷിയിടങ്ങളൊന്നും കണ്ടെത്തിയില്ല."
+      : "No farm linked to your verified Farmer ID was found.";
+  }
+
+  const landIds = new Set(ownedLands.map(function (land) {
+    return normalize(land.landId);
+  }));
+  const ownedCrops = latestCropStates(
+    (crops || []).filter(function (crop) { return landIds.has(normalize(crop.landId)); }),
+    history || []
+  );
+  const ownedOperations = (operations || []).filter(function (operation) {
+    return landIds.has(normalize(operation.landId));
+  });
+  const currentCrops = ownedCrops.filter(isCurrentCrop);
+  const planned = ownedOperations.filter(function (operation) {
+    return normalize(operation.operationStatus) === "planned";
+  });
+  const completed = ownedOperations.filter(function (operation) {
+    return /completed|done/i.test(clean(operation.operationStatus));
+  });
+
+  const lines = [
+    ml ? "📄 കൃഷിയിട സംഗ്രഹം" : "📄 Farm Summary",
+    "",
+    (ml ? "രജിസ്റ്റർ ചെയ്ത കൃഷിയിടങ്ങൾ: " : "Registered lands: ") + ownedLands.length,
+    (ml ? "രജിസ്റ്റർ ചെയ്ത വിളകൾ: " : "Registered crops: ") + ownedCrops.length,
+    (ml ? "നിലവിലെ വിളകൾ: " : "Current crops: ") + currentCrops.length,
+    (ml ? "രേഖപ്പെടുത്തിയ പ്രവർത്തനങ്ങൾ: " : "Recorded operations: ") + ownedOperations.length,
+    (ml ? "ആസൂത്രണം ചെയ്തത്: " : "Planned: ") + planned.length,
+    (ml ? "പൂർത്തിയാക്കിയത്: " : "Completed: ") + completed.length
+  ];
+
+  ownedLands.slice(0, 6).forEach(function (land) {
+    const landCrops = currentCrops.filter(function (crop) {
+      return normalize(crop.landId) === normalize(land.landId);
+    });
+    const landOperations = ownedOperations.filter(function (operation) {
+      return normalize(operation.landId) === normalize(land.landId);
+    }).sort(function (left, right) {
+      return clean(right.operationDate || right.createdAt)
+        .localeCompare(clean(left.operationDate || left.createdAt));
+    });
+    const latest = landOperations[0];
+    lines.push(
+      "",
+      [land.farmName || land.landId, land.landId].filter(function (value, index, array) {
+        return value && array.indexOf(value) === index;
+      }).join(" • "),
+      (ml ? "സ്ഥലം: " : "Location: ") + ([land.panchayat, land.district].filter(Boolean).join(", ") || "-"),
+      (ml ? "നിലവിലെ വിളകൾ: " : "Current crops: ") +
+        (landCrops.map(function (crop) { return crop.cropName; }).filter(Boolean).join(", ") || land.mainCrop || "-")
+    );
+    if (latest) {
+      lines.push(
+        (ml ? "അവസാന രേഖപ്പെടുത്തിയ പ്രവർത്തനം: " : "Latest recorded activity: ") +
+        [latest.operationDate, latest.operationType, latest.operationStatus].filter(Boolean).join(" • ")
+      );
+    }
+  });
+
+  if (ownedLands.length > 6) {
+    lines.push("", (ml ? "കൂടുതൽ കൃഷിയിടങ്ങൾ: " : "Additional lands: ") + (ownedLands.length - 6));
+  }
+  return lines.join("\n").slice(0, 4000);
+}
+
 function formatFarmAlerts(alerts, language) {
   const ml = normalize(language) === "malayalam";
   const verified = (alerts && alerts.verified) || [];
@@ -728,6 +809,7 @@ module.exports = {
   CROP_HISTORY_SHEET, CROP_SHEET, OPERATION_HEADERS, OPERATION_SHEET, OPERATION_TYPES,
   VERIFIED_ALERT_HEADERS, VERIFIED_ALERT_SHEET,
   appendCropStatus, buildMyFarmAlerts, cropRowsForOperation, cropRowsForStatus, formatCropSummary,
+  formatFarmSummary,
   formatFarmAlerts, formatOperationSummary, isCurrentCrop, landRowsForAction,
   latestCropStates, operationTypeRows, ownedLand, parseCropFarmAction,
   parseCropFarmNaturalLanguage, parseCropRegistrationDetails, parseCropStatusDetails, parseDate,

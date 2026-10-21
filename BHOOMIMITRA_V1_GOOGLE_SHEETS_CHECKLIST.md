@@ -62,9 +62,11 @@ Existing required tabs include `Soil_Location_Profile`, `Soil_Test_Repository`, 
 
 ## Feature-announcement persistence
 
-No Google Sheet tab or column is required. On Render/production, automatic delivery and dismissal state uses Upstash Redis REST with atomic claims and HMAC-SHA256 opaque keys. `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` and an independent `STATE_HMAC_SECRET` of at least 32 characters are required together. Explicit What's New menu requests remain repeatable.
+No Google Sheet tab or column is required. On Render/production, announcement delivery and dismissal state uses Upstash Redis REST with atomic claims and HMAC-SHA256 opaque keys. BhoomiMitra does not automatically send What's New after greetings, navigation, registration or ordinary answers; the explicit What's New menu action remains available. `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` and an independent `STATE_HMAC_SECRET` of at least 32 characters are required together.
 
 The same Redis service provides the seven-day completed-message webhook deduplication ledger. Production fails closed when durable storage is absent or unavailable and never silently falls back to Render's ephemeral filesystem. The companion JSON files remain available only for local development and automated tests. Do not add a `Feature_Announcements` tab for V1.
+
+The same Redis service also enforces the approved limit of three successfully accepted photo analyses per registered farmer per India calendar day. Atomic reservations prevent concurrent requests from exceeding the limit, failed analyses release their reservation, webhook retries do not consume another slot, and HMAC-derived keys contain no raw Farmer ID or phone number. No Sheet tab or column is required.
 
 ## Manual readiness actions
 

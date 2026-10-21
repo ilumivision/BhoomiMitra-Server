@@ -32,7 +32,9 @@ const {
 
 const {
   registerLand,
-  getFarmerLands
+  getFarmerLands,
+  parseLandUpdateDetails,
+  updateLandDetails
 } = require("./utils/landRegistration");
 const {
   registerAnimal
@@ -104,7 +106,6 @@ const {
   formatPrivacyPolicy
 } = require("./utils/privacySelfService");
 const {
-  canAutoShowWhatsNewAfterText,
   createFeatureDiscovery,
   createRedisFeatureDiscovery,
   shouldShowWhatsNew
@@ -113,6 +114,12 @@ const {
   createRedisRestClient,
   resolveStateConfiguration
 } = require("./utils/redisState");
+const {
+  createMemoryPhotoQuota,
+  createRedisPhotoQuota,
+  photoLimitMessage,
+  photoQuotaUnavailableMessage
+} = require("./utils/photoQuota");
 const {
   getMissingPreferenceAction,
   shouldSendRegisteredHelpPrompt
@@ -186,7 +193,6 @@ const {
   getNaturalFeatureEntry,
   getWelcomeMessage,
   getServicePrompt,
-  getUnavailableFarmOptionReply,
   parseServiceSelections,
   isPureMenuSelection,
   createMenuSession,
@@ -320,6 +326,7 @@ const {
   cropRowsForStatus,
   formatCropSummary,
   formatFarmAlerts,
+  formatFarmSummary,
   formatOperationSummary,
   isCurrentCrop,
   landRowsForAction,
@@ -571,6 +578,13 @@ const webhookMessageLedger = durableStateRedis
     maxCompleted:
       process.env.WHATSAPP_MESSAGE_DEDUP_MAX_COMPLETED
   });
+
+const photoAnalysisQuota = durableStateRedis
+  ? createRedisPhotoQuota({
+    redis: durableStateRedis,
+    hmacSecret: durableStateConfig.hmacSecret
+  })
+  : createMemoryPhotoQuota();
 
 function logSafeError(context, error, metadata) {
   console.error(
@@ -1255,6 +1269,85 @@ async function showWhatsNew(from, language, explicit) {
   }
 
   return Boolean(feature);
+}
+
+async function claimPhotoAnalysis(from, messageId) {
+  const access = await resolveCurrentUserRegistration(from);
+  const language = userLanguagePreferences[from] || "Malayalam";
+
+  if (!hasRegisteredFarmerAccess(access)) {
+    await sendStatusAwareHome(
+      from,
+      language,
+      access,
+      isLimitedAccessState(access)
+    );
+    return { allowed: false, code: "FARMER_REGISTRATION_REQUIRED" };
+  }
+
+  const farmerId = access.farmer && (access.farmer.id || access.farmer.memberId) || "";
+  try {
+    const claim = await photoAnalysisQuota.claim(farmerId, messageId);
+    if (claim.accepted) {
+      return {
+        allowed: true,
+        farmerId,
+        messageId,
+        token: claim.token,
+        dayKey: claim.dayKey
+      };
+    }
+
+    if (claim.code === "LIMIT_REACHED") {
+      await sendWhatsAppMessage(from, photoLimitMessage(language), {
+        skipPreferredLanguageConversion: true
+      });
+    } else if (claim.code === "IN_FLIGHT") {
+      await sendWhatsAppMessage(
+        from,
+        language === "Malayalam"
+          ? "ഈ ഫോട്ടോ ഇതിനകം വിശകലനം ചെയ്യുന്നു. ദയവായി കാത്തിരിക്കുക."
+          : "This photo is already being analysed. Please wait.",
+        { skipPreferredLanguageConversion: true }
+      );
+    }
+    return { allowed: false, code: claim.code };
+  } catch (error) {
+    logSafeError("Photo quota check failed.", error);
+    await sendWhatsAppMessage(from, photoQuotaUnavailableMessage(language), {
+      skipPreferredLanguageConversion: true
+    });
+    return { allowed: false, code: "PHOTO_QUOTA_UNAVAILABLE" };
+  }
+}
+
+async function settlePhotoAnalysis(claim, accepted) {
+  if (!claim || !claim.allowed) return;
+  if (accepted) {
+    const result = await photoAnalysisQuota.complete(
+      claim.farmerId,
+      claim.messageId,
+      claim.token,
+      claim.dayKey
+    );
+    if (!result.success) {
+      const error = new Error("The photo quota claim could not be completed.");
+      error.code = "PHOTO_QUOTA_LEASE_LOST";
+      throw error;
+    }
+    return;
+  }
+
+  try {
+    await photoAnalysisQuota.release(
+      claim.farmerId,
+      claim.messageId,
+      claim.token,
+      claim.dayKey
+    );
+  } catch (error) {
+    logSafeError("Photo quota claim release failed.", error);
+  }
 }
 
 const SHEETS = {
@@ -3344,6 +3437,46 @@ async function handleCropFarmAction(options) {
     return true;
   }
 
+  if (action.action === "UPDATE_LAND") {
+    if (!context.landRows || !context.lands.length) {
+      return sendCropFarmUnavailable(from, language, cropFarmText(
+        language,
+        "No active land linked to your verified Farmer ID is available to update.",
+        "നിങ്ങളുടെ സ്ഥിരീകരിച്ച Farmer ID-യുമായി ബന്ധിപ്പിച്ച സജീവ ഭൂമി പുതുക്കാൻ ലഭ്യമല്ല."
+      ));
+    }
+    cropFarmSessions[from] = {
+      step: "choose_land_update",
+      language,
+      updatedAt: Date.now()
+    };
+    await bhoomiMitraUI.sendCropFarmLandList(
+      from,
+      language,
+      landRowsForAction(context.lands, CROP_FARM_PREFIXES.LAND_UPDATE),
+      "update"
+    );
+    return true;
+  }
+
+  if (action.action === "LAND_UPDATE") {
+    const session = cropFarmSessions[from];
+    const land = ownedLand(context.lands, context.farmer.memberId, action.landId);
+    if (!session || session.step !== "choose_land_update" || !land) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    session.land = land;
+    session.step = "awaiting_land_update";
+    session.updatedAt = Date.now();
+    await sendWhatsAppMessage(from, cropFarmText(
+      language,
+      "Enter: farm name or - | main crop or - | other crops or -. A dash keeps the existing value. Registered Crop IDs and history are not changed.",
+      "നൽകുക: കൃഷിയിടത്തിന്റെ പേര് അല്ലെങ്കിൽ - | പ്രധാന വിള അല്ലെങ്കിൽ - | മറ്റ് വിളകൾ അല്ലെങ്കിൽ -. - നൽകിയാൽ നിലവിലെ വിവരം മാറ്റില്ല. രജിസ്റ്റർ ചെയ്ത Crop ID-കളും ചരിത്രവും മാറില്ല."
+    ));
+    return true;
+  }
+
   if (action.action === "REGISTER") {
     if (!context.landRows || !context.cropRows) return sendCropFarmUnavailable(from, language);
     if (!context.lands.length) {
@@ -3574,10 +3707,48 @@ async function handleCropFarmAction(options) {
     return true;
   }
 
+  if (action.action === "SAVE_LAND_UPDATE") {
+    const session = cropFarmSessions[from];
+    if (!session || session.step !== "confirm_land_update" || !session.land || !session.landUpdateDetails) {
+      await bhoomiMitraUI.sendCropFarmMenu(from, language);
+      return true;
+    }
+    const currentLand = ownedLand(context.lands, context.farmer.memberId, session.land.landId);
+    if (!currentLand) {
+      await sendCropFarmUnavailable(from, language, cropFarmText(
+        language,
+        "Land ownership could not be verified. No land record was changed.",
+        "ഭൂമിയുടെ ഉടമസ്ഥത സ്ഥിരീകരിക്കാൻ കഴിഞ്ഞില്ല. ഭൂമി രേഖയിൽ മാറ്റമൊന്നും വരുത്തിയിട്ടില്ല."
+      ));
+      return true;
+    }
+    const result = await updateLandDetails({
+      sheets,
+      spreadsheetId: GOOGLE_SHEET_ID,
+      farmerId: context.farmer.memberId,
+      landId: currentLand.landId,
+      updates: session.landUpdateDetails
+    });
+    if (result.success) delete cropFarmSessions[from];
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, result.success
+      ? (result.noChanges
+        ? cropFarmText(language, "The submitted land details already match the saved record.", "നൽകിയ ഭൂമി വിവരങ്ങൾ നിലവിലെ രേഖയുമായി ഇതിനകം പൊരുത്തപ്പെടുന്നു.")
+        : cropFarmText(language, "✅ Land details updated. Land ID: ", "✅ ഭൂമി വിവരങ്ങൾ പുതുക്കി. Land ID: ") + currentLand.landId)
+      : cropFarmText(language, "The land details were not updated (", "ഭൂമി വിവരങ്ങൾ പുതുക്കിയില്ല (") + (result.code || "UNKNOWN_ERROR") + ").");
+    return true;
+  }
+
   if (action.action === "CHANGE") {
     const session = cropFarmSessions[from];
     if (!session) return handleCropFarmAction({ cropFarmAction: { action: "OPEN" }, from: from });
-    if (session.statusCrop) {
+    if (session.landUpdateDetails && session.land) {
+      session.step = "awaiting_land_update";
+      await sendWhatsAppMessage(from, cropFarmText(
+        language,
+        "Enter the land details again: farm name or - | main crop or - | other crops or -.",
+        "ഭൂമി വിവരങ്ങൾ വീണ്ടും നൽകുക: കൃഷിയിടത്തിന്റെ പേര് അല്ലെങ്കിൽ - | പ്രധാന വിള അല്ലെങ്കിൽ - | മറ്റ് വിളകൾ അല്ലെങ്കിൽ -."
+      ));
+    } else if (session.statusCrop) {
       session.step = "awaiting_crop_status";
       await sendWhatsAppMessage(from, cropFarmText(language, "Enter the crop status event again.", "വിള നില സംഭവം വീണ്ടും നൽകുക."));
     } else if (session.cropName) {
@@ -3598,6 +3769,15 @@ async function handleCropFarmAction(options) {
     });
     await bhoomiMitraUI.sendCropFarmMessage(
       from, language, formatOperationSummary(operations, context.lands, context.crops, language)
+    );
+    return true;
+  }
+
+  if (action.action === "FARM_SUMMARY") {
+    await bhoomiMitraUI.sendCropFarmMessage(
+      from,
+      language,
+      formatFarmSummary(context.lands, context.crops, context.history, context.operations, language)
     );
     return true;
   }
@@ -3631,6 +3811,29 @@ async function completeCropFarmTextInput(from, userText, sourceMessageId) {
   if (/^(cancel|back|menu|റദ്ദാക്കുക|പിന്നോട്ട്|മെനു)$/i.test(text)) {
     delete cropFarmSessions[from];
     await bhoomiMitraUI.sendCropFarmMenu(from, language);
+    return true;
+  }
+  if (session.step === "awaiting_land_update") {
+    const parsed = parseLandUpdateDetails(text);
+    if (!parsed.success) {
+      await sendWhatsAppMessage(from, cropFarmText(
+        language,
+        "Use exactly: farm name or - | main crop or - | other crops or -. Provide at least one change.",
+        "ഇങ്ങനെ കൃത്യമായി നൽകുക: കൃഷിയിടത്തിന്റെ പേര് അല്ലെങ്കിൽ - | പ്രധാന വിള അല്ലെങ്കിൽ - | മറ്റ് വിളകൾ അല്ലെങ്കിൽ -. കുറഞ്ഞത് ഒരു മാറ്റമെങ്കിലും നൽകണം."
+      ));
+      return true;
+    }
+    session.landUpdateDetails = parsed.updates;
+    session.sourceMessageId = session.sourceMessageId || sourceMessageId;
+    session.step = "confirm_land_update";
+    session.updatedAt = Date.now();
+    await bhoomiMitraUI.sendCropFarmConfirmation(from, language, [
+      cropFarmText(language, "Confirm land update", "ഭൂമി വിവരങ്ങളുടെ മാറ്റം സ്ഥിരീകരിക്കുക"),
+      "Land ID: " + session.land.landId,
+      "Farm name: " + (parsed.updates.farmName || "Keep existing"),
+      "Main crop: " + (parsed.updates.mainCrop || "Keep existing"),
+      "Other crops: " + (parsed.updates.otherCrops || "Keep existing")
+    ].join("\n"), "land");
     return true;
   }
   if (session.step === "awaiting_crop_name") {
@@ -5417,11 +5620,21 @@ const photoContext =
     caption
   );
 
-const photoResult = await photoVision({
-  mediaId,
-  from,
-  caption: photoContext
-});
+const photoClaim = await claimPhotoAnalysis(from, message.id);
+if (!photoClaim.allowed) return;
+
+let photoResult;
+try {
+  photoResult = await photoVision({
+    mediaId,
+    from,
+    caption: photoContext
+  });
+  await settlePhotoAnalysis(photoClaim, Boolean(photoResult && photoResult.success));
+} catch (error) {
+  await settlePhotoAnalysis(photoClaim, false);
+  throw error;
+}
 
 const photoReply =
   photoResult &&
@@ -5536,11 +5749,21 @@ return;
             ? message.document.caption
             : "";
 
-        const photoResult = await photoVision({
-            mediaId,
-            from,
-            caption
-        });
+        const photoClaim = await claimPhotoAnalysis(from, message.id);
+        if (!photoClaim.allowed) return;
+
+        let photoResult;
+        try {
+            photoResult = await photoVision({
+                mediaId,
+                from,
+                caption
+            });
+            await settlePhotoAnalysis(photoClaim, Boolean(photoResult && photoResult.success));
+        } catch (error) {
+            await settlePhotoAnalysis(photoClaim, false);
+            throw error;
+        }
 
         const photoReply =
             photoResult && (photoResult.reply || photoResult.text)
@@ -6086,7 +6309,7 @@ const regReply =
   );
 
 if (regReply) {
-  const registrationRoute = await routeRegistrationWebhookResult({
+  await routeRegistrationWebhookResult({
     registrationResult: regReply,
     from,
     userText,
@@ -6105,25 +6328,6 @@ if (regReply) {
       );
     }
   });
-
-  if (
-    typeof regReply === "object" &&
-    regReply.registrationCompleted &&
-    hasRegisteredFarmerAccess(registrationRoute.access)
-  ) {
-    try {
-      await showWhatsNew(
-        from,
-        userLanguagePreferences[from] || "Malayalam",
-        false
-      );
-    } catch (error) {
-      logSafeError(
-        "Automatic feature announcement skipped.",
-        error
-      );
-    }
-  }
 
   return;
 }    
@@ -7130,18 +7334,17 @@ if (farmMenuChoice === "4" || farmMenuChoice === "5") {
   });
   return;
 }
-if (["3", "6", "7"].includes(
-  farmMenuChoice
-)) {
-  await sendWhatsAppMessage(
+if (["3", "6", "7"].includes(farmMenuChoice)) {
+  const actionByChoice = {
+    "3": "UPDATE_LAND",
+    "6": "ACTIVITIES",
+    "7": "FARM_SUMMARY"
+  };
+  await handleCropFarmAction({
+    cropFarmAction: { action: actionByChoice[farmMenuChoice] },
     from,
-    getUnavailableFarmOptionReply(
-      farmMenuChoice,
-      userLanguagePreferences[from] ||
-        "Malayalam"
-    )
-  );
-
+    sourceMessageId: message.id
+  });
   return;
 }
 if (farmMenuChoice === "8") {
@@ -10243,27 +10446,6 @@ await sendWhatsAppMessage(
   from,
   responseText
 );
-
-try {
-  const announcementAccess =
-    await resolveCurrentUserRegistration(from);
-
-  if (
-    hasRegisteredFarmerAccess(announcementAccess) &&
-    canAutoShowWhatsNewAfterText(userText)
-  ) {
-    await showWhatsNew(
-      from,
-      userLanguagePreferences[from] || "English",
-      false
-    );
-  }
-} catch (error) {
-  logSafeError(
-    "Automatic feature announcement skipped.",
-    error
-  );
-}
 
 Promise.all([
   logAI(

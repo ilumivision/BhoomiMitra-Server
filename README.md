@@ -50,6 +50,11 @@ The current restricted-pilot dependency exception is documented in
 moderate `uuid` advisory is assessed for the application's actual Google
 Sheets usage and must not be described as resolved or as a clean audit.
 
+On Render, the existing Upstash Redis configuration is mandatory for atomic
+webhook deduplication, durable What's New status, and the three accepted
+photo analyses per registered farmer per India calendar day. No automatic
+What's New message is sent; farmers open it explicitly from the menu.
+
 ## Controlled maintenance commands
 
 - `npm run reminders:fertilizer` is dry-run/read-only unless its separate delivery gates are approved and enabled.

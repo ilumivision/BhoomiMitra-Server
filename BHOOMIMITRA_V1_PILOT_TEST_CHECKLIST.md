@@ -42,12 +42,12 @@ Institutional attribution and staff profiles require approval and verification b
 | # | Status | Test | Expected evidence |
 |---:|---|---|---|
 | 1 | `NOT TESTED` | New farmer registration | Guest Menu → Register → language → affirmative consent → existing-registration check → preserved Farmer ID → Main Menu. A greeting never starts registration automatically. |
-| 2 | `NOT TESTED` | Returning farmer welcome | Saved language, short welcome and Main Menu; no duplicate registration or unchanged-consent request. |
+| 2 | `NOT TESTED` | Returning farmer greeting | Saved language and a short Main Menu prompt only; no welcome/welcome-back copy, duplicate registration or unchanged-consent request. |
 | 3 | `NOT TESTED` | Language switching | Main Menu → More Options → Change Language saves English/Malayalam through the existing preference field and menus remain navigable. |
 | 4 | `NOT TESTED` | Privacy consent | I Agree writes current policy versions; Terms opens policy; Not Now does not start registration. |
 | 5 | `NOT TESTED` | Text question | Meaningful agricultural question reaches normal Q&A without forced menu routing. |
 | 6 | `NOT TESTED` | Voice question | Approved test voice is transcribed and handled; failure gives a safe retry message. |
-| 7 | `NOT TESTED` | Photograph diagnosis | Clear test crop photo reaches existing diagnosis; no unrelated record is exposed. |
+| 7 | `NOT TESTED` | Photograph diagnosis | Clear test crop photo reaches existing diagnosis; no unrelated record is exposed; three accepted analyses are allowed per registered farmer per India calendar day and a fourth is declined. |
 | 8 | `NOT TESTED` | Crop registration | Only an owned Land ID is selectable; one Crop ID is created; repeated submit is idempotent. |
 | 9 | `NOT TESTED` | Crop history | Only the test farmer’s crop states/history appear. |
 | 10 | `NOT TESTED` | Farm diary | Completed/planned operation is saved once against owned farmer/land/crop IDs. |
@@ -56,7 +56,8 @@ Institutional attribution and staff profiles require approval and verification b
 | 13 | `NOT TESTED` | Animal health diary | Health/vaccination/deworming record saves only for an owned Animal ID. |
 | 14 | `NOT TESTED` | Veterinary expert assistance | Animal expert route uses the existing case workflow without exposing private contacts. |
 | 15 | `NOT TESTED` | Animal alerts | Only verified active official records relevant to district/type appear. |
-| 16 | `NOT TESTED` | Land registration | Existing land flow creates one Land ID; no existing record or Farmer ID changes. |
+| 16 | `NOT TESTED` | Land registration and update | Existing land flow creates one Land ID. Update Land Details changes only the selected owner’s supported farm-name/main-crop/other-crops cells after confirmation; Farmer ID and Land ID never change. |
+| 16A | `NOT TESTED` | Usage history and farm summary | Usage History shows only verified owned farm-operation records; Farm Summary derives counts and latest activity only from the test farmer’s existing land, crop and operation records. |
 | 17 | `NOT TESTED` | GPS and boundary access | Owner/authorised user can view; other user fails closed; coordinates remain unchanged. |
 | 18 | `NOT TESTED` | Satellite monitoring | Existing summary/history works for authorised land; stale/unavailable data is clearly labelled. |
 | 19 | `NOT TESTED` | Weather information | District weather, rainfall and available forecast show source/freshness where present. |
@@ -70,7 +71,7 @@ Institutional attribution and staff profiles require approval and verification b
 | 27 | `NOT TESTED` | Training requests | Topic → format → online time when relevant → location → date → remarks → confirm; one request ID and, only after a new save, one alert to the configured authorised training coordinator. |
 | 28 | `NOT TESTED` | My Records | Profile, Farmer ID, lands and animals are limited to inbound sender ownership. |
 | 29 | `NOT TESTED` | Help | Concise Malayalam and English examples plus Back/Main routes work. |
-| 30 | `NOT TESTED` | What’s New | One tested feature appears at most once per running-session memory; Try/Dismiss work; Hi, Hello, MENU, HOME and BACK never produce an unsolicited announcement. |
+| 30 | `NOT TESTED` | What’s New | The explicit What’s New action works; Try/Dismiss state survives restart through Redis. No greeting, navigation request, registration completion or ordinary answer produces an unsolicited announcement. |
 | 31 | `NOT TESTED` | Back and Main Menu | Every visible menu returns correctly; no dead button, loop or stale registration state. |
 | 32 | `NOT TESTED` | Error handling | Missing Sheet/tab/data/API returns cautious messages without false success or record mutation. |
 | 33 | `NOT TESTED` | Data ownership and privacy | Cross-farmer land/crop/animal/case access is denied; logs contain no raw sensitive content. |
