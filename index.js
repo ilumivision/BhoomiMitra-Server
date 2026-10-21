@@ -12,6 +12,7 @@ const photoVision = require("./utils/photoVision");
 const {
   captureRawBody,
   createMessageLedger,
+  createRedisMessageLedger,
   safeErrorDetails,
   safeMessageMetadata,
   verifyMetaSignature
@@ -105,8 +106,13 @@ const {
 const {
   canAutoShowWhatsNewAfterText,
   createFeatureDiscovery,
+  createRedisFeatureDiscovery,
   shouldShowWhatsNew
 } = require("./utils/whatsNew");
+const {
+  createRedisRestClient,
+  resolveStateConfiguration
+} = require("./utils/redisState");
 const {
   getMissingPreferenceAction,
   shouldSendRegisteredHelpPrompt
@@ -549,12 +555,22 @@ const WHATS_NEW_STATE_FILE = path.join(
   "whats-new-state.json"
 );
 
-const webhookMessageLedger = createMessageLedger({
-  filePath: WHATSAPP_MESSAGE_STATE_FILE,
-  ttlMs: process.env.WHATSAPP_MESSAGE_DEDUP_TTL_MS,
-  maxCompleted:
-    process.env.WHATSAPP_MESSAGE_DEDUP_MAX_COMPLETED
-});
+const durableStateConfig = resolveStateConfiguration(process.env);
+const durableStateRedis = durableStateConfig.configured
+  ? createRedisRestClient(durableStateConfig)
+  : null;
+
+const webhookMessageLedger = durableStateRedis
+  ? createRedisMessageLedger({
+    redis: durableStateRedis,
+    hmacSecret: durableStateConfig.hmacSecret
+  })
+  : createMessageLedger({
+    filePath: WHATSAPP_MESSAGE_STATE_FILE,
+    ttlMs: process.env.WHATSAPP_MESSAGE_DEDUP_TTL_MS,
+    maxCompleted:
+      process.env.WHATSAPP_MESSAGE_DEDUP_MAX_COMPLETED
+  });
 
 function logSafeError(context, error, metadata) {
   console.error(
@@ -1129,9 +1145,14 @@ const farmAlertSessions = {};
 const cropFarmSessions = {};
 const animalHusbandrySessions = {};
 const whatsNewSelections = {};
-const featureDiscovery = createFeatureDiscovery({
-  filePath: WHATS_NEW_STATE_FILE
-});
+const featureDiscovery = durableStateRedis
+  ? createRedisFeatureDiscovery({
+    redis: durableStateRedis,
+    hmacSecret: durableStateConfig.hmacSecret
+  })
+  : createFeatureDiscovery({
+    filePath: WHATS_NEW_STATE_FILE
+  });
 const registrationCoordinator =
   createRegistrationCoordinator();
 let sheetMetadataCache = null;
@@ -1203,7 +1224,7 @@ async function sendStatusAwareHome(from, language, status, includeNotice) {
 async function showWhatsNew(from, language, explicit) {
   const feature = explicit
     ? featureDiscovery.firstAvailable({ userCategory: "FARMER" })
-    : featureDiscovery.claim(from, { userCategory: "FARMER" });
+    : await featureDiscovery.claim(from, { userCategory: "FARMER" });
 
   if (feature) {
     whatsNewSelections[from] = feature;
@@ -1211,15 +1232,26 @@ async function showWhatsNew(from, language, explicit) {
     return false;
   }
 
-  await bhoomiMitraUI.sendWhatsNewAnnouncement(
-    from,
-    language,
-    feature,
-    Boolean(explicit)
-  );
+  try {
+    await bhoomiMitraUI.sendWhatsNewAnnouncement(
+      from,
+      language,
+      feature,
+      Boolean(explicit)
+    );
+  } catch (error) {
+    if (!explicit && feature) {
+      try {
+        await featureDiscovery.releaseClaim(from, feature.id);
+      } catch (releaseError) {
+        logSafeError("Feature announcement claim release failed.", releaseError);
+      }
+    }
+    throw error;
+  }
 
   if (feature) {
-    featureDiscovery.markShown(from, feature.id);
+    await featureDiscovery.markShown(from, feature.id);
   }
 
   return Boolean(feature);
@@ -4035,6 +4067,7 @@ async function completeAnimalHusbandryInput(from, userText, sourceMessageId) {
 }
 app.post("/webhook", async function (req, res) {
   let claimedMessageId = "";
+  let claimedMessageToken = "";
   let processingError = null;
 
   try {
@@ -4086,6 +4119,7 @@ app.post("/webhook", async function (req, res) {
       return;
     }
     claimedMessageId = message.id;
+    claimedMessageToken = claim.token || "";
 
     const from = message.from;
 
@@ -4358,7 +4392,7 @@ if (
             featureDiscovery.firstAvailable({ userCategory: "FARMER" });
 
           if (selectedFeature) {
-            featureDiscovery.acknowledge(from, selectedFeature.id);
+            await featureDiscovery.acknowledge(from, selectedFeature.id, "opened");
           }
           delete whatsNewSelections[from];
 
@@ -4380,9 +4414,11 @@ if (
         }
 
         if (navigationAction === "WHATS_NEW_DISMISS") {
-          const selectedFeature = whatsNewSelections[from];
+          const selectedFeature =
+            whatsNewSelections[from] ||
+            featureDiscovery.firstAvailable({ userCategory: "FARMER" });
           if (selectedFeature) {
-            featureDiscovery.acknowledge(from, selectedFeature.id);
+            await featureDiscovery.acknowledge(from, selectedFeature.id, "dismissed");
           }
           delete whatsNewSelections[from];
           await bhoomiMitraUI.sendMainMenu(from, preferredUiLanguage);
@@ -10259,9 +10295,9 @@ Promise.all([
   if (claimedMessageId) {
     try {
       if (processingError) {
-        await webhookMessageLedger.release(claimedMessageId);
+        await webhookMessageLedger.release(claimedMessageId, claimedMessageToken);
       } else {
-        await webhookMessageLedger.complete(claimedMessageId);
+        await webhookMessageLedger.complete(claimedMessageId, claimedMessageToken);
       }
     } catch (ledgerError) {
       processingError = processingError || ledgerError;

@@ -3,9 +3,44 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const {
+  opaqueStateId
+} = require("./redisState");
 
 const DEFAULT_DEDUP_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_MAX_COMPLETED = 10000;
+const DEFAULT_CLAIM_LEASE_MS = 5 * 60 * 1000;
+
+const REDIS_CLAIM_SCRIPT = `-- bhoomimitra:webhook:claim:v1
+local current = redis.call("GET", KEYS[1])
+if not current then
+  local created = redis.call("SET", KEYS[1], "pending:" .. ARGV[1], "PX", ARGV[2], "NX")
+  if created then return {"CLAIMED", ARGV[1]} end
+  current = redis.call("GET", KEYS[1])
+end
+if current and string.sub(current, 1, 10) == "completed:" then
+  return {"ALREADY_COMPLETED", ""}
+end
+return {"ALREADY_IN_FLIGHT", ""}`;
+
+const REDIS_COMPLETE_SCRIPT = `-- bhoomimitra:webhook:complete:v1
+local current = redis.call("GET", KEYS[1])
+if current == "pending:" .. ARGV[1] then
+  redis.call("SET", KEYS[1], "completed:v1", "PX", ARGV[2])
+  return "COMPLETED"
+end
+if current and string.sub(current, 1, 10) == "completed:" then
+  return "ALREADY_COMPLETED"
+end
+return "LEASE_LOST"`;
+
+const REDIS_RELEASE_SCRIPT = `-- bhoomimitra:webhook:release:v1
+local current = redis.call("GET", KEYS[1])
+if current == "pending:" .. ARGV[1] then
+  redis.call("DEL", KEYS[1])
+  return "RELEASED"
+end
+return "NOT_OWNER"`;
 
 function clean(value) {
   return String(value == null ? "" : value).trim();
@@ -282,11 +317,83 @@ function createMessageLedger(options) {
   };
 }
 
+function createRedisMessageLedger(options) {
+  const input = options || {};
+  const redis = input.redis;
+  const hmacSecret = clean(input.hmacSecret);
+  const ttlMs = Math.floor(positiveNumber(input.ttlMs, DEFAULT_DEDUP_TTL_MS));
+  const leaseMs = Math.floor(positiveNumber(input.leaseMs, DEFAULT_CLAIM_LEASE_MS));
+
+  if (!redis || typeof redis.execute !== "function") {
+    throw new Error("A Redis command client is required.");
+  }
+  if (hmacSecret.length < 32) {
+    throw new Error("STATE_HMAC_SECRET must contain at least 32 characters.");
+  }
+
+  function keyFor(messageId) {
+    const id = clean(messageId);
+    if (!id) return "";
+    return "bm:v1:webhook:" + opaqueStateId(hmacSecret, "webhook-message", id);
+  }
+
+  async function claim(messageId) {
+    const key = keyFor(messageId);
+    if (!key) return { accepted: false, duplicate: false, code: "MESSAGE_ID_REQUIRED" };
+    const token = crypto.randomBytes(24).toString("hex");
+    const result = await redis.execute([
+      "EVAL", REDIS_CLAIM_SCRIPT, "1", key, token, String(leaseMs)
+    ]);
+    const code = clean(Array.isArray(result) ? result[0] : result);
+    if (code === "CLAIMED") {
+      return { accepted: true, duplicate: false, recovered: false, code, token };
+    }
+    if (["ALREADY_COMPLETED", "ALREADY_IN_FLIGHT"].includes(code)) {
+      return { accepted: false, duplicate: true, code };
+    }
+    throw new Error("Unexpected Redis claim result.");
+  }
+
+  async function complete(messageId, token) {
+    const key = keyFor(messageId);
+    const ownerToken = clean(token);
+    if (!key || !ownerToken) throw new Error("A message ID and claim token are required.");
+    const code = clean(await redis.execute([
+      "EVAL", REDIS_COMPLETE_SCRIPT, "1", key, ownerToken, String(ttlMs)
+    ]));
+    if (["COMPLETED", "ALREADY_COMPLETED"].includes(code)) {
+      return { success: true, code };
+    }
+    const error = new Error("The webhook message claim lease is no longer owned.");
+    error.code = "WEBHOOK_CLAIM_LEASE_LOST";
+    throw error;
+  }
+
+  async function release(messageId, token) {
+    const key = keyFor(messageId);
+    const ownerToken = clean(token);
+    if (!key || !ownerToken) return { success: false, code: "CLAIM_TOKEN_REQUIRED" };
+    const code = clean(await redis.execute([
+      "EVAL", REDIS_RELEASE_SCRIPT, "1", key, ownerToken
+    ]));
+    return { success: code === "RELEASED", code };
+  }
+
+  return Object.freeze({
+    claim,
+    complete,
+    release,
+    persistence: "UPSTASH_REDIS_REST"
+  });
+}
+
 module.exports = {
   DEFAULT_DEDUP_TTL_MS,
+  DEFAULT_CLAIM_LEASE_MS,
   DEFAULT_MAX_COMPLETED,
   captureRawBody,
   createMessageLedger,
+  createRedisMessageLedger,
   hashIdentifier,
   redactSensitiveText,
   safeErrorDetails,

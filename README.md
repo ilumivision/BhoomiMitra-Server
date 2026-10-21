@@ -45,6 +45,11 @@ node --check index.js
 git diff --check
 ```
 
+The current restricted-pilot dependency exception is documented in
+[`DEPENDENCY_SECURITY_REVIEW.md`](DEPENDENCY_SECURITY_REVIEW.md). The open
+moderate `uuid` advisory is assessed for the application's actual Google
+Sheets usage and must not be described as resolved or as a clean audit.
+
 ## Controlled maintenance commands
 
 - `npm run reminders:fertilizer` is dry-run/read-only unless its separate delivery gates are approved and enabled.
@@ -62,6 +67,9 @@ PHONE_NUMBER_ID
 GOOGLE_SHEET_ID
 GOOGLE_CLIENT_EMAIL
 GOOGLE_PRIVATE_KEY
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+STATE_HMAC_SECRET
 LAND_MAP_ACCESS_SECRET
 COPERNICUS_CLIENT_ID
 COPERNICUS_CLIENT_SECRET

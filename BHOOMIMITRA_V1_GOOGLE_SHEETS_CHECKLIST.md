@@ -62,9 +62,9 @@ Existing required tabs include `Soil_Location_Profile`, `Soil_Test_Repository`, 
 
 ## Feature-announcement persistence
 
-No Google Sheet tab or column is required. Automatic delivery and dismissal state uses a privacy-preserving companion JSON file beside the existing WhatsApp webhook message ledger. Farmer keys are SHA-256 hashes, and the state is written before an automatic announcement is attempted so retries and same-filesystem process restarts cannot display it twice. Explicit What's New menu requests remain repeatable.
+No Google Sheet tab or column is required. On Render/production, automatic delivery and dismissal state uses Upstash Redis REST with atomic claims and HMAC-SHA256 opaque keys. `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` and an independent `STATE_HMAC_SECRET` of at least 32 characters are required together. Explicit What's New menu requests remain repeatable.
 
-On Render, durable behaviour across replacement instances or redeployments depends on `WHATSAPP_MESSAGE_STATE_FILE` being located on an attached persistent disk. Without that disk, state survives only while the instance filesystem remains intact. Do not add a `Feature_Announcements` tab for V1.
+The same Redis service provides the seven-day completed-message webhook deduplication ledger. Production fails closed when durable storage is absent or unavailable and never silently falls back to Render's ephemeral filesystem. The companion JSON files remain available only for local development and automated tests. Do not add a `Feature_Announcements` tab for V1.
 
 ## Manual readiness actions
 
