@@ -12,10 +12,12 @@ const {
   buildFarmerCaseView,
   buildFarmerFollowUpPrompt,
   buildFarmerAssignmentCard,
+  assessExpertCaseRow,
   createExpertQuestionId,
   findFarmerCases,
   getExpertAdviceAction,
   parseExpertCaseAction,
+  partitionExpertCaseRows,
   processExpertReply,
   processFarmerFollowUp,
   shouldCreateExpertCase
@@ -223,9 +225,14 @@ function makeUiHarness() {
 function makePilotCaseRows(cases) {
   return [EXPERT_CASE_HEADERS].concat(
     (cases || []).map(function (caseValues) {
+      const compatibleValues = Object.assign({
+        Farmer_ID: "BM-FARMER-FIXTURE",
+        Source_Message_ID:
+          "wamid.fixture." + String(caseValues.Case_ID || "case")
+      }, caseValues);
       return buildRowFromHeaders(
         EXPERT_CASE_HEADERS,
-        caseValues
+        compatibleValues
       );
     })
   );
@@ -1930,6 +1937,7 @@ test("duplicate Source_Message_ID prevents another append or expert notification
   const headers = EXPERT_CASE_HEADERS.slice();
   const duplicateRow = buildRowFromHeaders(headers, {
     Case_ID: "BM-EXP-EXISTING",
+    WhatsApp: "919876543211",
     Assigned_Expert: "Dr. Maya",
     Status: "Assigned",
     Source_Message_ID: "wamid.inbound-1",
@@ -1944,6 +1952,46 @@ test("duplicate Source_Message_ID prevents another append or expert notification
   assert.equal(harness.state.appendedRows.length, 0);
   assert.equal(harness.state.sends.length, 0);
   assert.equal(result.farmerMessage, "Expert Dr. Maya has been assigned");
+});
+
+test("legacy Expert_Cases rows are excluded without modifying compatible rows", function () {
+  const compatibleRow = buildRowFromHeaders(EXPERT_CASE_HEADERS, {
+    Case_ID: "BM-EXP-CURRENT",
+    WhatsApp: "919111111111",
+    Status: "Assigned",
+    Farmer_ID: "BM-200",
+    Source_Message_ID: "wamid.current"
+  });
+  const legacyRow = new Array(19).fill("");
+  legacyRow[0] = "BM-EXP-LEGACY";
+  legacyRow[3] = "919222222222";
+  legacyRow[12] = "Dr. Legacy Assignee";
+
+  const partitioned = partitionExpertCaseRows([
+    EXPERT_CASE_HEADERS,
+    legacyRow,
+    compatibleRow
+  ]);
+
+  assert.equal(partitioned.compatible.length, 1);
+  assert.equal(partitioned.compatible[0].rowNumber, 3);
+  assert.equal(partitioned.excluded.length, 1);
+  assert.equal(partitioned.excluded[0].rowNumber, 2);
+  assert.deepEqual(
+    assessExpertCaseRow(legacyRow, EXPERT_CASE_HEADERS).reasons,
+    [
+      "SOURCE_MESSAGE_ID_MISSING_OR_MISALIGNED",
+      "STATUS_UNKNOWN_OR_MISALIGNED"
+    ]
+  );
+  assert.equal(
+    findFarmerCases(
+      [EXPERT_CASE_HEADERS, legacyRow, compatibleRow],
+      "919222222222",
+      true
+    ).length,
+    0
+  );
 });
 
 test("Case IDs remain unique even when generated in the same millisecond", function () {

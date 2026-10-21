@@ -25,6 +25,16 @@ const PILOT_CASE_STATUSES = Object.freeze({
   CLOSED: "Closed"
 });
 
+const COMPATIBLE_CASE_STATUSES = new Set([
+  "pending expert notification",
+  "assigned",
+  "expert replied",
+  "farmer follow-up",
+  "closed",
+  "cancelled",
+  "resolved"
+]);
+
 function clean(value) {
   return value == null ? "" : String(value).trim();
 }
@@ -202,16 +212,63 @@ function deriveExpertTopic(problem, category, crop) {
   return clean(crop) || "Agricultural Question";
 }
 
-function readExpertCaseRows(sheetRows) {
+function assessExpertCaseRow(row, headers) {
+  const safeRow = Array.isArray(row) ? row : [];
+  const headerMap = makeHeaderMap(headers || []);
+  const caseId = clean(getHeaderValue(safeRow, headerMap, "Case_ID"));
+  const whatsapp = clean(getHeaderValue(safeRow, headerMap, "WhatsApp"));
+  const status = clean(getHeaderValue(safeRow, headerMap, "Status"));
+  const sourceMessageId = clean(
+    getHeaderValue(safeRow, headerMap, "Source_Message_ID")
+  );
+  const reasons = [];
+
+  if (!caseId) reasons.push("CASE_ID_MISSING");
+  if (!whatsapp) reasons.push("WHATSAPP_MISSING_OR_MISALIGNED");
+  if (!sourceMessageId) reasons.push("SOURCE_MESSAGE_ID_MISSING_OR_MISALIGNED");
+  if (!COMPATIBLE_CASE_STATUSES.has(status.toLowerCase())) {
+    reasons.push("STATUS_UNKNOWN_OR_MISALIGNED");
+  }
+
+  return {
+    compatible: reasons.length === 0,
+    reasons,
+    caseId
+  };
+}
+
+function partitionExpertCaseRows(sheetRows) {
   const rows = Array.isArray(sheetRows) ? sheetRows : [];
   const headers = rows[0] || [];
+  const compatible = [];
+  const excluded = [];
+
+  rows.slice(1).forEach(function (row, index) {
+    const assessment = assessExpertCaseRow(row, headers);
+    const item = {
+      row,
+      rowNumber: index + 2,
+      assessment
+    };
+
+    if (assessment.compatible) compatible.push(item);
+    else excluded.push(item);
+  });
+
+  return { headers, compatible, excluded };
+}
+
+function readExpertCaseRows(sheetRows) {
+  const partitioned = partitionExpertCaseRows(sheetRows);
+  const headers = partitioned.headers;
   const headerMap = makeHeaderMap(headers);
 
-  return rows.slice(1).map(function (row, index) {
+  return partitioned.compatible.map(function (item) {
+    const row = item.row;
     return {
       headers: headers,
       row: row,
-      rowNumber: index + 2,
+      rowNumber: item.rowNumber,
       caseId: clean(getHeaderValue(row, headerMap, "Case_ID")),
       sourceMessageId: clean(
         getHeaderValue(row, headerMap, "Source_Message_ID")
@@ -229,8 +286,6 @@ function readExpertCaseRows(sheetRows) {
       crop: clean(getHeaderValue(row, headerMap, "Crop")),
       dateTime: clean(getHeaderValue(row, headerMap, "Date_Time"))
     };
-  }).filter(function (record) {
-    return Boolean(record.caseId);
   });
 }
 
@@ -607,12 +662,14 @@ module.exports = {
   deriveExpertTopic,
   findExpertCaseById,
   findFarmerCases,
+  assessExpertCaseRow,
   getExpertAdviceAction,
   latestCaseHistoryMessage,
   normalizeActionText,
   parseExpertCaseAction,
   processExpertReply,
   processFarmerFollowUp,
+  partitionExpertCaseRows,
   readExpertCaseRows,
   shouldCreateExpertCase
 };

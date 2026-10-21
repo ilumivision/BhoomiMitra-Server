@@ -3,7 +3,8 @@
 const crypto = require("crypto");
 const {
   createExpertQuestionId,
-  deriveExpertTopic
+  deriveExpertTopic,
+  assessExpertCaseRow
 } = require("./expertAdviceFlow");
 
 const EXPERT_CASE_HEADERS = [
@@ -1253,7 +1254,8 @@ async function assignExpertCase(options) {
 
     const headerMap = makeHeaderMap(headers);
     const duplicate = (caseRows || []).slice(1).find(function (row) {
-      return clean(getHeaderValue(row, headerMap, "Source_Message_ID")) === sourceMessageId;
+      return assessExpertCaseRow(row, headers).compatible &&
+        clean(getHeaderValue(row, headerMap, "Source_Message_ID")) === sourceMessageId;
     });
 
     if (duplicate) {

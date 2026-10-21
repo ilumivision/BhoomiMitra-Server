@@ -144,19 +144,25 @@ function createBhoomiMitraUI(options) {
   // LANGUAGE SELECTION
   // ===================================================
 
-  async function sendLanguageSelection(to) {
+  async function sendLanguageSelection(to, options) {
+    const includeWelcome = !options || options.includeWelcome !== false;
+    const selectionText = includeWelcome
+      ? (
+          "🌱 ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം!\n" +
+          "മണ്ണിന്റെ നന്മയ്ക്ക്, കർഷകന്റെ കൂട്ടായി.\n\n" +
+          "കൃഷി, മൃഗസംരക്ഷണം, കാലാവസ്ഥ, വിപണിവില, പരിശീലനം, സർക്കാർ പദ്ധതികൾ എന്നിവയിൽ സഹായം. ചോദിക്കാം, സംസാരിക്കാം, ഫോട്ടോ അയയ്ക്കാം.\n\n" +
+          "Welcome to BhoomiMitra, your farming companion. Ask by text or voice, or send a crop photo.\n\n" +
+          "🌐 ഭാഷ തിരഞ്ഞെടുക്കുക / Choose language"
+        )
+      : "🌐 ഭാഷ തിരഞ്ഞെടുക്കുക / Choose your preferred language";
+
     return sendInteractiveMessage(
       to,
       {
         type: "button",
 
         body: {
-          text:
-            "🌱 ഭൂമിമിത്രയിലേക്ക് സ്വാഗതം!\n" +
-            "മണ്ണിന്റെ നന്മയ്ക്ക്, കർഷകന്റെ കൂട്ടായി.\n\n" +
-            "കൃഷി, മൃഗസംരക്ഷണം, കാലാവസ്ഥ, വിപണിവില, പരിശീലനം, സർക്കാർ പദ്ധതികൾ എന്നിവയിൽ സഹായം. ചോദിക്കാം, സംസാരിക്കാം, ഫോട്ടോ അയയ്ക്കാം.\n\n" +
-            "Welcome to BhoomiMitra, your farming companion. Ask by text or voice, or send a crop photo.\n\n" +
-            "🌐 ഭാഷ തിരഞ്ഞെടുക്കുക / Choose language"
+          text: selectionText
         },
 
         action: {
@@ -179,6 +185,30 @@ function createBhoomiMitraUI(options) {
         }
       }
     );
+  }
+
+  async function sendRegisteredHelpPrompt(to, language) {
+    const ml = String(language || "Malayalam").toLowerCase() !== "english";
+
+    return sendInteractiveMessage(to, {
+      type: "button",
+      body: {
+        text: ml
+          ? "🌱 BhoomiMitra\nഇന്ന് നിങ്ങളെ എങ്ങനെ സഹായിക്കാം?"
+          : "🌱 BhoomiMitra\nHow can I help you today?"
+      },
+      action: {
+        buttons: [
+          {
+            type: "reply",
+            reply: {
+              id: "NAV_HOME",
+              title: ml ? "പ്രധാന മെനു" : "Main Menu"
+            }
+          }
+        ]
+      }
+    });
   }
 
   async function sendConsentPrompt(to) {
@@ -3475,6 +3505,7 @@ return {
   sendInteractiveMessage,
   sendOptionalWelcomeMedia,
   sendLanguageSelection,
+  sendRegisteredHelpPrompt,
   sendConsentPrompt,
   sendMainMenu,
   sendMainMenuMore,

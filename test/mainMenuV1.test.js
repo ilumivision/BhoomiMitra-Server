@@ -7,7 +7,10 @@ const { createBhoomiMitraUI } = require("../utils/bhoomiMitraUI");
 const { ANIMAL_ACTION_IDS, parseAnimalAction } = require("../utils/animalHusbandry");
 const { SCHEME_ACTION_IDS, parseSchemeAction } = require("../utils/schemes");
 const { TRAINING_ACTION_IDS, parseTrainingAction } = require("../utils/training");
-const { shouldShowWhatsNew } = require("../utils/whatsNew");
+const {
+  canAutoShowWhatsNewAfterText,
+  shouldShowWhatsNew
+} = require("../utils/whatsNew");
 
 const EXPECTED_MAIN_IDS = [
   "HOME_ASK",
@@ -227,5 +230,14 @@ test("Hi Hello MENU HOME and BACK remain free of unsolicited What's New", functi
   ["Hi", "Hello", "MENU", "HOME", "BACK", "MAIN_MENU", "NAV_HOME", "HOME_MORE"].forEach(function (trigger) {
     assert.equal(shouldShowWhatsNew(trigger), false, trigger);
   });
+  ["Hi", "Hello", "MENU", "HOME", "BACK", "ഹായ്", "മെനു", "പിന്നോട്ട്"].forEach(
+    function (trigger) {
+      assert.equal(canAutoShowWhatsNewAfterText(trigger), false, trigger);
+    }
+  );
+  assert.equal(
+    canAutoShowWhatsNewAfterText("Why are my pepper leaves yellow?"),
+    true
+  );
   assert.equal(shouldShowWhatsNew("WHATS_NEW"), true);
 });

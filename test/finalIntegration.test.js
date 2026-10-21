@@ -12,7 +12,6 @@ const {
   FEATURE_CATALOGUE
 } = require("../utils/whatsNew");
 const {
-  getReturningWelcome,
   hasCurrentConsent
 } = require("../utils/onboarding");
 const {
@@ -160,13 +159,6 @@ test("onboarding reuses only accepted current-version consent", function () {
   assert.equal(hasCurrentConsent(Object.assign({}, current, {
     consent: Object.assign({}, current.consent, { consentStatus: "DECLINED" })
   }), versions), false);
-});
-
-test("returning-user welcome is short bilingual-safe guidance", function () {
-  assert.match(getReturningWelcome("English"), /Welcome back/);
-  assert.match(getReturningWelcome("English"), /text, voice, or photo/);
-  assert.match(getReturningWelcome("Malayalam"), /വീണ്ടും സ്വാഗതം/);
-  assert.match(getReturningWelcome("Malayalam"), /വോയ്സ്\/ഫോട്ടോ/);
 });
 
 test("welcome media is optional and delivery failure never rejects onboarding", async function () {

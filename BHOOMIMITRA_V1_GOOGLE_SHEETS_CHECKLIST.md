@@ -1,6 +1,6 @@
 # BhoomiMitra Version 1.0.0 — Google Sheets readiness checklist
 
-This is a manual provisioning and read-only verification guide. Prompt 6 did **not** access or modify the production workbook. “Locally verified” means the contract is exercised by source code and mocked automated tests; it does not mean the live tab exists or has been audited.
+This is a manual provisioning and read-only verification guide. The authorised October 2026 read-only audit confirmed that all 37 required V1 tabs exist in the one Master workbook. This compatibility correction did **not** reconnect to or modify that workbook; it uses the audited header report plus mocked fixtures. Any older per-row “live unverified” wording below records the original provisioning checklist state and does not override the later 37-tab presence result.
 
 ## Core identity and access tabs
 
@@ -10,8 +10,8 @@ This is a manual provisioning and read-only verification guide. Prompt 6 did **n
 | `Master_Member_Registry` | `BM_ID`, `Name`; existing phone, location, membership and status columns must retain their live positions/aliases. | Cross-category member registry; read/write through guarded synchronization. | Farmer rows reuse the existing `Farmer_ID` as `BM_ID`. | Existing expected; live unverified; manual audit required. |
 | `User_Consent_Log` | Exact A:M contract: `Consent_ID`, `WhatsApp`, `Farmer_ID`, `Agreement_Version`, `Privacy_Policy_Version`, `Consent_Status`, `Consent_Date`, `Withdrawal_Date`, `Source`, `Policy_Language`, `Remarks`, `Created_At`, `Updated_At`. | Append-only consent history; read/write. | WhatsApp is usable before registration; `Farmer_ID` may be blank during first-time consent. | Existing expected; locally verified; live unverified. Do not edit prior decisions. |
 | `Expert_Directory` | `Expert_ID`, `Name`, `Mobile_No`, `WhatsApp_No`, `District`, `Organization`, `Department`, `Designation`, `Expert_Group`, `Specialization`, `Availability`, `Auto_Route`, `Status`, `Verification_Status`, `Active_Status`, `Total_Consultations`, `Average_Rating`, `Farmers_Assigned`, `AI_Priority`. | Verified expert routing; read/write for approved operational fields. | `Expert_ID` is referenced by `Expert_Cases`. | Existing expected; live unverified; use the read-only audit because several columns are position-sensitive. |
-| `Expert_Cases` | Required existing case contract including `Case_ID`, farmer `WhatsApp`, `Status`, assigned expert identity/contact, farmer question, expert reply, timestamps and source message ID. | Expert case creation, assignment, reply and follow-up; read/write. | Preserves `Case_ID`; relates farmer sender to an assigned `Expert_ID`. | Existing expected; locally verified; live unverified. |
-| `Skilled Workers` | `Worker_ID`, `Name`, `Skill Category` (or retained aliases), service district, availability and status. | Worker lookup and registration; read/write. | Worker identity is independent of Farmer IDs. | Existing expected; live unverified. |
+| `Expert_Cases` | Required existing A:AD case contract including `Case_ID`, farmer `WhatsApp`, approved `Status`, assigned expert identity/contact, farmer question, expert reply, timestamps and `Source_Message_ID`. | Expert case creation, assignment, reply and follow-up; read/write. Ambiguous legacy rows are excluded from live routing and are never rewritten automatically. | Preserves `Case_ID`; relates farmer sender to an assigned `Expert_ID`. | New rows are header-mapped. Legacy rows without an aligned WhatsApp, approved status and source message ID require a separately approved offline review. |
+| `Skilled Workers` | `Worker_ID`, `Name`, `Skill Category` (or retained aliases), service district, availability and status. District aliases include the existing `Distrct` and `Working Distrct` spellings. | Worker lookup and registration; read/write. | Worker identity is independent of Farmer IDs. | Existing tab is accepted without renaming the audited district column. |
 | `Workforce Providers` | `Provider_ID`, `Provider Name`, `Contact Person`, `Service Category`, served districts, availability and status. | Machinery/service lookup and provider registration; read/write. | Provider identity is independent of Farmer IDs. | Existing expected; live unverified. |
 
 ## Land, GPS and satellite tabs
@@ -58,17 +58,13 @@ This is a manual provisioning and read-only verification guide. Prompt 6 did **n
 
 ## Soil, conversation and operational history tabs
 
-Existing required tabs include `Soil_Location_Profile`, `Soil_Test_Repository`, `Soil_Recommendation_Rules`, `Soil_Data_Log`, `AI_Conversation_History`, `AI_Response_Log`, `Farmer_Queries`, and `AI_Memory`. Their current headers and positions must be preserved. The soil implementation was not modified by Prompt 6. These tabs are expected existing and remain **live unverified**; use the existing read-only audit before pilot sign-off.
+Existing required tabs include `Soil_Location_Profile`, `Soil_Test_Repository`, `Soil_Recommendation_Rules`, `Soil_Data_Log`, `AI_Conversation_History`, `AI_Response_Log`, `Farmer_Queries`, and `AI_Memory`. Their audited headers and positions remain unchanged. `Soil_Location_Profile` is now read by header across A:AK, including `Soil_Profile_ID`, coordinates, location, `Soil_Texture`, `Predicted_pH`, carbon, nitrogen and remarks. Phosphorus and potassium remain unavailable when those headers are absent; the application does not fabricate them. The three AI/query writers now map values to the audited production header rows and fail closed on missing or duplicate required headers.
 
-## Optional feature-announcement persistence
+## Feature-announcement persistence
 
-No live tab is required by Prompt 6. A safe process-memory fallback is implemented and explicitly reports `SESSION_MEMORY_ONLY`; acknowledgement is lost on restart and is never described as persistent.
+No Google Sheet tab or column is required. Automatic delivery and dismissal state uses a privacy-preserving companion JSON file beside the existing WhatsApp webhook message ledger. Farmer keys are SHA-256 hashes, and the state is written before an automatic announcement is attempted so retries and same-filesystem process restarts cannot display it twice. Explicit What's New menu requests remain repeatable.
 
-If persistent acknowledgement is later approved, manually provision proposed tab `Feature_Announcements` with:
-
-`Farmer_ID`, `Feature_ID`, `Shown_At`, `Acknowledged_At`, `Action` (`TRY` or `DISMISS`), `Catalogue_Release_Date`, `Updated_At`.
-
-This tab is **proposed, absent/unverified, and not read or written by V1 code**. Approval, privacy review and a separate implementation are required.
+On Render, durable behaviour across replacement instances or redeployments depends on `WHATSAPP_MESSAGE_STATE_FILE` being located on an attached persistent disk. Without that disk, state survives only while the instance filesystem remains intact. Do not add a `Feature_Announcements` tab for V1.
 
 ## Manual readiness actions
 

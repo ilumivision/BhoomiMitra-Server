@@ -103,11 +103,18 @@ const {
   formatPrivacyPolicy
 } = require("./utils/privacySelfService");
 const {
+  canAutoShowWhatsNewAfterText,
   createFeatureDiscovery,
   shouldShowWhatsNew
 } = require("./utils/whatsNew");
 const {
-  getReturningWelcome,
+  getMissingPreferenceAction,
+  shouldSendRegisteredHelpPrompt
+} = require("./utils/greetingPolicy");
+const {
+  createAiSheetLogger
+} = require("./utils/aiSheetLogging");
+const {
   hasCurrentConsent
 } = require("./utils/onboarding");
 const {
@@ -537,6 +544,10 @@ const WHATSAPP_MESSAGE_STATE_FILE =
     ".runtime",
     "whatsapp-message-state.json"
   );
+const WHATS_NEW_STATE_FILE = path.join(
+  path.dirname(WHATSAPP_MESSAGE_STATE_FILE),
+  "whats-new-state.json"
+);
 
 const webhookMessageLedger = createMessageLedger({
   filePath: WHATSAPP_MESSAGE_STATE_FILE,
@@ -1118,7 +1129,9 @@ const farmAlertSessions = {};
 const cropFarmSessions = {};
 const animalHusbandrySessions = {};
 const whatsNewSelections = {};
-const featureDiscovery = createFeatureDiscovery();
+const featureDiscovery = createFeatureDiscovery({
+  filePath: WHATS_NEW_STATE_FILE
+});
 const registrationCoordinator =
   createRegistrationCoordinator();
 let sheetMetadataCache = null;
@@ -1190,11 +1203,12 @@ async function sendStatusAwareHome(from, language, status, includeNotice) {
 async function showWhatsNew(from, language, explicit) {
   const feature = explicit
     ? featureDiscovery.firstAvailable({ userCategory: "FARMER" })
-    : featureDiscovery.select(from, { userCategory: "FARMER" });
+    : featureDiscovery.claim(from, { userCategory: "FARMER" });
 
   if (feature) {
     whatsNewSelections[from] = feature;
-    featureDiscovery.markShown(from, feature.id);
+  } else if (!explicit) {
+    return false;
   }
 
   await bhoomiMitraUI.sendWhatsNewAnnouncement(
@@ -1203,6 +1217,12 @@ async function showWhatsNew(from, language, explicit) {
     feature,
     Boolean(explicit)
   );
+
+  if (feature) {
+    featureDiscovery.markShown(from, feature.id);
+  }
+
+  return Boolean(feature);
 }
 
 const SHEETS = {
@@ -1223,6 +1243,13 @@ soilTestRepository: "Soil_Test_Repository",
 soilRecommendationRules: "Soil_Recommendation_Rules",
 soilDataLog: "Soil_Data_Log"
 };
+
+const aiSheetLogger = createAiSheetLogger({
+  readSheetRows,
+  appendSafe,
+  sheets: SHEETS,
+  model: OPENAI_MODEL
+});
 
 const SYSTEM_PROMPT = [
   "You are BhoomiMitra, Kerala's Agriculture and Allied Sector AI Assistant, developed by IlumiVision.",
@@ -4496,10 +4523,13 @@ if (
           navigationAction === "LANGUAGE_MENU"
         ) {
           pendingLanguageSelections[from] =
-            true;
+            { includeWelcome: false };
 
           await bhoomiMitraUI
-            .sendLanguageSelection(from);
+            .sendLanguageSelection(
+              from,
+              { includeWelcome: false }
+            );
 
           return;
         }
@@ -5898,10 +5928,13 @@ const languageChangeRequested =
   );
 
 if (languageChangeRequested) {
-  pendingLanguageSelections[from] = true;
+  pendingLanguageSelections[from] = {
+    includeWelcome: false
+  };
 
   await bhoomiMitraUI.sendLanguageSelection(
-  from
+    from,
+    { includeWelcome: false }
 );
 
   return;
@@ -5915,7 +5948,8 @@ if (pendingLanguageSelections[from]) {
 
   if (!selectedLanguage) {
    await bhoomiMitraUI.sendLanguageSelection(
-  from
+     from,
+     { includeWelcome: false }
 );
 
     return;
@@ -5951,25 +5985,12 @@ delete pendingLanguageSelections[from];
 const registrationAccessAfterLanguageSelection =
   await resolveCurrentUserRegistration(from);
 
-if (!isLimitedAccessState(registrationAccessAfterLanguageSelection)) {
-  await sendWhatsAppMessage(
-    from,
-    getReturningWelcome(selectedLanguage)
-  );
-  await sendStatusAwareHome(
-    from,
-    selectedLanguage,
-    registrationAccessAfterLanguageSelection,
-    false
-  );
-} else {
-  await sendStatusAwareHome(
-    from,
-    selectedLanguage,
-    registrationAccessAfterLanguageSelection,
-    true
-  );
-}
+await sendStatusAwareHome(
+  from,
+  selectedLanguage,
+  registrationAccessAfterLanguageSelection,
+  isLimitedAccessState(registrationAccessAfterLanguageSelection)
+);
 
 return;
 }
@@ -5993,17 +6014,33 @@ if (!userLanguagePreferences[from]) {
     userLanguagePreferences[from] =
       savedPreferredLanguage;
   } else {
-    pendingLanguageSelections[from] = true;
+    const languageAccess =
+      await resolveCurrentUserRegistration(from);
+    const missingPreferenceAction =
+      getMissingPreferenceAction(languageAccess);
 
-    if (!existingFarmerForLanguage) {
-      await bhoomiMitraUI.sendOptionalWelcomeMedia(from);
+    if (missingPreferenceAction === "INFER_WITHOUT_WELCOME") {
+      userLanguagePreferences[from] =
+        detectLanguage(userText, "Malayalam");
+    } else {
+      const includeWelcome =
+        missingPreferenceAction === "WELCOME_AND_SELECT";
+
+      pendingLanguageSelections[from] = {
+        includeWelcome: includeWelcome
+      };
+
+      if (includeWelcome) {
+        await bhoomiMitraUI.sendOptionalWelcomeMedia(from);
+      }
+
+     await bhoomiMitraUI.sendLanguageSelection(
+       from,
+       { includeWelcome: includeWelcome }
+  );
+
+      return;
     }
-
-   await bhoomiMitraUI.sendLanguageSelection(
-  from
-);
-
-    return;
   }
 }
 const regReply =
@@ -6013,7 +6050,7 @@ const regReply =
   );
 
 if (regReply) {
-  await routeRegistrationWebhookResult({
+  const registrationRoute = await routeRegistrationWebhookResult({
     registrationResult: regReply,
     from,
     userText,
@@ -6032,6 +6069,25 @@ if (regReply) {
       );
     }
   });
+
+  if (
+    typeof regReply === "object" &&
+    regReply.registrationCompleted &&
+    hasRegisteredFarmerAccess(registrationRoute.access)
+  ) {
+    try {
+      await showWhatsNew(
+        from,
+        userLanguagePreferences[from] || "Malayalam",
+        false
+      );
+    } catch (error) {
+      logSafeError(
+        "Automatic feature announcement skipped.",
+        error
+      );
+    }
+  }
 
   return;
 }    
@@ -6093,10 +6149,13 @@ if (
       .toLowerCase()
   )
 ) {
-  pendingLanguageSelections[from] = true;
+  pendingLanguageSelections[from] = {
+    includeWelcome: false
+  };
 
   await bhoomiMitraUI.sendLanguageSelection(
-  from
+    from,
+    { includeWelcome: false }
 );
   return;
 }
@@ -6107,11 +6166,18 @@ if (isMenuCommand(userText)) {
     createMenuSession();
 
   const welcomeLanguage = userLanguagePreferences[from] || "Malayalam";
-  if (!isLimitedAccessState(menuAccess)) {
-    await sendWhatsAppMessage(
+  if (
+    shouldSendRegisteredHelpPrompt(
+      menuAccess,
+      userText,
+      message.type
+    )
+  ) {
+    await bhoomiMitraUI.sendRegisteredHelpPrompt(
       from,
-      getReturningWelcome(welcomeLanguage)
+      welcomeLanguage
     );
+    return;
   }
 
   await sendStatusAwareHome(
@@ -10142,6 +10208,27 @@ await sendWhatsAppMessage(
   responseText
 );
 
+try {
+  const announcementAccess =
+    await resolveCurrentUserRegistration(from);
+
+  if (
+    hasRegisteredFarmerAccess(announcementAccess) &&
+    canAutoShowWhatsNewAfterText(userText)
+  ) {
+    await showWhatsNew(
+      from,
+      userLanguagePreferences[from] || "English",
+      false
+    );
+  }
+} catch (error) {
+  logSafeError(
+    "Automatic feature announcement skipped.",
+    error
+  );
+}
+
 Promise.all([
   logAI(
     from,
@@ -10152,15 +10239,13 @@ Promise.all([
       : "ai_reply"
   ),
 
-  appendSafe(
-    SHEETS.farmerQueries,
-    [
-      new Date().toISOString(),
-      from,
-      userText,
-      responseText,
-      "Open"
-    ]
+  aiSheetLogger.logFarmerQuery(
+    from,
+    userText,
+    responseText,
+    activeCase
+      ? "case_followup"
+      : "ai_reply"
   )
 ])
 .catch(function (error) {
@@ -13340,20 +13425,12 @@ async function readSheetRows(sheetName, range) {
   }
 }
 async function logAI(from, userText, reply, type) {
-  await appendSafe(SHEETS.aiLog, [
-    new Date().toISOString(),
+  return aiSheetLogger.logAI(
     from,
-    type,
     userText,
-    reply
-  ]);
-
-  await appendSafe(SHEETS.conversation, [
-    new Date().toISOString(),
-    from,
     reply,
-    "outgoing"
-  ]);
+    type
+  );
 }
 
 function limitWhatsAppText(text) {

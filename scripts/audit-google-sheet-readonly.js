@@ -29,6 +29,14 @@ function fields() {
   });
 }
 
+function positions(headers) {
+  const result = {};
+  (headers || []).forEach(function (header, index) {
+    result[index] = [header];
+  });
+  return result;
+}
+
 const TAB_SCHEMAS = {
   Farmers: {
     idAliases: ["Farmer_ID", "Farmer ID", "BM_ID", "Member_ID"],
@@ -286,49 +294,46 @@ const TAB_SCHEMAS = {
     )
   },
   Soil_Location_Profile: {
-    idAliases: ["Profile_ID", "Profile ID"],
-    expectedPositions: {
-      0: ["Profile_ID", "Profile ID"],
-      1: ["Latitude"],
-      2: ["Longitude"],
-      3: ["District"],
-      4: ["Block"],
-      5: ["Panchayath", "Panchayat"],
-      6: ["Village"],
-      7: ["Soil_Type", "Soil Type"],
-      8: ["pH", "PH"],
-      9: ["Organic_Carbon", "Organic Carbon"],
-      10: ["Nitrogen"],
-      11: ["Phosphorus"],
-      12: ["Potassium"],
-      13: ["Remarks"]
-    }
+    idAliases: ["Soil_Profile_ID", "Profile_ID", "Profile ID"],
+    expectedPositions: positions([
+      "Soil_Profile_ID", "Date_Time", "Farmer_ID", "Field_ID", "WhatsApp_No",
+      "Latitude", "Longitude", "District", "Block", "Panchayat", "Village",
+      "Survey_Number", "Elevation_m", "Slope_Percent", "Slope_Class", "Land_Use",
+      "Soil_Texture", "Predicted_pH", "pH_Class", "Organic_Carbon_g_kg",
+      "Total_Nitrogen_g_kg", "Clay_Percent", "Sand_Percent", "Silt_Percent",
+      "CEC_cmol_kg", "Bulk_Density", "Coarse_Fragments", "Drainage_Class",
+      "Erosion_Risk", "Data_Source", "Source_Version", "Source_Date",
+      "Confidence_Level", "Advisory_Status", "Created_On", "Last_Updated", "Remarks"
+    ])
   },
   AI_Conversation_History: {
-    expectedPositions: {
-      0: ["Timestamp", "Date_Time", "Date Time"],
-      1: ["From", "WhatsApp", "User"],
-      2: ["Reply", "Response", "Message"],
-      3: ["Direction", "Type"]
-    }
+    expectedPositions: positions([
+      "Conversation_ID", "Session_ID", "User_ID", "Farmer_ID", "WhatsApp_No",
+      "Date_Time", "Language", "Question", "Intent", "Crop", "Variety",
+      "Growth_Stage", "Livestock", "Fishery", "State", "District", "Block",
+      "Panchayat", "Village", "Latitude", "Longitude", "Weather_Event",
+      "Weather_Condition", "Weather_Source", "Temperature_C", "Humidity_Percent",
+      "Rainfall_mm", "Soil_Type", "AI_Response", "Expert_Correction",
+      "Final_Response", "Action_Taken", "Source_Institute", "Reference_Document",
+      "Reference_Link", "AI_Confidence", "Escalated_To_Expert", "Expert_Name",
+      "Response_Time_Seconds", "User_Feedback", "Feedback_Rating",
+      "Conversation_Status", "Created_On", "Last_Updated", "Remarks"
+    ])
   },
   AI_Response_Log: {
-    expectedPositions: {
-      0: ["Timestamp", "Date_Time", "Date Time"],
-      1: ["From", "WhatsApp", "User"],
-      2: ["Type", "Response_Type", "Response Type"],
-      3: ["User_Text", "User Text", "Query"],
-      4: ["Reply", "Response"]
-    }
+    expectedPositions: positions([
+      "Log_ID", "DateTime", "Phone", "Member_ID", "Member_Name", "Language",
+      "Farmer_Message", "AI_Reply", "Source", "Knowledge_Source",
+      "Confidence_Score", "AI_Model", "Response_Time_ms", "Escalated",
+      "Assigned_Expert", "Followup_Needed", "Feedback_Rating", "Conversation_ID",
+      "WhatsApp_Message_ID", "Created_On", "Updated_On"
+    ])
   },
   Farmer_Queries: {
-    expectedPositions: {
-      0: ["Timestamp", "Date_Time", "Date Time"],
-      1: ["From", "WhatsApp", "User"],
-      2: ["Query", "User_Text", "User Text"],
-      3: ["Response", "Reply"],
-      4: ["Status"]
-    }
+    expectedPositions: positions([
+      "Query_ID", "Date", "Farmer_ID", "Farmer_Name", "Category", "Question",
+      "Answer", "Answered_By", "Status", "Remarks"
+    ])
   },
   AI_Memory: {},
   Soil_Test_Repository: {},
@@ -699,9 +704,43 @@ function compareMemberTabs(lookup) {
 function auditExpertCases(audit) {
   if (!audit) return { present: false };
   const widths = {};
+  const statusIndex = findHeaderIndex(audit._headers, ["Status"]);
+  const whatsappIndex = findHeaderIndex(
+    audit._headers,
+    ["WhatsApp", "Farmer_WhatsApp", "Farmer WhatsApp"]
+  );
+  const sourceMessageIndex = findHeaderIndex(
+    audit._headers,
+    ["Source_Message_ID", "Source Message ID"]
+  );
+  const compatibleStatuses = new Set([
+    "pending expert notification", "assigned", "expert replied",
+    "farmer follow-up", "closed", "cancelled", "resolved"
+  ]);
+  const exclusions = {
+    missingOrMisalignedWhatsApp: 0,
+    missingOrMisalignedSourceMessageId: 0,
+    unknownOrMisalignedStatus: 0
+  };
+  let compatibleCurrentRows = 0;
+
   audit._nonblankRows.forEach(function (entry) {
     const width = entry.row.length;
     widths[width] = (widths[width] || 0) + 1;
+
+    const hasWhatsApp = whatsappIndex >= 0 && clean(entry.row[whatsappIndex]);
+    const hasSourceMessage =
+      sourceMessageIndex >= 0 && clean(entry.row[sourceMessageIndex]);
+    const hasCompatibleStatus = statusIndex >= 0 && compatibleStatuses.has(
+      clean(entry.row[statusIndex]).toLowerCase()
+    );
+
+    if (!hasWhatsApp) exclusions.missingOrMisalignedWhatsApp += 1;
+    if (!hasSourceMessage) exclusions.missingOrMisalignedSourceMessageId += 1;
+    if (!hasCompatibleStatus) exclusions.unknownOrMisalignedStatus += 1;
+    if (hasWhatsApp && hasSourceMessage && hasCompatibleStatus) {
+      compatibleCurrentRows += 1;
+    }
   });
   const headerN = clean(audit._headers[13]);
   return {
@@ -714,7 +753,11 @@ function auditExpertCases(audit) {
     }),
     dataRowWidthDistribution: widths,
     rowsWithAtLeast18Columns: audit._nonblankRows.filter(function (entry) { return entry.row.length >= 18; }).length,
-    rowsWithAtLeast21Columns: audit._nonblankRows.filter(function (entry) { return entry.row.length >= 21; }).length
+    rowsWithAtLeast21Columns: audit._nonblankRows.filter(function (entry) { return entry.row.length >= 21; }).length,
+    compatibleCurrentRows,
+    excludedLegacyOrAmbiguousRows:
+      audit._nonblankRows.length - compatibleCurrentRows,
+    exclusionReasonCounts: exclusions
   };
 }
 

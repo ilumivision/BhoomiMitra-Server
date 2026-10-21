@@ -7,6 +7,34 @@ const {
 } = require("../soilModule");
 const { safeErrorDetails } = require("./webhookSecurity");
 
+function normalizeHeader(value) {
+  return String(value == null ? "" : value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function makeHeaderMap(headers) {
+  const map = Object.create(null);
+
+  (headers || []).forEach(function (header, index) {
+    const key = normalizeHeader(header);
+    if (key && map[key] === undefined) map[key] = index;
+  });
+
+  return map;
+}
+
+function getHeaderValue(row, headerMap, aliases) {
+  for (const alias of aliases || []) {
+    const index = headerMap[normalizeHeader(alias)];
+    if (index !== undefined) {
+      return row && row[index] != null ? row[index] : "";
+    }
+  }
+  return "";
+}
+
 function normaliseCoordinate(value) {
   const number = Number(value);
 
@@ -59,7 +87,7 @@ function createSoilModule(options = {}) {
 
     const rows = await readSheetRows(
       sheetName,
-      "A:Z"
+      "A:AK"
     );
 
     if (
@@ -82,14 +110,21 @@ function createSoilModule(options = {}) {
       return null;
     }
 
+    const headerMap = makeHeaderMap(rows[0]);
+    const latitudeAliases = ["Latitude"];
+    const longitudeAliases = ["Longitude"];
     let nearest = null;
 
     rows.slice(1).forEach(function (row) {
       const savedLatitude =
-        normaliseCoordinate(row[1]);
+        normaliseCoordinate(
+          getHeaderValue(row, headerMap, latitudeAliases)
+        );
 
       const savedLongitude =
-        normaliseCoordinate(row[2]);
+        normaliseCoordinate(
+          getHeaderValue(row, headerMap, longitudeAliases)
+        );
 
       if (
         savedLatitude === null ||
@@ -129,20 +164,52 @@ function createSoilModule(options = {}) {
     return {
       source:
         "BhoomiMitra Soil Database",
-      profileId: row[0] || "",
-      latitude: row[1] || "",
-      longitude: row[2] || "",
-      district: row[3] || "",
-      block: row[4] || "",
-      panchayath: row[5] || "",
-      village: row[6] || "",
-      soilType: row[7] || "",
-      ph: row[8] || "",
-      organicCarbon: row[9] || "",
-      nitrogen: row[10] || "",
-      phosphorus: row[11] || "",
-      potassium: row[12] || "",
-      remarks: row[13] || ""
+      profileId: getHeaderValue(
+        row,
+        headerMap,
+        ["Soil_Profile_ID", "Profile_ID", "Profile ID"]
+      ),
+      latitude: getHeaderValue(row, headerMap, latitudeAliases),
+      longitude: getHeaderValue(row, headerMap, longitudeAliases),
+      district: getHeaderValue(row, headerMap, ["District"]),
+      block: getHeaderValue(row, headerMap, ["Block"]),
+      panchayath: getHeaderValue(
+        row,
+        headerMap,
+        ["Panchayat", "Panchayath"]
+      ),
+      village: getHeaderValue(row, headerMap, ["Village"]),
+      soilType: getHeaderValue(
+        row,
+        headerMap,
+        ["Soil_Texture", "Soil_Type", "Soil Type", "Texture"]
+      ),
+      ph: getHeaderValue(
+        row,
+        headerMap,
+        ["Predicted_pH", "pH", "PH"]
+      ),
+      organicCarbon: getHeaderValue(
+        row,
+        headerMap,
+        ["Organic_Carbon_g_kg", "Organic_Carbon", "Organic Carbon", "OC"]
+      ),
+      nitrogen: getHeaderValue(
+        row,
+        headerMap,
+        ["Total_Nitrogen_g_kg", "Nitrogen", "N"]
+      ),
+      phosphorus: getHeaderValue(
+        row,
+        headerMap,
+        ["Phosphorus", "Available_Phosphorus", "P"]
+      ),
+      potassium: getHeaderValue(
+        row,
+        headerMap,
+        ["Potassium", "Available_Potassium", "K"]
+      ),
+      remarks: getHeaderValue(row, headerMap, ["Remarks"])
     };
   }
 
@@ -360,3 +427,9 @@ module.exports.normaliseCoordinate =
 
 module.exports.coordinateDistance =
   coordinateDistance;
+
+module.exports.makeHeaderMap =
+  makeHeaderMap;
+
+module.exports.getHeaderValue =
+  getHeaderValue;

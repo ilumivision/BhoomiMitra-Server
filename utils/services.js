@@ -1035,7 +1035,9 @@ function createServiceFinder(options) {
                 headerMap,
                 [
                   "District",
+                  "Distrct",
                   "Working District",
+                  "Working Distrct",
                   "Districts Served"
                 ]
               ),
