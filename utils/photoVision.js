@@ -1,6 +1,11 @@
 const axios = require("axios");
 const OpenAI = require("openai");
 const { safeErrorDetails } = require("./webhookSecurity");
+const {
+    formatWhatsAppAdvisory,
+    languageInstruction,
+    resolveAdvisoryLanguage
+} = require("./advisory");
 function createPhotoVision(options) {
     const input = options || {};
     const httpClient = input.httpClient || axios;
@@ -11,13 +16,27 @@ return async function photoVision(data) {
     try {
         const mediaId = data && data.mediaId ? data.mediaId : null;
         const caption = data && data.caption ? String(data.caption).trim() : "";
+        const preferredLanguage = data && data.preferredLanguage
+            ? data.preferredLanguage
+            : "Malayalam";
+        const advisoryLanguage = data && data.advisoryLanguage
+            ? data.advisoryLanguage
+            : resolveAdvisoryLanguage(
+                caption,
+                preferredLanguage,
+                caption ? "caption" : "image"
+            );
+        const englishReply =
+            String(advisoryLanguage).toLowerCase() === "english";
         const whatsappToken = environment.WHATSAPP_TOKEN;
         if (!mediaId) {
             return {
                 success: false,
                 module: "PHOTO_VISION",
                 text: "Image media not found.",
-                reply: "ചിത്രത്തിന്റെ മീഡിയ ഫയൽ കണ്ടെത്താനായില്ല. ദയവായി ചിത്രം വീണ്ടും അയക്കുക."
+                reply: englishReply
+                    ? "The image media file was not found. Please send the image again."
+                    : "ചിത്രത്തിന്റെ മീഡിയ ഫയൽ കണ്ടെത്താനായില്ല. ദയവായി ചിത്രം വീണ്ടും അയക്കുക."
             };
         }
         if (!whatsappToken) {
@@ -26,7 +45,9 @@ return async function photoVision(data) {
                 success: false,
                 module: "PHOTO_VISION",
                 text: "WhatsApp configuration is incomplete.",
-                reply: "ചിത്രം പരിശോധിക്കാൻ ഇപ്പോൾ കഴിഞ്ഞില്ല. ദയവായി കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
+                reply: englishReply
+                    ? "The image cannot be checked right now. Please try again shortly."
+                    : "ചിത്രം പരിശോധിക്കാൻ ഇപ്പോൾ കഴിഞ്ഞില്ല. ദയവായി കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക."
             };
         }
         console.log("[PHOTO_VISION] Fetching media information.");
@@ -297,16 +318,9 @@ return async function photoVision(data) {
             "------------------------------------------------------------",
 
             "STEP 6: LANGUAGE AND RESPONSE STYLE",
-
-            "If the farmer caption is in Malayalam, reply in Malayalam.",
-
-            "If the farmer caption is in English, reply in English.",
-
-            "If there is no caption, reply in simple English unless user language preference is available.",
-            "If the user writes in Malayalam, reply completely in Malayalam.",
-            "If the user writes in English, reply in English.",
-            "If the user writes in Manglish (Malayalam typed in English letters), reply in Manglish unless the user requests otherwise.",
-            "If the conversation already indicates a preferred language, continue in that language.",
+            "The resolved reply language for this image advisory is: " + advisoryLanguage + ".",
+            languageInstruction(advisoryLanguage),
+            "Do not change the farmer's saved preference because of this image or caption.",
             "Use short headings and simple farmer-friendly language.",
 
           "Keep the total reply within about 250 to 350 words unless the user asks for detailed advice.",
@@ -347,7 +361,7 @@ return async function photoVision(data) {
 
 "If the user asks a question first and sends the image afterwards, analyse the image together with the earlier question.",
 
-"If the user's language changes between English, Malayalam or Manglish, continue replying in the user's preferred language while maintaining the same conversation context.",
+"A language change in one caption does not alter the farmer's saved language preference.",
 
 "If the conversation becomes ambiguous because multiple crops or problems are being discussed, politely ask which crop or problem the user is referring to before giving advice.",
 
@@ -376,9 +390,7 @@ return async function photoVision(data) {
 
 "If several crops or problems are mentioned and the intended case is unclear, ask a short clarification question before diagnosing.",
 
-"The user may communicate in Malayalam, English, Manglish or a mixture of these languages.",
-
-"Reply in the language or language style requested or most recently used by the user.",
+"The user may communicate in Malayalam, English, Manglish or a mixture of these languages, but this response must use the resolved reply language above.",
 
 "Never invent previous context that has not actually been provided to this photo-analysis request.",
 
@@ -546,7 +558,9 @@ return async function photoVision(data) {
             response.choices[0] &&
             response.choices[0].message &&
             response.choices[0].message.content
-                ? response.choices[0].message.content.trim()
+                ? formatWhatsAppAdvisory(
+                    response.choices[0].message.content
+                )
                 : "";
 
         if (!reply) {
@@ -555,8 +569,9 @@ return async function photoVision(data) {
                 module: "PHOTO_VISION",
                 text:
                     "Image received, but I could not analyse it clearly.",
-                reply:
-                    "Image received, but I could not analyse it clearly. Please send a clear whole-plant photo, a close-up of the affected part, and mention the crop name."
+                reply: englishReply
+                    ? "Image received, but I could not analyse it clearly. Please send a clear whole-plant photo, a close-up of the affected part, and mention the crop name."
+                    : "ചിത്രം ലഭിച്ചു, പക്ഷേ വ്യക്തമായി വിശകലനം ചെയ്യാനായില്ല. മുഴുവൻ ചെടിയുടെ ചിത്രവും ബാധിച്ച ഭാഗത്തിന്റെ അടുത്ത ചിത്രവും വിളയുടെ പേരും അയയ്ക്കുക."
             };
         }
 
@@ -572,13 +587,27 @@ return async function photoVision(data) {
             { error: safeErrorDetails(error) }
         );
 
+        const preferredLanguage = data && data.preferredLanguage
+            ? data.preferredLanguage
+            : "Malayalam";
+        const advisoryLanguage = data && data.advisoryLanguage
+            ? data.advisoryLanguage
+            : resolveAdvisoryLanguage(
+                data && data.caption,
+                preferredLanguage,
+                data && data.caption ? "caption" : "image"
+            );
+        const englishReply =
+            String(advisoryLanguage).toLowerCase() === "english";
+
         return {
             success: false,
             module: "PHOTO_VISION",
             text:
                 "Image received, but analysis failed. Please send a clear close-up photo and type crop name, place, symptoms and crop age.",
-            reply:
-                "Image received, but analysis failed. Please send a clear close-up photo and type crop name, place, symptoms and crop age."
+            reply: englishReply
+                ? "Image received, but analysis failed. Please send a clear close-up photo and type the crop name, place, symptoms and crop age."
+                : "ചിത്രം ലഭിച്ചു, പക്ഷേ വിശകലനം പരാജയപ്പെട്ടു. വ്യക്തമായ അടുത്ത ചിത്രം, വിളയുടെ പേര്, സ്ഥലം, ലക്ഷണങ്ങൾ, വിളയുടെ പ്രായം എന്നിവ അയയ്ക്കുക."
         };
     }
 };

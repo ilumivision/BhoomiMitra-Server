@@ -203,11 +203,15 @@ const {
 
 const {
   detectLanguage,
-  getLanguageInstruction,
   parseLanguageSelection,
   getLanguageSelectionMessage,
   normalizePreferredLanguage
 } = require("./utils/language");
+const {
+  buildAdvisoryPrompt,
+  formatWhatsAppAdvisory,
+  resolveAdvisoryLanguage
+} = require("./utils/advisory");
 
 const caseManager = require("./utils/caseManager");
  
@@ -1461,13 +1465,11 @@ const SYSTEM_PROMPT = [
   "Do not fabricate missing records.",
 
   "LANGUAGE:",
-"The user's saved preferred language is the primary and controlling language for all BhoomiMitra replies.",
-"If the saved preference is Malayalam, ALWAYS reply in Malayalam even when the user types the question in English, Manglish, or another language.",
-"If the saved preference is English, ALWAYS reply in English even when the user types the question in Malayalam.",
-"If the saved preference is Bilingual, provide concise Malayalam and English together.",
-"Never infer or change the reply language from the language or script of the current message when a saved language preference is available.",
-"The saved language preference overrides automatic language detection.",
-"Only change the preferred language when the user explicitly requests a language change or changes it through the language setting.",
+  "Use the saved preference for menus, system messages, notifications and navigation controls.",
+  "For an AI advisory question, use the explicitly supplied reply language chosen from the current question when it is clearly Malayalam or clearly English.",
+  "For mixed-language, ambiguous, photo-only or voice-only advisory input, use the saved preference.",
+  "A one-off question in another language never changes the saved preference.",
+  "Only change the preferred language through the explicit existing language-setting workflow.",
 
   "CONVERSATION:",
   "Understand follow-up questions in context.",
@@ -1475,8 +1477,11 @@ const SYSTEM_PROMPT = [
   "Allow the farmer to move naturally between BhoomiMitra services without requiring MENU after every completed service.",
 
   "STYLE:",
-  "Keep farmer-facing answers practical, clear and concise.",
-  "Use simple units and actionable steps.",
+  "Give the direct answer first and keep ordinary farmer-facing answers practical, clear and concise, usually about 60 to 120 words when sufficient.",
+  "Use short paragraphs, simple units, relevant actionable steps and at most one useful follow-up question.",
+  "Do not repeat the farmer's question or ask again for information already present in approved records or current conversation context.",
+  "Use additional length for disease, livestock health, pesticide, fertiliser or safety matters when accuracy requires it.",
+  "Use short headings, clean spacing, concise bullets and only valid WhatsApp formatting.",
   "Avoid unnecessary technical jargon, but provide scientific detail when the user asks for it.",
 
   "SAFETY:",
@@ -4098,7 +4103,7 @@ async function handleAnimalHusbandryAction(options) {
   return false;
 }
 
-async function completeAnimalHusbandryInput(from, userText, sourceMessageId) {
+async function completeAnimalHusbandryInput(from, userText, sourceMessageId, inputType) {
   const session = animalHusbandrySessions[from];
   if (!session) return false;
   const language = session.language || animalFlowLanguage(from);
@@ -4119,7 +4124,6 @@ async function completeAnimalHusbandryInput(from, userText, sourceMessageId) {
   session.updatedAt = Date.now();
 
   if (session.flow === "advisory") {
-    delete animalHusbandrySessions[from];
     const farmer = await loadAnimalFarmer(from);
     let animalContext = "No linked animal profile was supplied.";
     if (farmer) {
@@ -4130,12 +4134,31 @@ async function completeAnimalHusbandryInput(from, userText, sourceMessageId) {
         }).join("; ");
       }
     }
-    const reply = await getAIReply(
-      "Veterinary advisory request. Give cautious Kerala-relevant husbandry guidance, do not claim a diagnosis, do not prescribe restricted medicines or invent a dose, and clearly identify emergency signs requiring an immediate veterinarian. Saved animal context: " + animalContext + "\n\nFarmer question: " + text,
-      "",
-      ""
+    const advisoryLanguage = resolveAdvisoryLanguage(
+      text,
+      language,
+      inputType || "text"
     );
-    await sendWhatsAppMessage(from, reply);
+    const reply = await getAIReply(
+      buildAdvisoryPrompt({
+        question: text,
+        language: advisoryLanguage,
+        domain: "animal husbandry and veterinary advisory",
+        context:
+          "Give cautious Kerala-relevant husbandry guidance. Do not claim a definitive diagnosis, prescribe restricted medicines or invent a dose. Clearly identify emergency signs requiring an immediate veterinarian when relevant. Linked animal records: " +
+          animalContext
+      }),
+      "",
+      "",
+      advisoryLanguage
+    );
+    session.step = "awaiting_advisory";
+    session.updatedAt = Date.now();
+    animalHusbandrySessions[from] = session;
+    await sendWhatsAppMessage(from, reply, {
+      skipPreferredLanguageConversion: true
+    });
+    await bhoomiMitraUI.sendAdvisoryNavigation(from, language);
     return true;
   }
 
@@ -4942,7 +4965,8 @@ if (landManagementCommand === "back") {
     await completeAnimalHusbandryInput(
       from,
       userText,
-      message.id
+      message.id,
+      "text"
     );
     return;
   }
@@ -5628,7 +5652,14 @@ try {
   photoResult = await photoVision({
     mediaId,
     from,
-    caption: photoContext
+    caption: photoContext,
+    preferredLanguage:
+      userLanguagePreferences[from] || "Malayalam",
+    advisoryLanguage: resolveAdvisoryLanguage(
+      caption,
+      userLanguagePreferences[from] || "Malayalam",
+      caption ? "caption" : "image"
+    )
   });
   await settlePhotoAnalysis(photoClaim, Boolean(photoResult && photoResult.success));
 } catch (error) {
@@ -5702,7 +5733,9 @@ if (
   pendingPhotoExpertAdvice.updatedAt = Date.now();
 
   if (pendingPhotoExpertAdvice.mode !== "direct") {
-    await sendWhatsAppMessage(from, photoReply);
+    await sendWhatsAppMessage(from, photoReply, {
+      skipPreferredLanguageConversion: true
+    });
   }
 
   await bhoomiMitraUI.sendExpertConfirmation(
@@ -5715,7 +5748,12 @@ if (
 
 await sendWhatsAppMessage(
   from,
-  photoReply
+  photoReply,
+  { skipPreferredLanguageConversion: true }
+);
+await bhoomiMitraUI.sendAdvisoryNavigation(
+  from,
+  userLanguagePreferences[from] || "Malayalam"
 );
 
 logAI(
@@ -5757,7 +5795,14 @@ return;
             photoResult = await photoVision({
                 mediaId,
                 from,
-                caption
+                caption,
+                preferredLanguage:
+                  userLanguagePreferences[from] || "Malayalam",
+                advisoryLanguage: resolveAdvisoryLanguage(
+                  caption,
+                  userLanguagePreferences[from] || "Malayalam",
+                  caption ? "caption" : "image"
+                )
             });
             await settlePhotoAnalysis(photoClaim, Boolean(photoResult && photoResult.success));
         } catch (error) {
@@ -5770,7 +5815,13 @@ return;
                 ? (photoResult.reply || photoResult.text)
                 : "ചിത്രം ലഭിച്ചു, പക്ഷേ വിശകലനം ചെയ്യാൻ കഴിഞ്ഞില്ല.";
 
-        await sendWhatsAppMessage(from, photoReply);
+        await sendWhatsAppMessage(from, photoReply, {
+          skipPreferredLanguageConversion: true
+        });
+        await bhoomiMitraUI.sendAdvisoryNavigation(
+          from,
+          userLanguagePreferences[from] || "Malayalam"
+        );
         await logAI(from, "<image>", photoReply, "photo_diagnosis");
         return;
     }
@@ -6094,7 +6145,7 @@ if (
     );
     return;
   }
-  await completeAnimalHusbandryInput(from, userText, message.id);
+  await completeAnimalHusbandryInput(from, userText, message.id, message.type);
   return;
 }
 
@@ -9825,13 +9876,22 @@ if (
     return;
   }
 
+  const expertAdvisoryLanguage = resolveAdvisoryLanguage(
+    problemText,
+    language,
+    "text"
+  );
   const expertAiReply = await getAIReply(
-    "The farmer's saved reply language is: " +
-      language +
-      ". Reply entirely in that language. Give a concise agricultural answer or summary in no more than five short sentences. Do not claim that an expert has already been assigned.\n\n" +
-      problemText,
+    buildAdvisoryPrompt({
+      question: problemText,
+      language: expertAdvisoryLanguage,
+      domain: "agricultural expert triage",
+      context:
+        "Give a concise agricultural answer or summary in no more than five short sentences. Do not claim that an expert has already been assigned."
+    }),
     "",
-    ""
+    "",
+    expertAdvisoryLanguage
   );
 
   pendingExpertAdvice.aiReply = expertAiReply;
@@ -9840,7 +9900,8 @@ if (
 
   await sendWhatsAppMessage(
     from,
-    expertAiReply
+    expertAiReply,
+    { skipPreferredLanguageConversion: true }
   );
   await bhoomiMitraUI.sendExpertConfirmation(
     from,
@@ -9886,14 +9947,28 @@ if (
       }).join("; ");
     }
   }
-  const animalReply = await getAIReply(
-    "The farmer's saved reply language is " + language +
-      ". Answer this direct animal-husbandry question entirely in that language. Use cautious Kerala-relevant veterinary guidance; do not claim a definitive diagnosis, do not invent medicine doses, and state urgent warning signs that require an immediate veterinarian when relevant. Linked animal context: " +
-      animalContext + "\n\nQuestion: " + userText,
-    "",
-    ""
+  const animalAdvisoryLanguage = resolveAdvisoryLanguage(
+    userText,
+    language,
+    "text"
   );
-  await sendWhatsAppMessage(from, animalReply);
+  const animalReply = await getAIReply(
+    buildAdvisoryPrompt({
+      question: userText,
+      language: animalAdvisoryLanguage,
+      domain: "animal husbandry and veterinary advisory",
+      context:
+        "Use cautious Kerala-relevant veterinary guidance. Do not claim a definitive diagnosis or invent medicine doses. State urgent warning signs requiring an immediate veterinarian when relevant. Linked animal context: " +
+        animalContext
+    }),
+    "",
+    "",
+    animalAdvisoryLanguage
+  );
+  await sendWhatsAppMessage(from, animalReply, {
+    skipPreferredLanguageConversion: true
+  });
+  await bhoomiMitraUI.sendAdvisoryNavigation(from, language);
   logAI(from, userText, animalReply, "animal_husbandry").catch(function (error) {
     logSafeError("Animal advisory logging error.", error);
   });
@@ -10263,19 +10338,22 @@ return;
 const preferredLanguage =
   userLanguagePreferences[from] ||
   "English";
+const advisoryLanguage = resolveAdvisoryLanguage(
+  userText,
+  preferredLanguage,
+  message.type
+);
 
 const aiReply = await getAIReply(
-  "The farmer's saved reply language is: " +
-  preferredLanguage +
-  ".\n" +
-  "You MUST reply entirely in that saved language. " +
-  "Ignore the language or script used in the current message. " +
-  "If the saved language is Malayalam, reply in Malayalam script even when the farmer types English or Manglish. " +
-  "If the saved language is English, reply entirely in English.\n\n" +
-  userText +
-  caseContext,
+  buildAdvisoryPrompt({
+    question: userText,
+    language: advisoryLanguage,
+    domain: "crop and allied-sector advisory",
+    context: caseContext
+  }),
   weatherContext,
-  forecastContext
+  forecastContext,
+  advisoryLanguage
 );
     // ---------------- Expert Escalation ----------------
 const lowerUserText =
@@ -10444,8 +10522,18 @@ if (needExpert) {
 
 await sendWhatsAppMessage(
   from,
-  responseText
+  responseText,
+  expertConfirmation
+    ? {}
+    : { skipPreferredLanguageConversion: true }
 );
+
+if (!expertConfirmation) {
+  await bhoomiMitraUI.sendAdvisoryNavigation(
+    from,
+    preferredLanguage
+  );
+}
 
 Promise.all([
   logAI(
@@ -13235,7 +13323,12 @@ function formatLiveMarketReply(record) {
   ].join("\n");
 }
 
-async function getAIReply(userText, weatherContext, forecastContext) {
+async function getAIReply(
+  userText,
+  weatherContext,
+  forecastContext,
+  replyLanguage
+) {
   try {
     const completion = await openai.chat.completions.create({
       model: OPENAI_MODEL,
@@ -13256,6 +13349,10 @@ async function getAIReply(userText, weatherContext, forecastContext) {
       ]
     });
 
+    const unavailableReply =
+      String(replyLanguage || "").toLowerCase() === "english"
+        ? "Sorry, BhoomiMitra could not provide an answer right now. Please try again shortly."
+        : "ക്ഷമിക്കണം, ഇപ്പോൾ മറുപടി നൽകാൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.";
     const reply =
       completion &&
       completion.choices &&
@@ -13263,13 +13360,17 @@ async function getAIReply(userText, weatherContext, forecastContext) {
       completion.choices[0].message &&
       completion.choices[0].message.content
         ? completion.choices[0].message.content
-        : "ക്ഷമിക്കണം, ഇപ്പോൾ മറുപടി നൽകാൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക.";
+        : unavailableReply;
 
-    return limitWhatsAppText(reply);
+    return limitWhatsAppText(
+      formatWhatsAppAdvisory(reply)
+    );
 
   } catch (error) {
     logSafeError("OpenAI request failed.", error);
-    return "ക്ഷമിക്കണം, ഇപ്പോൾ BhoomiMitra മറുപടി നൽകാൻ കഴിഞ്ഞില്ല. കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക.";
+    return String(replyLanguage || "").toLowerCase() === "english"
+      ? "Sorry, BhoomiMitra could not provide an answer right now. Please try again shortly."
+      : "ക്ഷമിക്കണം, ഇപ്പോൾ BhoomiMitra മറുപടി നൽകാൻ കഴിഞ്ഞില്ല. കുറച്ച് കഴിഞ്ഞ് വീണ്ടും ശ്രമിക്കുക.";
   }
 }
 async function applyPreferredReplyLanguage(

@@ -696,6 +696,34 @@ async function sendAskMenu(
     }
   );
 }
+
+async function sendAdvisoryNavigation(to, language) {
+  const isMalayalam =
+    String(language || "")
+      .toLowerCase() === "malayalam";
+
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: {
+      text: isMalayalam
+        ? "🌱 മറ്റൊരു ചോദ്യം നേരിട്ട് അയയ്ക്കാം, അല്ലെങ്കിൽ പ്രധാന മെനുവിലേക്ക് മടങ്ങാം."
+        : "🌱 Send another question naturally, or return to the Main Menu."
+    },
+    action: {
+      buttons: [
+        {
+          type: "reply",
+          reply: {
+            id: "NAV_HOME",
+            title: isMalayalam
+              ? "🏠 പ്രധാന മെനു"
+              : "🏠 Main Menu"
+          }
+        }
+      ]
+    }
+  });
+}
 // ===================================================
 // MY FARM MENU
 // Existing services: 3, 4 and 9
@@ -3520,6 +3548,7 @@ return {
   sendGuestExploreMenu,
   sendServiceMemberMenu,
   sendAskMenu,
+  sendAdvisoryNavigation,
   sendFarmMenu,
   sendWeatherAlertsMenu,
   sendAnimalHusbandryMenu,
