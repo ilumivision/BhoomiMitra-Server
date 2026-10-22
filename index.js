@@ -18,6 +18,7 @@ const {
   verifyMetaSignature
 } = require("./utils/webhookSecurity");
 const soilModule = require("./utils/soil");
+const soilReportExtractor = require("./utils/soilReportExtractor");
 const weatherModule = require("./utils/weather");
 const detectKeralaDistrict = require("./utils/keralaDistricts");
 const {
@@ -349,6 +350,18 @@ const {
   registerCrop,
   relevantOperations
 } = require("./utils/cropFarmRecords");
+const {
+  SOIL_FERTILIZER_ACTION_IDS,
+  SOIL_FERTILIZER_PREFIXES,
+  SOIL_RECORD_SHEET,
+  buildRecommendations,
+  formatRecommendationSummary,
+  formatSoilSummary,
+  parseSoilFertilizerAction,
+  parseTypedSoilValues,
+  readFarmerSoilRecords,
+  soilObservationFromMap
+} = require("./utils/soilFertilizerAdvisory");
 const {
   fetchAllSources
 } = require("./utils/marketFetcher");
@@ -1161,6 +1174,7 @@ const trainingRequestSessions = {};
 const schemeSearchSessions = {};
 const farmAlertSessions = {};
 const cropFarmSessions = {};
+const soilFertilizerSessions = {};
 const animalHusbandrySessions = {};
 const whatsNewSelections = {};
 const featureDiscovery = durableStateRedis
@@ -1205,6 +1219,7 @@ function isFarmerOnlyAction(selectionId) {
     id.startsWith("LAND_") ||
     id.startsWith("SAT_GPS_") ||
     id.startsWith("CROP_FARM_") ||
+    id.startsWith("SOIL_FERT_") ||
     id.startsWith("FARM_ALERTS_") ||
     id.startsWith("ANIMAL_")
   );
@@ -3401,6 +3416,391 @@ async function sendCropFarmUnavailable(from, language, message) {
   return true;
 }
 
+function soilFertilizerText(language, english, malayalam) {
+  return language === "Malayalam" ? malayalam : english;
+}
+
+function soilLandRows(lands) {
+  return (lands || []).slice(0, 10).map(function (land) {
+    return {
+      id: SOIL_FERTILIZER_PREFIXES.LAND + encodeURIComponent(land.landId),
+      title: String(land.farmName || land.landId).slice(0, 24),
+      description: String(land.landId + (land.district ? " • " + land.district : "")).slice(0, 72)
+    };
+  });
+}
+
+function derivedCropAgeYears(crop, now) {
+  if (!crop || !crop.plantingDate) return null;
+  const planted = Date.parse(crop.plantingDate + "T00:00:00Z");
+  const current = now instanceof Date ? now : new Date(now || Date.now());
+  if (!Number.isFinite(planted) || planted > current.getTime()) return null;
+  return Number(((current.getTime() - planted) / (365.2425 * 86400000)).toFixed(1));
+}
+
+function beginSoilFertilizerSource(session, source, from, context) {
+  session.source = source;
+  session.context = context;
+  session.updatedAt = Date.now();
+  if (context.lands.length === 1) {
+    session.land = context.lands[0];
+    return true;
+  }
+  session.step = "choose_soil_land";
+  return false;
+}
+
+async function continueSoilFertilizerSource(from, session) {
+  const language = session.language;
+  if (session.source === "upload") {
+    session.step = "awaiting_soil_report";
+    await sendWhatsAppMessage(from, soilFertilizerText(
+      language,
+      "Send one clear soil-test report photo or PDF (maximum 10 MB). By sending it here, you consent to automated extraction for this advisory. Remove unrelated personal IDs. BhoomiMitra extracts only printed values; check the source, date, units and methods before continuing.",
+      "വ്യക്തമായ ഒരു മണ്ണ് പരിശോധന റിപ്പോർട്ട് ഫോട്ടോ അല്ലെങ്കിൽ PDF അയയ്ക്കുക (പരമാവധി 10 MB). ഇവിടെ അയയ്ക്കുന്നതിലൂടെ ഈ നിർദേശത്തിനായുള്ള സ്വയമേവ വായനയ്ക്ക് നിങ്ങൾ സമ്മതിക്കുന്നു. ബന്ധമില്ലാത്ത വ്യക്തിഗത ID നീക്കുക. തുടരുന്നതിന് മുമ്പ് ഉറവിടം, തീയതി, യൂണിറ്റ്, രീതി എന്നിവ പരിശോധിക്കുക."
+    ));
+    return true;
+  }
+  if (session.source === "typed") {
+    session.step = "awaiting_typed_soil";
+    await sendWhatsAppMessage(from, soilFertilizerText(
+      language,
+      "Type: test date YYYY-MM-DD | laboratory/source | values. Example: 2026-10-01 | KAU Lab report 12 | pH 5.6 [1:2.5 water]; N 210 kg/ha [Alkaline KMnO4]; P 15 kg/ha [Bray-1]; K 140 kg/ha [NH4OAc]. Do not omit printed units or methods.",
+      "ടൈപ്പ് ചെയ്യുക: പരിശോധന തീയതി YYYY-MM-DD | ലാബ്/ഉറവിടം | മൂല്യങ്ങൾ. ഉദാ: 2026-10-01 | KAU Lab report 12 | pH 5.6 [1:2.5 water]; N 210 kg/ha [Alkaline KMnO4]; P 15 kg/ha [Bray-1]; K 140 kg/ha [NH4OAc]. റിപ്പോർട്ടിലെ യൂണിറ്റും രീതിയും ഒഴിവാക്കരുത്."
+    ));
+    return true;
+  }
+  if (session.source === "map") {
+    session.step = "awaiting_soil_location";
+    await sendWhatsAppMessage(from, soilFertilizerText(
+      language,
+      "Share the registered land location. Map-derived values are uncertain estimates and will not be treated as a laboratory soil test.",
+      "രജിസ്റ്റർ ചെയ്ത ഭൂമിയുടെ ലൊക്കേഷൻ അയയ്ക്കുക. മാപ്പിൽ നിന്നുള്ള മൂല്യങ്ങൾ ഏകദേശ കണക്കാണ്; ലാബ് പരിശോധനയായി കണക്കാക്കില്ല."
+    ));
+    return true;
+  }
+  if (session.source === "existing") {
+    let rows;
+    try {
+      rows = await readSheetRows(SOIL_RECORD_SHEET, "A:AZ");
+    } catch (error) {
+      logSafeError("Saved soil-record lookup unavailable.", error);
+      rows = null;
+    }
+    const records = readFarmerSoilRecords(
+      rows,
+      session.context.farmer.memberId,
+      session.context.lands.map(function (land) { return land.landId; })
+    ).filter(function (record) { return record.landId === session.land.landId; });
+    if (!records.length) {
+      delete soilFertilizerSessions[from];
+      await bhoomiMitraUI.sendCropFarmMessage(from, language, soilFertilizerText(
+        language,
+        "No usable, ownership-linked soil-test record was found. The optional Soil_Test_Repository schema has not been created automatically. Upload a report or type its values instead.",
+        "ഉടമസ്ഥതയുമായി ബന്ധപ്പെടുത്തിയ ഉപയോഗിക്കാവുന്ന മണ്ണ് പരിശോധന രേഖ കണ്ടെത്തിയില്ല. ഐച്ഛിക Soil_Test_Repository സ്വയം സൃഷ്ടിച്ചിട്ടില്ല. റിപ്പോർട്ട് അപ്‌ലോഡ് ചെയ്യുകയോ മൂല്യങ്ങൾ ടൈപ്പ് ചെയ്യുകയോ ചെയ്യുക."
+      ));
+      return true;
+    }
+    session.records = records;
+    session.step = "choose_existing_soil";
+    await bhoomiMitraUI.sendSoilFertilizerRecordList(from, language, records);
+    return true;
+  }
+  return false;
+}
+
+async function completeSoilObservation(from, session, observation) {
+  session.soilObservation = observation;
+  session.step = "awaiting_recommendation_consent";
+  session.updatedAt = Date.now();
+  await bhoomiMitraUI.sendSoilFertilizerConsent(
+    from,
+    session.language,
+    formatSoilSummary(observation, session.language) + "\n\n" + soilFertilizerText(
+      session.language,
+      "Check these values against the report. Missing values have not been invented.",
+      "ഈ മൂല്യങ്ങൾ റിപ്പോർട്ടുമായി പരിശോധിക്കുക. ഇല്ലാത്ത മൂല്യങ്ങൾ ഊഹിച്ച് ചേർത്തിട്ടില്ല."
+    )
+  );
+}
+
+function advisoryCropRecord(session, cropName) {
+  const matches = (session.context.crops || []).filter(function (crop) {
+    return String(crop.cropName || "").trim().toLowerCase() === String(cropName).toLowerCase() &&
+      (!session.soilObservation.landId || crop.landId === session.soilObservation.landId);
+  });
+  return matches.length === 1 ? matches[0] : null;
+}
+
+async function requestCoconutAdvisoryDetails(from, session) {
+  const record = advisoryCropRecord(session, "Coconut");
+  session.coconutRecord = record;
+  session.step = "awaiting_coconut_advisory_details";
+  const known = record
+    ? "\nKnown record: land " + record.landId +
+      (derivedCropAgeYears(record) !== null ? ", derived age " + derivedCropAgeYears(record) + " years" : "") +
+      (session.land && session.land.irrigationAvailable ? ", irrigation recorded: " + session.land.irrigationAvailable + (session.land.irrigationSource ? " (" + session.land.irrigationSource + ")" : "") : "")
+    : "\nNo unique Coconut crop record was found. Register the crop or include an owned land ID.";
+  await sendWhatsAppMessage(from, soilFertilizerText(
+    session.language,
+    "Coconut details needed. Type: land ID or - | number of palms | age in years or - | Bearing/Adult/Non-bearing/Juvenile | average/good management | rainfed/irrigated | prior N,P2O5,K2O grams per palm this year or -." + known,
+    "തേങ്ങയുടെ ആവശ്യമായ വിവരങ്ങൾ. ടൈപ്പ് ചെയ്യുക: ഭൂമി ID അല്ലെങ്കിൽ - | തെങ്ങുകളുടെ എണ്ണം | പ്രായം അല്ലെങ്കിൽ - | Bearing/Adult/Non-bearing/Juvenile | average/good പരിപാലനം | rainfed/irrigated | ഈ വർഷം നൽകിയ N,P2O5,K2O ഗ്രാം/തെങ്ങ് അല്ലെങ്കിൽ -." + known
+  ));
+}
+
+function parseCoconutAdvisoryDetails(text, session) {
+  const parts = String(text || "").split("|").map(function (part) { return part.trim(); });
+  if (parts.length !== 7) return { success: false, code: "FORMAT" };
+  const record = session.coconutRecord;
+  const landId = parts[0] === "-" && record ? record.landId : parts[0];
+  const land = (session.context.lands || []).find(function (item) { return item.landId === landId; });
+  const registered = (session.context.crops || []).find(function (crop) {
+    return crop.landId === landId && String(crop.cropName || "").trim().toLowerCase() === "coconut";
+  });
+  const plantCount = Number(parts[1]);
+  const derivedAge = registered ? derivedCropAgeYears(registered) : null;
+  const ageYears = parts[2] === "-" ? derivedAge : Number(parts[2]);
+  const stage = parts[3];
+  const managementLevel = parts[4].toLowerCase();
+  const waterRegime = parts[5].toLowerCase();
+  if (!land || !registered) return { success: false, code: "CROP_OWNERSHIP_UNVERIFIED" };
+  if (session.soilObservation.landId && landId !== session.soilObservation.landId) return { success: false, code: "SOIL_LAND_MISMATCH" };
+  if (!Number.isInteger(plantCount) || plantCount < 1 || plantCount > 1000000) return { success: false, code: "PLANT_COUNT" };
+  if (!Number.isFinite(ageYears) || ageYears < 0 || ageYears > 150) return { success: false, code: "AGE" };
+  if (!/^(bearing|adult|non-bearing|juvenile)$/i.test(stage)) return { success: false, code: "STAGE" };
+  if (!["average", "good"].includes(managementLevel)) return { success: false, code: "MANAGEMENT" };
+  if (!["rainfed", "irrigated"].includes(waterRegime)) return { success: false, code: "WATER" };
+  let previousNutrientsGramsPerPalm;
+  if (parts[6] !== "-") {
+    const values = parts[6].split(",").map(Number);
+    if (values.length !== 3 || values.some(function (value) { return !Number.isFinite(value) || value < 0; })) return { success: false, code: "PREVIOUS" };
+    previousNutrientsGramsPerPalm = { n: values[0], p2o5: values[1], k2o: values[2] };
+  }
+  return {
+    success: true,
+    crop: {
+      crop: "Coconut", landId: landId, cropId: registered.cropId,
+      plantCount: plantCount, ageYears: ageYears, stage: stage,
+      managementLevel: managementLevel, waterRegime: waterRegime,
+      previousNutrientsGramsPerPalm: previousNutrientsGramsPerPalm
+    }
+  };
+}
+
+async function finishSoilFertilizerRecommendation(from, session) {
+  const crops = [];
+  if (session.selectedCrops.includes("Coconut")) crops.push(session.coconutDetails);
+  if (session.selectedCrops.includes("Rambutan")) {
+    const record = advisoryCropRecord(session, "Rambutan");
+    crops.push({
+      crop: "Rambutan",
+      landId: record ? record.landId : session.land.landId,
+      ageYears: record ? derivedCropAgeYears(record) : null,
+      stage: record ? record.cropStatus : ""
+    });
+  }
+  const result = buildRecommendations({
+    consent: true,
+    preference: "recommend",
+    soilObservation: session.soilObservation,
+    crops: crops
+  });
+  session.result = result;
+  session.step = "awaiting_schedule_choice";
+  session.updatedAt = Date.now();
+  await sendWhatsAppMessage(from, formatRecommendationSummary(result, session.language), { skipPreferredLanguageConversion: true });
+  if ((result.recommendations || []).some(function (item) { return item.status === "UNSUPPORTED_RULE"; })) {
+    await sendWhatsAppMessage(from, soilFertilizerText(
+      session.language,
+      "Rambutan needs expert review. Use the existing Expert Advice service; no rambutan dose has been generated.",
+      "റംബൂട്ടാൻ വിദഗ്ധ പരിശോധനയ്ക്ക് നൽകുക. നിലവിലെ Expert Advice സേവനം ഉപയോഗിക്കുക; റംബൂട്ടാനായി അളവ് സൃഷ്ടിച്ചിട്ടില്ല."
+    ));
+  }
+  await bhoomiMitraUI.sendSoilFertilizerSaveOptions(from, session.language, result.remindersAllowed);
+  return true;
+}
+
+async function handleSoilFertilizerAction(options) {
+  const input = options || {};
+  const action = input.action || {};
+  const from = input.from;
+  const language = cropFarmLanguage(from);
+  if (action.action === "OPEN") {
+    delete cropFarmSessions[from];
+    delete farmAlertSessions[from];
+    const context = await loadCropFarmContext(from);
+    if (!context.farmer || !context.lands.length) {
+      await bhoomiMitraUI.sendCropFarmMessage(from, language, soilFertilizerText(language,
+        "Complete farmer and land registration before requesting soil-based fertilizer advice.",
+        "മണ്ണ് അടിസ്ഥാനത്തിലുള്ള വള നിർദേശം ആവശ്യപ്പെടുന്നതിന് മുമ്പ് കർഷക-ഭൂമി രജിസ്ട്രേഷൻ പൂർത്തിയാക്കുക."));
+      return true;
+    }
+    soilFertilizerSessions[from] = { step: "choose_soil_source", language: language, context: context, selectedCrops: [], updatedAt: Date.now() };
+    await bhoomiMitraUI.sendSoilFertilizerSourceMenu(from, language);
+    return true;
+  }
+  const session = soilFertilizerSessions[from];
+  if (!session) return false;
+  if (action.action === "CANCEL") {
+    delete soilFertilizerSessions[from];
+    await bhoomiMitraUI.sendCropFarmMenu(from, language);
+    return true;
+  }
+  const sourceByAction = {
+    SOURCE_UPLOAD: "upload", SOURCE_EXISTING: "existing", SOURCE_MAP: "map", SOURCE_TYPED: "typed"
+  };
+  if (sourceByAction[action.action] && session.step === "choose_soil_source") {
+    const ready = beginSoilFertilizerSource(session, sourceByAction[action.action], from, session.context);
+    if (!ready) {
+      await bhoomiMitraUI.sendSoilFertilizerLandList(from, language, soilLandRows(session.context.lands));
+      return true;
+    }
+    return continueSoilFertilizerSource(from, session);
+  }
+  if (action.action === "LAND" && session.step === "choose_soil_land") {
+    const land = session.context.lands.find(function (item) { return item.landId === action.landId; });
+    if (!land) return false;
+    session.land = land;
+    return continueSoilFertilizerSource(from, session);
+  }
+  if (action.action === "EXISTING_RECORD" && session.step === "choose_existing_soil") {
+    const record = (session.records || []).find(function (item) { return item.recordId === action.recordId; });
+    if (!record) return false;
+    await completeSoilObservation(from, session, record);
+    return true;
+  }
+  if (action.action === "RECOMMEND_NO" && session.step === "awaiting_recommendation_consent") {
+    delete soilFertilizerSessions[from];
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, soilFertilizerText(language,
+      "No fertilizer dose or reminder was created.",
+      "വളത്തിന്റെ അളവോ ഓർമ്മപ്പെടുത്തലോ സൃഷ്ടിച്ചിട്ടില്ല."));
+    return true;
+  }
+  if (action.action === "RECOMMEND_YES" && session.step === "awaiting_recommendation_consent") {
+    if (session.soilObservation.extractionStatus === "AI_EXTRACTED_UNCONFIRMED") {
+      session.soilObservation.extractionStatus = "FARMER_CONFIRMED";
+      session.soilObservation.extractionWarnings = (session.soilObservation.extractionWarnings || []).filter(function (warning) {
+        return warning !== "FARMER_CONFIRMATION_REQUIRED";
+      });
+    }
+    session.step = "choose_advisory_crops";
+    session.selectedCrops = [];
+    await bhoomiMitraUI.sendSoilFertilizerCropSelection(from, language, session.selectedCrops);
+    return true;
+  }
+  if (["CROP_COCONUT", "CROP_RAMBUTAN"].includes(action.action) && session.step === "choose_advisory_crops") {
+    const crop = action.action === "CROP_COCONUT" ? "Coconut" : "Rambutan";
+    session.selectedCrops = session.selectedCrops.includes(crop)
+      ? session.selectedCrops.filter(function (item) { return item !== crop; })
+      : session.selectedCrops.concat(crop);
+    await bhoomiMitraUI.sendSoilFertilizerCropSelection(from, language, session.selectedCrops);
+    return true;
+  }
+  if (action.action === "CROPS_DONE" && session.step === "choose_advisory_crops") {
+    if (!session.selectedCrops.length) {
+      await bhoomiMitraUI.sendSoilFertilizerCropSelection(from, language, session.selectedCrops);
+      return true;
+    }
+    session.step = "choose_fertilizer_preference";
+    await bhoomiMitraUI.sendSoilFertilizerPreference(from, language);
+    return true;
+  }
+  if (action.action === "PREFERENCE_SPECIFY" && session.step === "choose_fertilizer_preference") {
+    delete soilFertilizerSessions[from];
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, soilFertilizerText(language,
+      "Farmer-specified products need their grades and nutrient interactions checked. No dose or reminder was created; use Expert Advice for review.",
+      "കർഷകൻ തിരഞ്ഞെടുക്കുന്ന വളങ്ങളുടെ ഗ്രേഡും പോഷക ഇടപെടലും പരിശോധിക്കണം. അളവോ ഓർമ്മപ്പെടുത്തലോ സൃഷ്ടിച്ചിട്ടില്ല; Expert Advice ഉപയോഗിക്കുക."));
+    return true;
+  }
+  if (action.action === "PREFERENCE_RECOMMEND" && session.step === "choose_fertilizer_preference") {
+    if (session.selectedCrops.includes("Coconut")) return requestCoconutAdvisoryDetails(from, session);
+    return finishSoilFertilizerRecommendation(from, session);
+  }
+  if (action.action === "SAVE_NO" && session.step === "awaiting_schedule_choice") {
+    delete soilFertilizerSessions[from];
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, soilFertilizerText(language,
+      "The advisory was not saved and no reminder was enabled.",
+      "നിർദേശം സേവ് ചെയ്തിട്ടില്ല; ഓർമ്മപ്പെടുത്തലും പ്രവർത്തിപ്പിച്ചിട്ടില്ല."));
+    return true;
+  }
+  if (action.action === "SAVE_REMINDERS" && session.step === "awaiting_schedule_choice" && session.result && session.result.remindersAllowed) {
+    delete soilFertilizerSessions[from];
+    await sendWhatsAppMessage(from, soilFertilizerText(language,
+      "For safety, BhoomiMitra will now use the existing fertilizer diary. It stores the farm, crop and one exact application date, but not proposed product quantities. Review the advisory above, select a date for one stage, and confirm it. Existing duplicate checks remain active.",
+      "സുരക്ഷയ്ക്കായി നിലവിലെ വള ഡയറി ഇപ്പോൾ തുറക്കും. അതിൽ കൃഷിയിടം, വിള, കൃത്യമായ ഒരു തീയതി എന്നിവ മാത്രം സേവ് ചെയ്യും; നിർദേശിച്ച വള അളവുകൾ സേവ് ചെയ്യില്ല. മുകളിലെ നിർദേശം പരിശോധിച്ച് ഒരു ഘട്ടത്തിന്റെ തീയതി തിരഞ്ഞെടുത്ത് സ്ഥിരീകരിക്കുക. നിലവിലെ duplicate പരിശോധന തുടരും."
+    ));
+    return handleFarmAlertAction({ farmAlertAction: { action: "PLAN" }, from: from, sourceMessageId: input.sourceMessageId });
+  }
+  if (action.action === "SAVE_ONLY" && session.step === "awaiting_schedule_choice") {
+    delete soilFertilizerSessions[from];
+    await bhoomiMitraUI.sendCropFarmMessage(from, language, soilFertilizerText(language,
+      "A proposed multi-stage schedule was not written because the live workbook has no approved recommendation-log schema. Existing diary records were preserved.",
+      "അംഗീകൃത recommendation-log schema live workbook-ൽ ഇല്ലാത്തതിനാൽ നിർദേശിച്ച multi-stage schedule എഴുതിയിട്ടില്ല. നിലവിലെ ഡയറി രേഖകൾ മാറ്റമില്ലാതെ സൂക്ഷിച്ചു."
+    ));
+    return true;
+  }
+  return false;
+}
+
+async function completeSoilFertilizerTextInput(from, userText) {
+  const session = soilFertilizerSessions[from];
+  if (!session) return false;
+  if (session.step === "awaiting_typed_soil") {
+    const parts = String(userText || "").split("|");
+    if (parts.length < 3) {
+      await continueSoilFertilizerSource(from, session);
+      return true;
+    }
+    const result = parseTypedSoilValues(parts.slice(2).join("|"), {
+      farmerId: session.context.farmer.memberId,
+      landId: session.land.landId,
+      sourceName: parts[1].trim(),
+      observedAt: parts[0].trim(),
+      landIds: session.context.lands.map(function (land) { return land.landId; })
+    });
+    if (!result.success) {
+      await sendWhatsAppMessage(from, soilFertilizerText(session.language,
+        "The typed report is incomplete: " + result.errors.join(", ") + ". Include the report date, source, printed units and methods.",
+        "ടൈപ്പ് ചെയ്ത റിപ്പോർട്ട് അപൂർണ്ണമാണ്: " + result.errors.join(", ") + ". റിപ്പോർട്ട് തീയതി, ഉറവിടം, യൂണിറ്റ്, രീതി എന്നിവ ചേർക്കുക."));
+      return true;
+    }
+    await completeSoilObservation(from, session, result.observation);
+    return true;
+  }
+  if (session.step === "awaiting_coconut_advisory_details") {
+    const parsed = parseCoconutAdvisoryDetails(userText, session);
+    if (!parsed.success) {
+      await sendWhatsAppMessage(from, soilFertilizerText(session.language,
+        "Those coconut details are invalid (" + parsed.code + "). Use the exact | separated format and an owned land with a registered Coconut crop.",
+        "തേങ്ങ വിവരങ്ങൾ ശരിയല്ല (" + parsed.code + "). കൃത്യമായ | രൂപവും രജിസ്റ്റർ ചെയ്ത Coconut വിളയുള്ള സ്വന്തം ഭൂമിയും ഉപയോഗിക്കുക."));
+      return true;
+    }
+    session.coconutDetails = parsed.crop;
+    return finishSoilFertilizerRecommendation(from, session);
+  }
+  return false;
+}
+
+async function completeSoilReportMedia(from, mediaId, mimeType, filename) {
+  const session = soilFertilizerSessions[from];
+  if (!session || session.step !== "awaiting_soil_report") return false;
+  const result = await soilReportExtractor({
+    mediaId: mediaId,
+    mimeType: mimeType,
+    filename: filename,
+    farmerId: session.context.farmer.memberId,
+    landId: session.land.landId
+  });
+  if (!result || !result.success) {
+    await sendWhatsAppMessage(from, soilFertilizerText(session.language,
+      "The soil report could not be safely extracted (" + ((result && result.code) || "unknown error") + "). Send one clear JPG, PNG, WebP or PDF up to 10 MB, or cancel and type the values.",
+      "മണ്ണ് റിപ്പോർട്ട് സുരക്ഷിതമായി വായിക്കാനായില്ല (" + ((result && result.code) || "unknown error") + "). 10 MB വരെ വ്യക്തമായ JPG, PNG, WebP അല്ലെങ്കിൽ PDF അയയ്ക്കുക; അല്ലെങ്കിൽ റദ്ദാക്കി മൂല്യങ്ങൾ ടൈപ്പ് ചെയ്യുക."));
+    return true;
+  }
+  await completeSoilObservation(from, session, result.observation);
+  return true;
+}
+
 async function handleCropFarmAction(options) {
   const input = options || {};
   const action = input.cropFarmAction || {};
@@ -4435,6 +4835,19 @@ if (
         menuSessions: userMenus
       });
 
+      const soilFertilizerAction =
+        parseSoilFertilizerAction(uiSelection.id);
+
+      if (soilFertilizerAction) {
+        delete animalHusbandrySessions[from];
+        await handleSoilFertilizerAction({
+          action: soilFertilizerAction,
+          from: from,
+          sourceMessageId: message.id
+        });
+        return;
+      }
+
       const cropFarmAction =
         parseCropFarmAction(uiSelection.id);
 
@@ -4979,6 +5392,14 @@ if (landManagementCommand === "back") {
   ) {
     await completeFarmAlertTextInput(from, userText, message.id);
     return;
+  }
+
+  if (
+    message.type === "text" &&
+    soilFertilizerSessions[from]
+  ) {
+    const soilFertilizerHandled = await completeSoilFertilizerTextInput(from, userText);
+    if (soilFertilizerHandled) return;
   }
 
   if (
@@ -5600,6 +6021,19 @@ if (
         return;
     }
 
+    if (
+      soilFertilizerSessions[from] &&
+      soilFertilizerSessions[from].step === "awaiting_soil_report"
+    ) {
+      await completeSoilReportMedia(
+        from,
+        mediaId,
+        (message.image && message.image.mime_type) || "",
+        "soil-test-report-image"
+      );
+      return;
+    }
+
   const caption = message.image && message.image.caption
   ? message.image.caption
   : "";
@@ -5768,6 +6202,26 @@ return;
     const mimeType = message.document && message.document.mime_type
         ? message.document.mime_type
         : "";
+
+    if (
+      soilFertilizerSessions[from] &&
+      soilFertilizerSessions[from].step === "awaiting_soil_report"
+    ) {
+      const soilReportMediaId = message.document && message.document.id
+        ? message.document.id
+        : null;
+      if (!soilReportMediaId) {
+        await sendWhatsAppMessage(from, "The soil-test document has no downloadable media ID. Please send it again.");
+        return;
+      }
+      await completeSoilReportMedia(
+        from,
+        soilReportMediaId,
+        mimeType,
+        message.document && message.document.filename
+      );
+      return;
+    }
 
     if (!mimeType.startsWith("image/")) {
         userText = "User sent a non-image document.";
@@ -5997,6 +6451,39 @@ return;
     );
 
     return;
+  }
+
+  // =====================================================
+  // OPTIONAL SOIL-FERTILIZER LOCATION ESTIMATE
+  // =====================================================
+
+  if (
+    soilFertilizerSessions[from] &&
+    soilFertilizerSessions[from].step === "awaiting_soil_location"
+  ) {
+    const fertilizerSession = soilFertilizerSessions[from];
+    try {
+      const soilResult = await soilModule.getLocationSoilAdvice(latitude, longitude);
+      if (!soilResult || !soilResult.success || !soilResult.profile) {
+        await sendWhatsAppMessage(from, soilFertilizerText(fertilizerSession.language,
+          "No usable location-linked soil estimate is available. Upload a laboratory report or type its values instead.",
+          "ഉപയോഗിക്കാവുന്ന സ്ഥലബന്ധിത മണ്ണ് ഏകദേശ വിവരം ലഭ്യമല്ല. ലാബ് റിപ്പോർട്ട് അപ്‌ലോഡ് ചെയ്യുകയോ മൂല്യങ്ങൾ ടൈപ്പ് ചെയ്യുകയോ ചെയ്യുക."));
+        return;
+      }
+      const observation = soilObservationFromMap(soilResult.profile, {
+        farmerId: fertilizerSession.context.farmer.memberId,
+        landId: fertilizerSession.land.landId,
+        observedAt: new Date().toISOString().slice(0, 10)
+      });
+      await completeSoilObservation(from, fertilizerSession, observation);
+      return;
+    } catch (soilFertilizerLocationError) {
+      logSafeError("Soil-fertilizer location lookup failed.", soilFertilizerLocationError);
+      await sendWhatsAppMessage(from, soilFertilizerText(fertilizerSession.language,
+        "The location-linked soil estimate is temporarily unavailable. No fertilizer dose was created.",
+        "സ്ഥലബന്ധിത മണ്ണ് ഏകദേശ വിവരം ഇപ്പോൾ ലഭ്യമല്ല. വളത്തിന്റെ അളവ് സൃഷ്ടിച്ചിട്ടില്ല."));
+      return;
+    }
   }
 
   // =====================================================

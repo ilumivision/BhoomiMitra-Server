@@ -158,6 +158,13 @@ function readOwnedLands(sheetRows) {
       panchayat: clean(getValue(row, map, ["Local_Body", "Panchayat", "Panchayath"])),
       mainCrop: clean(getValue(row, map, ["Main_Crop", "Crop"])),
       otherCrops: clean(getValue(row, map, ["Other_Crops"])),
+      cropStage: clean(getValue(row, map, ["Crop_Stage"])),
+      irrigationAvailable: clean(getValue(row, map, ["Irrigation_Available"])),
+      irrigationSource: clean(getValue(row, map, ["Irrigation_Source"])),
+      soilTestAvailable: clean(getValue(row, map, ["Soil_Test_Available"])),
+      soilType: clean(getValue(row, map, ["Soil_Type"])),
+      latitude: clean(getValue(row, map, ["Latitude"])),
+      longitude: clean(getValue(row, map, ["Longitude"])),
       activeStatus: clean(getValue(row, map, ["Active_Status", "Status"]))
     };
   }).filter(function (land) {

@@ -369,7 +369,7 @@ test("land, crop and operation list builders respect WhatsApp's ten-row limit", 
   assert.equal(cropRowsForStatus(crops).length, 10);
 });
 
-test("English and Malayalam crop/farm menus expose nine connected actions", async function () {
+test("English and Malayalam crop/farm menus expose ten connected actions", async function () {
   const calls = [];
   const ui = createBhoomiMitraUI({
     axios: { post: async function (url, body) { calls.push(body); return { data: {} }; } },
@@ -379,12 +379,13 @@ test("English and Malayalam crop/farm menus expose nine connected actions", asyn
   await ui.sendCropFarmMenu("919111111111", "Malayalam");
   const englishRows = calls[0].interactive.action.sections[0].rows;
   const malayalamRows = calls[1].interactive.action.sections[0].rows;
-  assert.equal(englishRows.length, 9);
+  assert.equal(englishRows.length, 10);
   assert.deepEqual(malayalamRows.map(function (row) { return row.id; }), englishRows.map(function (row) { return row.id; }));
   assert.deepEqual(englishRows.map(function (row) { return row.id; }), [
     CROP_FARM_ACTION_IDS.REGISTER, CROP_FARM_ACTION_IDS.MY_CROPS, CROP_FARM_ACTION_IDS.HISTORY,
     CROP_FARM_ACTION_IDS.RECORD_OPERATION, CROP_FARM_ACTION_IDS.ACTIVITIES, CROP_FARM_ACTION_IDS.PLANNED,
-    CROP_FARM_ACTION_IDS.ALERTS, CROP_FARM_ACTION_IDS.FERTILIZER, CROP_FARM_ACTION_IDS.MAIN_MENU
+    CROP_FARM_ACTION_IDS.ALERTS, CROP_FARM_ACTION_IDS.FERTILIZER,
+    CROP_FARM_ACTION_IDS.SOIL_FERTILIZER, CROP_FARM_ACTION_IDS.MAIN_MENU
   ]);
   englishRows.concat(malayalamRows).forEach(function (row) {
     assert.ok(row.title.length <= 24);

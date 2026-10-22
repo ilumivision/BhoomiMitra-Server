@@ -22,6 +22,10 @@ const {
   CROP_FARM_ACTION_IDS
 } = require("./cropFarmRecords");
 const {
+  SOIL_FERTILIZER_ACTION_IDS,
+  SOIL_FERTILIZER_PREFIXES
+} = require("./soilFertilizerAdvisory");
+const {
   ABOUT_ACTION_IDS,
   buildAboutText,
   buildTeamDirectoryText,
@@ -3241,6 +3245,7 @@ async function sendCropFarmMenu(to, language) {
     [CROP_FARM_ACTION_IDS.PLANNED, "Planned Operations", "ആസൂത്രിത പണികൾ", "View farmer-recorded plans", "ആസൂത്രണം ചെയ്ത പണികൾ"],
     [CROP_FARM_ACTION_IDS.ALERTS, "Farm & Crop Alerts", "കൃഷി മുന്നറിയിപ്പുകൾ", "Verified and scheduled alerts", "സ്ഥിരീകരിച്ചതും ആസൂത്രിതവും"],
     [CROP_FARM_ACTION_IDS.FERTILIZER, "Fertilizer Diary", "വളപ്രയോഗ ഡയറി", "Existing diary and reminders", "നിലവിലെ ഡയറിയും ഓർമ്മപ്പെടുത്തലും"],
+    [CROP_FARM_ACTION_IDS.SOIL_FERTILIZER, "Soil Fertilizer Advice", "മണ്ണ്-വള നിർദേശം", "Optional soil-based crop advice", "ഐച്ഛിക മണ്ണ് അധിഷ്ഠിത വിള നിർദേശം"],
     [CROP_FARM_ACTION_IDS.MAIN_MENU, "Main Menu", "പ്രധാന മെനു", "BhoomiMitra home", "BhoomiMitra ഹോം"]
   ];
   return sendInteractiveMessage(to, {
@@ -3254,6 +3259,110 @@ async function sendCropFarmMenu(to, language) {
         return { id: item[0], title: (ml ? item[2] : item[1]).slice(0, 24), description: (ml ? item[4] : item[3]).slice(0, 72) };
       }) }]
     }
+  });
+}
+
+async function sendSoilFertilizerSourceMenu(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const rows = [
+    [SOIL_FERTILIZER_ACTION_IDS.SOURCE_UPLOAD, "Upload lab report", "ലാബ് റിപ്പോർട്ട്", "Photo or PDF soil-test report", "ഫോട്ടോ അല്ലെങ്കിൽ PDF"],
+    [SOIL_FERTILIZER_ACTION_IDS.SOURCE_EXISTING, "Saved soil test", "സേവ് ചെയ്ത പരിശോധന", "Use an owned-land soil record", "സ്വന്തം ഭൂമിയുടെ മണ്ണ് രേഖ"],
+    [SOIL_FERTILIZER_ACTION_IDS.SOURCE_MAP, "Soil map estimate", "മണ്ണ് മാപ്പ് ഏകദേശം", "Uncertain location estimate", "സ്ഥലത്തെ അടിസ്ഥാനമാക്കിയ ഏകദേശം"],
+    [SOIL_FERTILIZER_ACTION_IDS.SOURCE_TYPED, "Type report values", "മൂല്യങ്ങൾ ടൈപ്പ് ചെയ്യുക", "Keep units and test methods", "യൂണിറ്റും രീതിയും ഉൾപ്പെടുത്തുക"],
+    [SOIL_FERTILIZER_ACTION_IDS.CANCEL, "Cancel", "റദ്ദാക്കുക", "Return to crop records", "വിള രേഖകളിലേക്ക് മടങ്ങുക"]
+  ];
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml
+      ? "മണ്ണ് അടിസ്ഥാനത്തിലുള്ള വള നിർദേശം (ഐച്ഛികം)\n\nമണ്ണ് വിവരത്തിന്റെ ഉറവിടം തിരഞ്ഞെടുക്കുക. മാപ്പ് കണക്ക് ലാബ് പരിശോധനയ്ക്ക് തുല്യമല്ല."
+      : "Soil-based fertilizer advice (optional)\n\nChoose the soil-information source. A map estimate is not equivalent to a laboratory test." },
+    action: {
+      button: ml ? "ഉറവിടം" : "Choose source",
+      sections: [{ title: ml ? "മണ്ണ് വിവരം" : "Soil information", rows: rows.map(function (item) {
+        return { id: item[0], title: ml ? item[2] : item[1], description: ml ? item[4] : item[3] };
+      }) }]
+    }
+  });
+}
+
+async function sendSoilFertilizerConsent(to, language, summary) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: String(summary || "").slice(0, 3300) + "\n\n" + (ml ? "വള ശുപാർശ വേണോ?" : "Would you like fertilizer recommendations?") },
+    action: { buttons: [
+      { type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.RECOMMEND_YES, title: ml ? "അതെ" : "Yes" } },
+      { type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.RECOMMEND_NO, title: ml ? "ആവശ്യമില്ല" : "Not needed" } }
+    ] }
+  });
+}
+
+async function sendSoilFertilizerCropSelection(to, language, selectedCrops) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const selected = Array.isArray(selectedCrops) ? selectedCrops : [];
+  const selectedText = selected.length ? selected.join(", ") : (ml ? "ഒന്നുമില്ല" : "None");
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: (ml ? "വള നിർദേശം വേണ്ട വിളകൾ ഒന്നൊന്നായി തിരഞ്ഞെടുക്കുക. പൂർത്തിയായാൽ Done അമർത്തുക.\n\nതിരഞ്ഞെടുത്തത്: " : "Select each crop that needs advice, then press Done.\n\nSelected: ") + selectedText },
+    action: { buttons: [
+      { type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.CROP_COCONUT, title: "Coconut" } },
+      { type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.CROP_RAMBUTAN, title: "Rambutan" } },
+      { type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.CROPS_DONE, title: ml ? "പൂർത്തിയായി" : "Done" } }
+    ] }
+  });
+}
+
+async function sendSoilFertilizerPreference(to, language) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: ml ? "അനുയോജ്യമായ വളങ്ങൾ BhoomiMitra നിർദേശിക്കട്ടേ, അതോ നിങ്ങൾ വളങ്ങൾ പറയുമോ?" : "Would you like BhoomiMitra to recommend suitable fertilizers, or do you want to specify fertilizers?" },
+    action: { buttons: [
+      { type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.PREFERENCE_RECOMMEND, title: ml ? "നിർദേശിക്കുക" : "Recommend" } },
+      { type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.PREFERENCE_SPECIFY, title: ml ? "ഞാൻ പറയാം" : "I will specify" } },
+      { type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.CANCEL, title: ml ? "റദ്ദാക്കുക" : "Cancel" } }
+    ] }
+  });
+}
+
+async function sendSoilFertilizerSaveOptions(to, language, allowReminders) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const buttons = [];
+  if (allowReminders) {
+    buttons.push({ type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.SAVE_REMINDERS, title: ml ? "സേവ് + ഓർമ്മ" : "Save + reminders" } });
+  }
+  buttons.push({ type: "reply", reply: { id: SOIL_FERTILIZER_ACTION_IDS.SAVE_NO, title: ml ? "ആവശ്യമില്ല" : "Not needed" } });
+  return sendInteractiveMessage(to, {
+    type: "button",
+    body: { text: allowReminders
+      ? (ml ? "ഈ നിർദേശിച്ച ഷെഡ്യൂൾ സേവ് ചെയ്യണോ? നിങ്ങളുടെ വ്യക്തമായ സമ്മതമില്ലാതെ ഓർമ്മപ്പെടുത്തൽ പ്രവർത്തിക്കില്ല." : "Save this proposed schedule? Reminders are never enabled without your explicit consent.")
+      : (ml ? "സ്ഥിരീകരിച്ച തീയതിയുള്ള ഷെഡ്യൂൾ ഇല്ലാത്തതിനാൽ ഓർമ്മപ്പെടുത്തൽ സേവ് ചെയ്യാനാവില്ല." : "No reminder can be saved because there is no fully verified, dated schedule.") },
+    action: { buttons: buttons }
+  });
+}
+
+async function sendSoilFertilizerRecordList(to, language, records) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  const rows = (records || []).slice(0, 10).map(function (record, index) {
+    return {
+      id: SOIL_FERTILIZER_PREFIXES.EXISTING_RECORD + encodeURIComponent(record.recordId || String(index)),
+      title: String(record.landId || "Land").slice(0, 24),
+      description: String((record.observedAt || "No date") + " • " + (record.sourceName || "Unknown source")).slice(0, 72)
+    };
+  });
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml ? "നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത ഭൂമിയുമായി ബന്ധമുള്ള മണ്ണ് പരിശോധന തിരഞ്ഞെടുക്കുക." : "Choose a soil test linked to your registered land." },
+    action: { button: ml ? "പരിശോധന" : "Choose test", sections: [{ title: ml ? "മണ്ണ് പരിശോധനകൾ" : "Owned-land soil tests", rows: rows }] }
+  });
+}
+
+async function sendSoilFertilizerLandList(to, language, rows) {
+  const ml = String(language || "").toLowerCase() === "malayalam";
+  return sendInteractiveMessage(to, {
+    type: "list",
+    body: { text: ml ? "ഈ മണ്ണ് വിവരവുമായി ബന്ധമുള്ള നിങ്ങളുടെ രജിസ്റ്റർ ചെയ്ത ഭൂമി തിരഞ്ഞെടുക്കുക." : "Choose your registered land associated with this soil information." },
+    action: { button: ml ? "ഭൂമി" : "Choose land", sections: [{ title: ml ? "എന്റെ ഭൂമികൾ" : "My registered lands", rows: rows }] }
   });
 }
 
@@ -3662,6 +3771,13 @@ return {
   sendCropStatusList,
   sendCropFarmMessage,
   sendCropFarmConfirmation,
+  sendSoilFertilizerSourceMenu,
+  sendSoilFertilizerConsent,
+  sendSoilFertilizerCropSelection,
+  sendSoilFertilizerPreference,
+  sendSoilFertilizerSaveOptions,
+  sendSoilFertilizerRecordList,
+  sendSoilFertilizerLandList,
   sendMarketMenu,
   sendProfileMenu,
   sendProfileSettingsMenu,
