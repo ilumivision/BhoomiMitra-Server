@@ -4155,10 +4155,11 @@ async function completeAnimalHusbandryInput(from, userText, sourceMessageId, inp
     session.step = "awaiting_advisory";
     session.updatedAt = Date.now();
     animalHusbandrySessions[from] = session;
-    await sendWhatsAppMessage(from, reply, {
-      skipPreferredLanguageConversion: true
-    });
-    await bhoomiMitraUI.sendAdvisoryNavigation(from, language);
+    await bhoomiMitraUI.sendAdvisoryAnswer(
+      from,
+      advisoryLanguage,
+      reply
+    );
     return true;
   }
 
@@ -5647,6 +5648,11 @@ const photoContext =
 const photoClaim = await claimPhotoAnalysis(from, message.id);
 if (!photoClaim.allowed) return;
 
+const photoAdvisoryLanguage = resolveAdvisoryLanguage(
+  caption,
+  userLanguagePreferences[from] || "Malayalam",
+  caption ? "caption" : "image"
+);
 let photoResult;
 try {
   photoResult = await photoVision({
@@ -5655,11 +5661,7 @@ try {
     caption: photoContext,
     preferredLanguage:
       userLanguagePreferences[from] || "Malayalam",
-    advisoryLanguage: resolveAdvisoryLanguage(
-      caption,
-      userLanguagePreferences[from] || "Malayalam",
-      caption ? "caption" : "image"
-    )
+    advisoryLanguage: photoAdvisoryLanguage
   });
   await settlePhotoAnalysis(photoClaim, Boolean(photoResult && photoResult.success));
 } catch (error) {
@@ -5746,14 +5748,10 @@ if (
   return;
 }
 
-await sendWhatsAppMessage(
+await bhoomiMitraUI.sendAdvisoryAnswer(
   from,
-  photoReply,
-  { skipPreferredLanguageConversion: true }
-);
-await bhoomiMitraUI.sendAdvisoryNavigation(
-  from,
-  userLanguagePreferences[from] || "Malayalam"
+  photoAdvisoryLanguage,
+  photoReply
 );
 
 logAI(
@@ -5790,6 +5788,11 @@ return;
         const photoClaim = await claimPhotoAnalysis(from, message.id);
         if (!photoClaim.allowed) return;
 
+        const photoAdvisoryLanguage = resolveAdvisoryLanguage(
+          caption,
+          userLanguagePreferences[from] || "Malayalam",
+          caption ? "caption" : "image"
+        );
         let photoResult;
         try {
             photoResult = await photoVision({
@@ -5798,11 +5801,7 @@ return;
                 caption,
                 preferredLanguage:
                   userLanguagePreferences[from] || "Malayalam",
-                advisoryLanguage: resolveAdvisoryLanguage(
-                  caption,
-                  userLanguagePreferences[from] || "Malayalam",
-                  caption ? "caption" : "image"
-                )
+                advisoryLanguage: photoAdvisoryLanguage
             });
             await settlePhotoAnalysis(photoClaim, Boolean(photoResult && photoResult.success));
         } catch (error) {
@@ -5815,12 +5814,10 @@ return;
                 ? (photoResult.reply || photoResult.text)
                 : "ചിത്രം ലഭിച്ചു, പക്ഷേ വിശകലനം ചെയ്യാൻ കഴിഞ്ഞില്ല.";
 
-        await sendWhatsAppMessage(from, photoReply, {
-          skipPreferredLanguageConversion: true
-        });
-        await bhoomiMitraUI.sendAdvisoryNavigation(
+        await bhoomiMitraUI.sendAdvisoryAnswer(
           from,
-          userLanguagePreferences[from] || "Malayalam"
+          photoAdvisoryLanguage,
+          photoReply
         );
         await logAI(from, "<image>", photoReply, "photo_diagnosis");
         return;
@@ -6353,6 +6350,11 @@ if (!userLanguagePreferences[from]) {
     }
   }
 }
+const currentResponseLanguage = resolveAdvisoryLanguage(
+  userText,
+  userLanguagePreferences[from] || "Malayalam",
+  message.type
+);
 const regReply =
   await handleRegistration(
     from,
@@ -6501,21 +6503,21 @@ if (
     if (naturalAccess.state === USER_REGISTRATION_STATES.REGISTERED_SERVICE_MEMBER) {
       await sendWhatsAppMessage(
         from,
-        userLanguagePreferences[from] === "Malayalam"
+        currentResponseLanguage === "Malayalam"
           ? "ഈ സേവനത്തിന് സജീവവും പൂർണ്ണവുമായ കർഷക രജിസ്ട്രേഷൻ ആവശ്യമാണ്. നിങ്ങളുടെ നിലവിലെ സേവന അംഗത്വം മാറ്റിയിട്ടില്ല."
           : "This service requires a complete active farmer registration. Your existing service membership has not been changed.",
         { skipPreferredLanguageConversion: true }
       );
       await sendStatusAwareHome(
         from,
-        userLanguagePreferences[from] || "English",
+        currentResponseLanguage,
         naturalAccess,
         false
       );
     } else {
       await sendStatusAwareHome(
         from,
-        userLanguagePreferences[from] || "English",
+        currentResponseLanguage,
         naturalAccess,
         true
       );
@@ -6528,7 +6530,7 @@ if (naturalFeatureEntry === "TRAINING") {
   delete schemeSearchSessions[from];
   await sendTrainingHome(
     from,
-    userLanguagePreferences[from] || "English"
+    currentResponseLanguage
   );
   return;
 }
@@ -6537,7 +6539,7 @@ if (naturalFeatureEntry === "SCHEMES") {
   delete trainingRequestSessions[from];
   await bhoomiMitraUI.sendSchemesMenu(
     from,
-    userLanguagePreferences[from] || "English"
+    currentResponseLanguage
   );
   return;
 }
@@ -6576,7 +6578,7 @@ if (naturalFeatureEntry === "SATELLITE") {
   userMenus[from].updatedAt = Date.now();
   await bhoomiMitraUI.sendSatelliteGpsMenu(
     from,
-    userLanguagePreferences[from] || "English"
+    currentResponseLanguage
   );
   return;
 }
@@ -6584,7 +6586,7 @@ if (naturalFeatureEntry === "SATELLITE") {
 if (naturalFeatureEntry === "MARKET") {
   await bhoomiMitraUI.sendMarketMenu(
     from,
-    userLanguagePreferences[from] || "English"
+    currentResponseLanguage
   );
   return;
 }
@@ -6592,7 +6594,7 @@ if (naturalFeatureEntry === "MARKET") {
 if (naturalFeatureEntry === "FARM") {
   await bhoomiMitraUI.sendFarmMenu(
     from,
-    userLanguagePreferences[from] || "English"
+    currentResponseLanguage
   );
   return;
 }
@@ -6600,7 +6602,7 @@ if (naturalFeatureEntry === "FARM") {
 if (naturalFeatureEntry === "HELP") {
   await bhoomiMitraUI.sendHelpMenu(
     from,
-    userLanguagePreferences[from] || "English"
+    currentResponseLanguage
   );
   return;
 }
@@ -6608,7 +6610,7 @@ if (naturalFeatureEntry === "HELP") {
 if (shouldShowWhatsNew(naturalFeatureEntry)) {
   await showWhatsNew(
     from,
-    userLanguagePreferences[from] || "English",
+    currentResponseLanguage,
     true
   );
   return;
@@ -6623,7 +6625,8 @@ if (["WEATHER", "SOIL"].includes(naturalFeatureEntry)) {
   );
   await sendWhatsAppMessage(
     from,
-    getServicePrompt(userMenus[from].currentService)
+    getServicePrompt(userMenus[from].currentService),
+    { responseLanguage: currentResponseLanguage }
   );
   return;
 }
@@ -9566,7 +9569,7 @@ if (
   const needsDistrict = await sendWeatherSheetReply(
     from,
     weatherText,
-    userLanguagePreferences[from] || "English"
+    currentResponseLanguage
   );
 
   if (!needsDistrict) {
@@ -9965,10 +9968,11 @@ if (
     "",
     animalAdvisoryLanguage
   );
-  await sendWhatsAppMessage(from, animalReply, {
-    skipPreferredLanguageConversion: true
-  });
-  await bhoomiMitraUI.sendAdvisoryNavigation(from, language);
+  await bhoomiMitraUI.sendAdvisoryAnswer(
+    from,
+    animalAdvisoryLanguage,
+    animalReply
+  );
   logAI(from, userText, animalReply, "animal_husbandry").catch(function (error) {
     logSafeError("Animal advisory logging error.", error);
   });
@@ -9979,7 +9983,7 @@ if (detectedIntent === "weather") {
   const needsDistrict = await sendWeatherSheetReply(
     from,
     userText,
-    userLanguagePreferences[from] || "English"
+    currentResponseLanguage
   );
   if (needsDistrict) {
     userMenus[from] = {
@@ -10239,7 +10243,8 @@ console.log("Market district detection completed.", {
 
   await sendWhatsAppMessage(
     from,
-    finalReply
+    finalReply,
+    { responseLanguage: currentResponseLanguage }
   );
 
  logAI(
@@ -10520,18 +10525,13 @@ if (needExpert) {
    const responseText =
   expertConfirmation || aiReply;
 
-await sendWhatsAppMessage(
-  from,
-  responseText,
-  expertConfirmation
-    ? {}
-    : { skipPreferredLanguageConversion: true }
-);
-
-if (!expertConfirmation) {
-  await bhoomiMitraUI.sendAdvisoryNavigation(
+if (expertConfirmation) {
+  await sendWhatsAppMessage(from, responseText);
+} else {
+  await bhoomiMitraUI.sendAdvisoryAnswer(
     from,
-    preferredLanguage
+    advisoryLanguage,
+    responseText
   );
 }
 
@@ -13375,25 +13375,32 @@ async function getAIReply(
 }
 async function applyPreferredReplyLanguage(
   to,
-  text
+  text,
+  responseLanguage
 ) {
   const preferredLanguage =
+    responseLanguage ||
     userLanguagePreferences[to] ||
     "English";
-
-  if (
-    String(preferredLanguage)
-      .trim()
-      .toLowerCase() !==
-    "malayalam"
-  ) {
-    return text;
-  }
 
   const originalText =
     String(text || "").trim();
 
   if (!originalText) {
+    return originalText;
+  }
+
+  const targetLanguage =
+    String(preferredLanguage).trim().toLowerCase() === "malayalam"
+      ? "Malayalam"
+      : "English";
+  const sourceLanguage = resolveAdvisoryLanguage(
+    originalText,
+    targetLanguage,
+    "text"
+  );
+
+  if (sourceLanguage === targetLanguage) {
     return originalText;
   }
 
@@ -13406,9 +13413,9 @@ async function applyPreferredReplyLanguage(
           {
             role: "system",
             content:
-              "You are the Malayalam language layer for BhoomiMitra, " +
+              "You are the " + targetLanguage + " language layer for BhoomiMitra, " +
               "an agricultural extension assistant. " +
-              "Convert the supplied farmer-facing message into clear, natural Malayalam. " +
+              "Convert the supplied farmer-facing message into clear, natural " + targetLanguage + ". " +
               "Preserve all Case IDs, Farmer IDs, URLs, phone numbers, prices, quantities, " +
               "dates, units, scientific names, commands such as MENU, CLOSE and REPLY, " +
               "and technical abbreviations exactly. " +
@@ -13452,7 +13459,11 @@ async function sendWhatsAppMessage(
 
   const localizedText = options.skipPreferredLanguageConversion
     ? text
-    : await applyPreferredReplyLanguage(to, text);
+    : await applyPreferredReplyLanguage(
+        to,
+        text,
+        options.responseLanguage
+      );
 
   const response = await axios.post(
     url,

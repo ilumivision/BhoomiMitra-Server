@@ -2,12 +2,15 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const {
   ADVISORY_RESPONSE_RULES,
   buildAdvisoryPrompt,
   formatWhatsAppAdvisory,
-  resolveAdvisoryLanguage
+  resolveAdvisoryLanguage,
+  splitWhatsAppText
 } = require("../utils/advisory");
 const { createBhoomiMitraUI } = require("../utils/bhoomiMitraUI");
 
@@ -64,6 +67,28 @@ test("a one-off question language does not mutate the saved preference", functio
 
   assert.equal(replyLanguage, "English");
   assert.equal(farmer.preferredLanguage, "Malayalam");
+});
+
+test("weather, market, training and scheme routes use the current-question language", function () {
+  const source = fs.readFileSync(path.join(__dirname, "..", "index.js"), "utf8");
+
+  assert.match(source, /const currentResponseLanguage = resolveAdvisoryLanguage\(/);
+  assert.match(
+    source,
+    /sendWeatherSheetReply\(\s*from,\s*userText,\s*currentResponseLanguage\s*\)/
+  );
+  assert.match(
+    source,
+    /sendWhatsAppMessage\(\s*from,\s*finalReply,\s*\{ responseLanguage: currentResponseLanguage \}\s*\)/
+  );
+  assert.match(
+    source,
+    /naturalFeatureEntry === "TRAINING"[\s\S]*?sendTrainingHome\(\s*from,\s*currentResponseLanguage\s*\)/
+  );
+  assert.match(
+    source,
+    /naturalFeatureEntry === "SCHEMES"[\s\S]*?sendSchemesMenu\(\s*from,\s*currentResponseLanguage\s*\)/
+  );
 });
 
 test("ordinary advisory prompt is concise while complex safety advice stays complete", function () {
@@ -127,5 +152,45 @@ test("advisory completion offers one localized Main Menu button within Meta limi
   assert.equal(calls[1].interactive.action.buttons[0].reply.title, "🏠 പ്രധാന മെനു");
   assert.match(calls[0].interactive.body.text, /another question naturally/i);
   assert.match(calls[1].interactive.body.text, /മറ്റൊരു ചോദ്യം/);
+});
+
+test("short advisory answer and Main Menu control use one interactive message", async function () {
+  const { calls, ui } = uiHarness();
+  const answer = "🌾 Pepper flowers usually appear after suitable rain and new growth. Keep drainage clear and avoid excess nitrogen.";
+
+  await ui.sendAdvisoryAnswer("919000000000", "English", answer);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].type, "interactive");
+  assert.equal(calls[0].interactive.body.text, answer);
+  assert.deepEqual(
+    calls[0].interactive.action.buttons.map(function (button) {
+      return button.reply;
+    }),
+    [{ id: "NAV_HOME", title: "🏠 Main Menu" }]
+  );
+});
+
+test("long advisory text is split at readable boundaries before navigation", async function () {
+  const { calls, ui } = uiHarness();
+  const longAnswer = Array.from({ length: 90 }, function (_value, index) {
+    return "Recommendation " + (index + 1) + " keeps the farmer-facing explanation complete and safe.";
+  }).join(" ");
+
+  const chunks = splitWhatsAppText(longAnswer, 4096);
+  assert.ok(chunks.length > 1);
+  assert.equal(chunks.join(" "), longAnswer);
+  chunks.forEach(function (chunk) {
+    assert.ok(Array.from(chunk).length <= 4096);
+    assert.match(chunk, /[.!?]$/);
+  });
+
+  await ui.sendAdvisoryAnswer("919000000000", "Malayalam", longAnswer);
+  assert.equal(calls.length, chunks.length + 1);
+  calls.slice(0, -1).forEach(function (payload) {
+    assert.equal(payload.type, "text");
+    assert.ok(Array.from(payload.text.body).length <= 4096);
+  });
+  assert.equal(calls.at(-1).interactive.action.buttons[0].reply.id, "NAV_HOME");
 });
 

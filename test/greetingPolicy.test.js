@@ -43,7 +43,7 @@ test("registered farmer greetings use only the short Main Menu prompt", async fu
     calls[0].interactive.action.buttons.map(function (button) {
       return button.reply;
     }),
-    [{ id: "NAV_HOME", title: "Main Menu" }]
+    [{ id: "NAV_HOME", title: "🏠 Main Menu" }]
   );
   assert.match(calls[1].interactive.body.text, /ഇന്ന് നിങ്ങളെ എങ്ങനെ സഹായിക്കാം/);
   assert.doesNotMatch(JSON.stringify(calls), /Welcome|Welcome back/i);

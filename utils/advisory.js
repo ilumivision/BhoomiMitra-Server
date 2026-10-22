@@ -121,11 +121,52 @@ function formatWhatsAppAdvisory(value) {
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+function splitWhatsAppText(value, maximumLength) {
+  const limit = Number.isInteger(maximumLength) && maximumLength > 0
+    ? maximumLength
+    : 4096;
+  let remaining = String(value || "").trim();
+  const parts = [];
+
+  while (Array.from(remaining).length > limit) {
+    const candidate = Array.from(remaining).slice(0, limit).join("");
+    const minimumUsefulBreak = Math.floor(candidate.length * 0.6);
+    const breaks = ["\n\n", ". ", "? ", "! ", "\n", " "];
+    let splitAt = -1;
+    let delimiterLength = 0;
+
+    breaks.some(function (delimiter) {
+      const found = candidate.lastIndexOf(delimiter);
+      if (found >= minimumUsefulBreak) {
+        splitAt = found;
+        delimiterLength = delimiter === " " ? 0 : delimiter.length;
+        return true;
+      }
+      return false;
+    });
+
+    if (splitAt < 1) {
+      splitAt = candidate.length;
+    }
+
+    const end = splitAt + delimiterLength;
+    parts.push(remaining.slice(0, end).trim());
+    remaining = remaining.slice(end).trimStart();
+  }
+
+  if (remaining) {
+    parts.push(remaining);
+  }
+
+  return parts;
+}
+
 module.exports = {
   ADVISORY_RESPONSE_RULES,
   buildAdvisoryPrompt,
   formatWhatsAppAdvisory,
   languageInstruction,
   resolveAdvisoryLanguage,
-  savedLanguageOrFallback
+  savedLanguageOrFallback,
+  splitWhatsAppText
 };

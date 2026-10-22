@@ -34,6 +34,9 @@ const {
   buildUserGuideRows,
   buildUserGuideTopicText
 } = require("./userGuide");
+const {
+  splitWhatsAppText
+} = require("./advisory");
 
 // =====================================================
 // BhoomiMitra UI
@@ -203,7 +206,7 @@ function createBhoomiMitraUI(options) {
             type: "reply",
             reply: {
               id: "NAV_HOME",
-              title: ml ? "പ്രധാന മെനു" : "Main Menu"
+              title: ml ? "🏠 പ്രധാന മെനു" : "🏠 Main Menu"
             }
           }
         ]
@@ -314,7 +317,7 @@ async function sendMainMenu(
     lang !== "english";
 
   const bodyText = [
-    "BhoomiMitra – ഭൂമിമിത്ര",
+    "🌿 BhoomiMitra – ഭൂമിമിത്ര",
     "A Project of ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta",
     "Powered by IlumiVision",
     "",
@@ -324,16 +327,16 @@ async function sendMainMenu(
   ].join("\n");
 
   const items = [
-    ["HOME_ASK", "Crop Advisory", "വിള ഉപദേശം", "Questions, photos and crop diagnosis", "ചോദ്യങ്ങൾ, ചിത്രങ്ങൾ, വിള രോഗനിർണയം"],
-    [ANIMAL_ACTION_IDS.OPEN, "Animal Husbandry", "മൃഗസംരക്ഷണം", "Animal records, health and veterinary support", "മൃഗരേഖകൾ, ആരോഗ്യം, വെറ്ററിനറി സഹായം"],
-    ["HOME_FARM", "My Farm", "എന്റെ കൃഷിയിടം", "Land, crops, activities and satellite tools", "ഭൂമി, വിളകൾ, പ്രവർത്തനങ്ങൾ, സാറ്റലൈറ്റ് സേവനങ്ങൾ"],
-    ["FARM_WEATHER_ALERTS", "Weather & Alerts", "കാലാവസ്ഥ & അലർട്ടുകൾ", "Weather, rainfall and verified farm alerts", "കാലാവസ്ഥ, മഴ, സ്ഥിരീകരിച്ച കൃഷി അലർട്ടുകൾ"],
-    ["HOME_MARKET", "Market Intelligence", "വിപണി വിവരം", "Agricultural market-price information", "കാർഷിക വിപണി വില വിവരങ്ങൾ"],
-    ["HOME_EXPERT", "Experts & Training", "വിദഗ്ധർ & പരിശീലനം", "Crop and veterinary experts plus training", "വിള-മൃഗ വിദഗ്ധരും പരിശീലനവും"],
-    [SCHEME_ACTION_IDS.OPEN, "Government Schemes", "സർക്കാർ പദ്ധതികൾ", "Verified government-support information", "സ്ഥിരീകരിച്ച സർക്കാർ സഹായ വിവരങ്ങൾ"],
-    ["HOME_ENTERPRISE", "Enterprise & Services", "Enterprise & Services", "Skilled-worker and machinery directories", "വിദഗ്ധ തൊഴിലാളി, യന്ത്ര സേവന ഡയറക്ടറികൾ"],
-    ["HOME_PROFILE", "My Profile", "എന്റെ പ്രൊഫൈൽ", "Farmer records, ID, privacy and language", "കർഷക രേഖകൾ, ഐഡി, സ്വകാര്യത, ഭാഷ"],
-    ["HOME_MORE", "More Options", "കൂടുതൽ ഓപ്ഷനുകൾ", "About, Help / User Guide and Change Language", "വിവരവും സഹായവും ഭാഷ മാറ്റലും"]
+    ["HOME_ASK", "🌾 Crop Advisory", "🌾 വിള ഉപദേശം", "Questions, photos and crop diagnosis", "ചോദ്യങ്ങൾ, ചിത്രങ്ങൾ, വിള രോഗനിർണയം"],
+    [ANIMAL_ACTION_IDS.OPEN, "🐄 Animal Husbandry", "🐄 മൃഗസംരക്ഷണം", "Animal records, health and veterinary support", "മൃഗരേഖകൾ, ആരോഗ്യം, വെറ്ററിനറി സഹായം"],
+    ["HOME_FARM", "🌱 My Farm", "🌱 എന്റെ കൃഷിയിടം", "Land, crops, activities and satellite tools", "ഭൂമി, വിളകൾ, പ്രവർത്തനങ്ങൾ, സാറ്റലൈറ്റ് സേവനങ്ങൾ"],
+    ["FARM_WEATHER_ALERTS", "🌦️ Weather & Alerts", "🌦️ കാലാവസ്ഥ & അലർട്ട്", "Weather, rainfall and verified farm alerts", "കാലാവസ്ഥ, മഴ, സ്ഥിരീകരിച്ച കൃഷി അലർട്ടുകൾ"],
+    ["HOME_MARKET", "📊 Market Intelligence", "📊 വിപണി വിവരം", "Agricultural market-price information", "കാർഷിക വിപണി വില വിവരങ്ങൾ"],
+    ["HOME_EXPERT", "👨‍🌾 Experts & Training", "👨‍🌾 വിദഗ്ധർ & പരിശീലനം", "Crop and veterinary experts plus training", "വിള-മൃഗ വിദഗ്ധരും പരിശീലനവും"],
+    [SCHEME_ACTION_IDS.OPEN, "🏛️ Government Schemes", "🏛️ സർക്കാർ പദ്ധതികൾ", "Verified government-support information", "സ്ഥിരീകരിച്ച സർക്കാർ സഹായ വിവരങ്ങൾ"],
+    ["HOME_ENTERPRISE", "🚜 Enterprise & Services", "🚜 സംരംഭം & സേവനങ്ങൾ", "Skilled-worker and machinery directories", "വിദഗ്ധ തൊഴിലാളി, യന്ത്ര സേവന ഡയറക്ടറികൾ"],
+    ["HOME_PROFILE", "👤 My Profile", "👤 എന്റെ പ്രൊഫൈൽ", "Farmer records, ID, privacy and language", "കർഷക രേഖകൾ, ഐഡി, സ്വകാര്യത, ഭാഷ"],
+    ["HOME_MORE", "⚙️ More Options", "⚙️ കൂടുതൽ ഓപ്ഷനുകൾ", "About, Help / User Guide and Change Language", "വിവരവും സഹായവും ഭാഷ മാറ്റലും"]
   ];
 
   const rows = items.map(function (item) {
@@ -723,6 +726,58 @@ async function sendAdvisoryNavigation(to, language) {
       ]
     }
   });
+}
+
+async function sendAdvisoryAnswer(to, language, text) {
+  const answer = String(text || "").trim();
+  const isMalayalam =
+    String(language || "")
+      .toLowerCase() === "malayalam";
+  const navigationButton = {
+    type: "reply",
+    reply: {
+      id: "NAV_HOME",
+      title: isMalayalam
+        ? "🏠 പ്രധാന മെനു"
+        : "🏠 Main Menu"
+    }
+  };
+
+  if (Array.from(answer).length <= 1024) {
+    return sendInteractiveMessage(to, {
+      type: "button",
+      body: { text: answer },
+      action: { buttons: [navigationButton] }
+    });
+  }
+
+  const chunks = splitWhatsAppText(answer, 4096);
+  const results = [];
+
+  for (const chunk of chunks) {
+    results.push(await axios.post(
+      apiUrl,
+      {
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: to,
+        type: "text",
+        text: {
+          preview_url: false,
+          body: chunk
+        }
+      },
+      {
+        headers: {
+          Authorization: "Bearer " + whatsappToken,
+          "Content-Type": "application/json"
+        }
+      }
+    ));
+  }
+
+  results.push(await sendAdvisoryNavigation(to, language));
+  return results;
 }
 // ===================================================
 // MY FARM MENU
@@ -3549,6 +3604,7 @@ return {
   sendServiceMemberMenu,
   sendAskMenu,
   sendAdvisoryNavigation,
+  sendAdvisoryAnswer,
   sendFarmMenu,
   sendWeatherAlertsMenu,
   sendAnimalHusbandryMenu,

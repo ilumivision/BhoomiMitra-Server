@@ -18,13 +18,15 @@ const {
   CROP_FARM_ACTION_IDS
 } = require("../utils/cropFarmRecords");
 const {
-  ANIMAL_ACTION_IDS
+  ANIMAL_ACTION_IDS,
+  parseAnimalAction
 } = require("../utils/animalHusbandry");
 const {
   FARM_ALERT_ACTION_IDS
 } = require("../utils/farmAlerts");
 const {
-  SCHEME_ACTION_IDS
+  SCHEME_ACTION_IDS,
+  parseSchemeAction
 } = require("../utils/schemes");
 const {
   TRAINING_ACTION_IDS
@@ -66,6 +68,54 @@ test("final main menu exposes nine categories plus More Options", async function
     "HOME_PROFILE",
     "HOME_MORE"
   ]);
+});
+
+test("all ten main categories route to connected submenus with a home control", async function () {
+  const { calls, ui } = harness();
+  const navigationRoutes = new Map([
+    ["HOME_ASK", "ASK_MENU"],
+    ["HOME_FARM", "FARM_MENU"],
+    ["FARM_WEATHER_ALERTS", "WEATHER_ALERTS_MENU"],
+    ["HOME_MARKET", "MARKET_MENU"],
+    ["HOME_EXPERT", "EXPERT_MENU"],
+    ["HOME_ENTERPRISE", "ENTERPRISE_SERVICES_MENU"],
+    ["HOME_PROFILE", "PROFILE_MENU"],
+    ["HOME_MORE", "MAIN_MENU_MORE"]
+  ]);
+  navigationRoutes.forEach(function (expected, id) {
+    assert.equal(ui.getNavigationAction(id), expected, id);
+  });
+  assert.deepEqual(parseAnimalAction(ANIMAL_ACTION_IDS.OPEN), {
+    action: "OPEN",
+    id: ANIMAL_ACTION_IDS.OPEN
+  });
+  assert.deepEqual(parseSchemeAction(SCHEME_ACTION_IDS.OPEN), {
+    action: "OPEN"
+  });
+
+  await ui.sendAskMenu("919000000000", "English");
+  await ui.sendAnimalHusbandryMenu("919000000000", "English");
+  await ui.sendFarmMenu("919000000000", "English");
+  await ui.sendWeatherAlertsMenu("919000000000", "English");
+  await ui.sendMarketMenu("919000000000", "English");
+  await ui.sendExpertsTrainingMenu("919000000000", "English");
+  await ui.sendSchemesMenu("919000000000", "English");
+  await ui.sendEnterpriseServicesMenu("919000000000", "English");
+  await ui.sendProfileMenu("919000000000", "English");
+  await ui.sendMainMenuMore("919000000000", "English");
+
+  const homeIds = new Set([
+    "NAV_HOME",
+    ANIMAL_ACTION_IDS.MAIN_MENU,
+    SCHEME_ACTION_IDS.MAIN_MENU
+  ]);
+  calls.forEach(function (payload, index) {
+    const interactive = payload.interactive;
+    const ids = interactive.type === "list"
+      ? rows(payload).map(function (row) { return row.id; })
+      : interactive.action.buttons.map(function (button) { return button.reply.id; });
+    assert.ok(ids.some(function (id) { return homeIds.has(id); }), "submenu " + index);
+  });
 });
 
 test("My Farm is a six-route hub over existing modules", async function () {

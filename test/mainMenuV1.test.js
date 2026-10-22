@@ -53,16 +53,16 @@ test("registered farmer menu presents the ten approved options within WhatsApp l
 
   assert.deepEqual(rows(calls[0]).map(function (row) { return row.id; }), EXPECTED_MAIN_IDS);
   assert.deepEqual(rows(calls[0]).map(function (row) { return row.title; }), [
-    "Crop Advisory",
-    "Animal Husbandry",
-    "My Farm",
-    "Weather & Alerts",
-    "Market Intelligence",
-    "Experts & Training",
-    "Government Schemes",
-    "Enterprise & Services",
-    "My Profile",
-    "More Options"
+    "🌾 Crop Advisory",
+    "🐄 Animal Husbandry",
+    "🌱 My Farm",
+    "🌦️ Weather & Alerts",
+    "📊 Market Intelligence",
+    "👨‍🌾 Experts & Training",
+    "🏛️ Government Schemes",
+    "🚜 Enterprise & Services",
+    "👤 My Profile",
+    "⚙️ More Options"
   ]);
   assert.equal(rows(calls[0]).length, 10);
   assert.deepEqual(rows(calls[1]).map(function (row) { return row.id; }), [
@@ -81,7 +81,7 @@ test("main menu preserves approved institutional wording", async function () {
   await ui.sendMainMenu("919000000000", "English");
   const text = calls[0].interactive.body.text;
 
-  assert.match(text, /BhoomiMitra – ഭൂമിമിത്ര/);
+  assert.match(text, /🌿 BhoomiMitra – ഭൂമിമിത്ര/);
   assert.match(text, /A Project of ICAR–Krishi Vigyan Kendra, CARD, Pathanamthitta/);
   assert.match(text, /Powered by IlumiVision/);
 });
@@ -91,10 +91,10 @@ test("Malayalam is the menu default and explicit English switching remains avail
   await ui.sendMainMenu("919000000000");
   await ui.sendMainMenu("919000000000", "English");
 
-  assert.equal(rows(calls[0])[0].title, "വിള ഉപദേശം");
-  assert.equal(rows(calls[0])[8].title, "എന്റെ പ്രൊഫൈൽ");
-  assert.equal(rows(calls[1])[0].title, "Crop Advisory");
-  assert.equal(rows(calls[1])[8].title, "My Profile");
+  assert.equal(rows(calls[0])[0].title, "🌾 വിള ഉപദേശം");
+  assert.equal(rows(calls[0])[8].title, "👤 എന്റെ പ്രൊഫൈൽ");
+  assert.equal(rows(calls[1])[0].title, "🌾 Crop Advisory");
+  assert.equal(rows(calls[1])[8].title, "👤 My Profile");
 });
 
 test("new menu navigation IDs connect to dedicated submenus", function () {
